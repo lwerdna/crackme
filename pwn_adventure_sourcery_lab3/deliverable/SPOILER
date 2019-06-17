@@ -1,0 +1,86 @@
+The passing input is 9B916917-B6117336.
+
+You should be able to run $ echo '9b916917z-b6117336' | ./chall and pass, while any other input fails.
+
+The two input numbers make up a 64-bit block to a modified XTEA.
+
+The correct input must decipher to block 57415343-41484148 or 'CSAW-HAHA'.
+
+Here are the XTEA modifications.
+
+Vanilla XTEA with 32 rounds is:
+
+void decipher(uint32_t v[2], uint32_t const key[4]) {
+    unsigned int i;
+    uint32_t v0=v[0], v1=v[1], delta=0x9E3779B9, sum=delta*32;
+    for (i=0; i < 32; i++) {
+        v1 -= (((v0 << 4) ^ (v0 >> 5)) + v0) ^ (sum + key[(sum>>11) & 3]);
+        sum -= delta;
+        v0 -= (((v1 << 4) ^ (v1 >> 5)) + v1) ^ (sum + key[sum & 3]);
+    }
+    v[0]=v0; v[1]=v1;
+}
+
+First the sum and delta variables are removed, making the key schedule hardcoded, and the loop unrolled:
+
+void decipher2(uint32_t v[2], uint32_t const key[4]) {
+    unsigned int i;
+    uint32_t v0=v[0], v1=v[1];
+	v1 -= (((v0 << 4) ^ (v0 >> 5)) + v0) ^ (0x28B7BD67 + key[3]);
+	v0 -= (((v1 << 4) ^ (v1 >> 5)) + v1) ^ (0x8A8043AE + key[2]);
+	v1 -= (((v0 << 4) ^ (v0 >> 5)) + v0) ^ (0x8A8043AE + key[0]);
+	v0 -= (((v1 << 4) ^ (v1 >> 5)) + v1) ^ (0xEC48C9F5 + key[1]);
+	v1 -= (((v0 << 4) ^ (v0 >> 5)) + v0) ^ (0xEC48C9F5 + key[1]);
+	v0 -= (((v1 << 4) ^ (v1 >> 5)) + v1) ^ (0x4E11503C + key[0]);
+	v1 -= (((v0 << 4) ^ (v0 >> 5)) + v0) ^ (0x4E11503C + key[2]);
+	v0 -= (((v1 << 4) ^ (v1 >> 5)) + v1) ^ (0xAFD9D683 + key[3]);
+	...
+
+Next the 128-bit key is hardcoded to 0xDEADBEEF, 0xCAFEBABE, 0x8BADF00D, 0xC0D3D00D and the sums evaluated:
+
+void decipher3(uint32_t v[2]) {
+	unsigned int i;
+	uint32_t v0=v[0], v1=v[1];
+	v1 -= (((v0 << 4) ^ (v0 >> 5)) + v0) ^ 0x12913260A;
+	v0 -= (((v1 << 4) ^ (v1 >> 5)) + v1) ^ 0x137DBDD6F;
+	v1 -= (((v0 << 4) ^ (v0 >> 5)) + v0) ^ 0x1772CA820;
+	v0 -= (((v1 << 4) ^ (v1 >> 5)) + v1) ^ 0xD8F52E67;
+	v1 -= (((v0 << 4) ^ (v0 >> 5)) + v0) ^ 0x99A463B6;
+	v0 -= (((v1 << 4) ^ (v1 >> 5)) + v1) ^ 0x14E6CB8DF;
+	v1 -= (((v0 << 4) ^ (v0 >> 5)) + v0) ^ 0x13092C9FD;
+	v0 -= (((v1 << 4) ^ (v1 >> 5)) + v1) ^ 0x1925B5044;
+	...
+
+Notice that the key is no longer a function argument. It's present, acting as the cipher executes, but not in plaintext anywhere. This is now a very primitive whitebox scheme.
+
+Finally, I increased the number of rounds until 16k of code was generated, resulting in 371 rounds.
+
+I see successful solvers recognizing the simple Feistel structure and then recognizing XTEA immediately or searching around for simple ciphers until its found. I don't think you can work backwards, even with hardcoded key, but I have never fully grasped block ciphers.
+
+Then by comparing the xor operand to what it would be in the vanilla XTEA, they can subtract to get the hardcoded key.
+
+Finally they just encipher 'CSAW-HAHA' with 371 rounds on the recovered key, like this:
+
+#include <stdio.h>
+#include <stdint.h>
+void encipher(uint32_t v[2], uint32_t const key[4]) {
+    unsigned int i;
+    uint32_t v0=v[0], v1=v[1], sum=0, delta=0x9E3779B9;
+    for (i=0; i < 371; i++) {
+        v0 += (((v1 << 4) ^ (v1 >> 5)) + v1) ^ (sum + key[sum & 3]);
+        sum += delta;
+        v1 += (((v0 << 4) ^ (v0 >> 5)) + v0) ^ (sum + key[(sum>>11) & 3]);
+    }
+    v[0]=v0; v[1]=v1;
+}
+int main()
+{
+	uint32_t v[2];
+	uint32_t k[4] = {0xDEADBEEF, 0xCAFEBABE, 0x8BADF00D, 0xC0D3D00D};
+	v[0] = 0x57415343; // CSAW
+	v[1] = 0x41484148; // HAHA
+	encipher(v, k);
+	printf("%08X-%08X\n", v[0], v[1]);
+	return 0;
+}
+
