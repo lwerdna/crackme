@@ -33,24 +33,27 @@ code = \
 	'HJyCldoTyroCS1pAZt/aHJyCldoTyroCS1pAZt/aHJyCldoTyroCS1pAZt/aHJyCldoTyroCS1pAZt/' + \
 	'EYaBf43AH9AmA3/jAQAAEYaBf43AH9AmA3/jAQAAEYaBf43AH9AmA3/jAQAAEYaBf43AH9AmA3/jAQA'
 
+#
 # will deleting columns from the right work?
 N_ROWS = 24
 N_COLS = 79
 N_CHARS = N_ROWS * N_COLS
 lines = [code[i:i+N_COLS] for i in range(0, N_CHARS, N_COLS)]
 #print('\n'.join(lines))
-for i in range(1,50):
+for i in range(1,70):
 	lines2 = []
 	for line in lines:
-		#lines2.append(line[0:-i]) # from the right
-		lines2.append(line[i:]) # from the left
+		lines2.append(line[0:-i]) # from the right
+		#lines2.append(line[i:]) # from the left
 	#print('trying:')
 	#print('\n'.join(lines2))
 	code2 = ''.join(lines2)
 	try:
 		data = base64.b64decode(code2)
 		data2 = gzip.decompress(data)
-		print('truncating %d sized column worked' % i)
+		print('truncating %d sized column worked, dumping to test.bin' % i)
+		with open('test.bin', 'wb') as fp:
+			fp.write(data2)
 	except Exception as e:
 		pass
 
