@@ -1,0 +1,141 @@
+Blocky Challenge - Minecraft Circuit Analysis
+=============================================
+
+
+Creative Mode
+-------------
+
+When I opened the world, after I played it "legit" (i.e., flip the switch that taunts you with "Authorized Users Only..." and then get blown up by Creepers), I modified it to be in Creative mode. You don't *have* to be in Creative mode, but without it (and the corresponding ability to set it to Peaceful), hostile mobs will spawn at night, and all day in the lower depths of the circuit. Do yourself a favor and mod it to be in Creative mode. That is an exercise left to the reader...
+
+Also, once in creative mode, it's trivially easy to add or remove any type of block from the world. I stripped away the north half of the building so I could fly straight down to the switches, and I also removed the entire TNT cannon since it was covering the "signal bus" coming straight from the switches. Also, I removed the tamper-resistance line just because I didn't want it confusing me as I traced out the circuit.
+
+WARNING: while smashing away blocks, you might want to save the world frequently. *Especially* when removing the TNT cannon. The cannon requires water sources, and if you hack away blocks holding in the water, the flowing water will wash away Redstone and Redstone Torches. #LFMF
+
+But the most important reason to be in Creative mode is so that you can easily label your traces without having to acquire resources to make colored wool or whatever you use for your labeling scheme.
+
+
+Minecraft Cartography
+---------------------
+
+The sun rises in the North in Minecraft. That really doesn't matter, other than providing a common point of reference in this walkthrough. The switch-house is the Southern end of the circuit.
+
+
+Cliff's Notes Minecraft Circuits
+--------------------------------
+
+Circuits are made using Redstone Powder (often just called Redstone), Redstone Torches, Redstone Repeaters, and Switches. See http://www.minecraftwiki.net/wiki/Redstone_Circuits for more information.
+
+* Redstone Powder, or just Redstone, is the "current carrying" element, the wiring.
+* Redstone Torches (not to be confused with normal Torches) can power Redstone circuits. They burn indefinitely. They can also be switched on or off if they are mounted on top of or on the side of a block. This creates an inverter.
+* Switches and Redstone torches can only power a Redstone circuit for a distance of 15 blocks. Redstone Repeaters are like line buffers that will retransmit their input signal, allowing you to carry a circuit indefinitely as long as you space repeaters every 16 blocks or closer. Also, like electrical line buffers, they are unidirectional -- they act like diodes, passing the signal only in the direction of their "arrow".
+* Redstone Repeaters are also configurable delay elements. This behavior is not used in this circuit.
+
+
+Logic Gates Used in Blocky
+--------------------------
+
+Blocky only uses NOT, AND, and XOR gates. See http://www.minecraftwiki.net/wiki/Redstone_Circuits#Logic_gates if you are really interested in lots of ways of constructing logic gates in Minecraft. This image of the Southeastern-most corner of the circuit shows examples of AND and XOR gates:
+
+[[Image: blocky-00-gate-examples.png]]
+
+
+The Circuit
+===========
+
+Labeling
+--------
+
+I used colored wool blocks to come up with a color code for the circuit traces. The 4 gray-scale wool blocks (white, light-gray, dark-gray, and black) grouped 6 bits, and each line in the groups were denoted by Red, Orange, Yellow, Green, Blue, and Purple. I also found it helpful to use another visually distinctive block (such as Gold) to label a line that had been inverted prior to entering a logic gate. In my "colored wool" notation, Switch 'Bit 0' is White-Red, down to 'Bit 23' = Black-Purple.
+
+[[Image: blocky-01-labels.png]]
+
+First I labeled all the switches, then I traced out every line to the input of a logic gate. I followed all branches of the switch lines. I didn't bother labeling the outputs of logic gates because they were much easier to follow as busses than the input lines were. 
+
+At A Glance
+-----------
+If you fly up high and look down at the circuit, you'll see that the West side is 24 XOR gates, with their outputs being bussed together quite nicely North, along the Northern edge of the circuit, and then fanned out nicely to the gates on the East side. The East side is a collection of another 24 XOR gates, whose outputs are pairwise AND'ed together to a single line, the one that fires the TNT cannon.
+
+[[Image: blocky-02-overview.png]]
+
+So at the most basic level, the gates appear to describe the following equation
+
+   (a ⨁ b) ⨁ c  = 0xFFFFFF 
+
+where "a ⨁ b" is the West side XOR group, which is XOR'ed with c on the East side. a, b, and c are some unknown functions of the input word (switches).
+
+That describes all the uses of the AND and XOR gates, but what about the NOT gates? They just invert some of the inputs to the XOR gates. Realizing that XOR'ing with 1 is the same as inverting a bit (NOT) and XOR'ing with 0 is the same as, well, a wire or a no-op, we can collect up the inverters (and non-inverted lines) to form XOR masks on the input lines to the actual XOR gates. Thus we can see that our functions (a,b,c) are:
+
+  a = x ⨁ P
+  b = w ⨁ Q
+  c = z ⨁ R
+
+where P, Q, and R are constants, and x, w, and z are the input lines to the gates. So the circuit is now described by:
+
+  ((x ⨁ P) ⨁ (w ⨁ Q)) ⨁ (z ⨁ R) = 0xFFFFFF
+
+It's interesting to note that 3 of the 5 XOR functions in the above equations are not actually XOR gates in the circuit, but the circuit achieves the same effect. Well, it's interesting to me, at least.
+
+
+Assigning Names and Values
+--------------------------
+
+If you actually bothered to label EVERY input to every XOR gate like I did, it's stupid simple to assign names and numbers to the circuit. In my "colored wool" notation, Switch 'Bit 0' is White-Red, down to 'Bit 23' = Black-Purple.
+
+Starting on the West side XOR group, I chose the Southern-input (left, if you're looking at the input side of the gate) as "a", and the Northern (right) input as "b". Starting at the Northern-most end, you see !"White-Red" ⨁  !"DarkGray-Blue" (where '!' denotes NOT). That's !Bit0 ⨁ !Bit16. Moving over South to the next XOR gate, you see "White-Orange" ⨁ !"DarkGray-Purple", or Bit1 ⨁ !Bit17.
+
+[[Image: blocky-03-westdetail.png]]
+
+This pattern of XOR'ing Bit(n) with Bit(n+16 mod 24) -- ignoring the NOT's -- continues for the entire West side XOR gate group. Letting our 'x' represent the left-inputs of the gates, and 'w' represent the right inputs of the gates, x is just the input word, and w is the input word rotated left (circular shift left, barrel rotate left, whatever you want to call it) by 8 bits. In C, it could be written as:
+
+   uint32_t rotl24(uint32_t x, unsigned int n) {
+		x &= 0xFFFFFF;
+		return 0xFFFFFF & ((x << n) | (x >> (24 - n)));
+	}
+
+Collecting up the Gold block constants (where Gold blocks are 1, and no Gold block is 0), we find P = 0xC7F101 and Q = 0xC123AB. This looks promising. 0xC7F101... "CTF 101"... and 0xC123AB is just 0xABC123 left-rotated by 8 bits. We're on the right track.
+
+[[Image: blocky-04-west-xor.png]]
+
+Movin' on up to the East side (to a deluxe apartment in the sky... sorry), we see the bus of lines from the West side XOR gates fans back out in an orderly fashion without any more bit rotations or inverters (NOT gates), into the North input of each East side XOR gate. So only the Southern (right) inputs of the East XOR gates have any inversions.
+
+[[Image: blocky-05-east-xor.png]]
+
+Looking at Southern-most XOR gate on the East side, we see "LightGray-Blue" ⨁ [the output of the Northern-most West side XOR gate]. "LightGray-Blue" corresponds to Bit10, and after verifying the color pattern, we see that the East side XOR gates are just [West side XOR outputs] ⨁ rotl24(x, 14) (again, ignoring the NOTs on the rotated inputs). Collecting the XOR-mask bits, we find R = 0x505050. That looks like a sensible sentinel value, so let's assume we're still tracking correctly.
+
+
+The Equation
+============
+
+Okay, we're done with Minecraft for now. Our circuit can be described by the following equation:
+
+   ((x ⨁ 0xC7F101) ⨁ (w ⨁ 0xC123AB)) ⨁ (z ⨁ 0x505050) = 0xFFFFFF
+
+Now, since the equation only contains XOR's, and since XOR is commutative, let's rewrite and reduce this to:
+
+   x ⨁ w ⨁ z ⨁ 0xC7F101 ⨁ 0xC123AB ⨁ 0x505050 = 0xFFFFFF
+   x ⨁ w ⨁ z ⨁ 0x5682FA = 0xFFFFFF
+
+If we XOR both sides by 0x5682FA to eliminate it from the left hand side, we have:
+
+   x ⨁ w ⨁ z = 0xA97D05
+
+or
+
+   x ⨁ rotl24(x, 8) ⨁ rotl24(x, 14) = 0xA97D05
+
+Solve for x, set the switches correspondingly, and light the TNT cannon up. 
+
+A simple brute-force solver yields x = 0x37A8D8; this is the only value of x that will fire the cannon.
+
+
+Solving the Equation
+====================
+
+Let's write the equation as y = Ax, where y replaces the constant, both x and y are column vectors of the bits of the input and output, respectively, and A is the transformation matrix that describes the rotations in the original equation. Going bit-by-bit, we see that y[0] = x[0] ⨁ x[16] ⨁ x[10]. For the next bit of output, y[1] = x[1] ⨁ x[17] ⨁ x[11]. It's a pretty obvious pattern: y[n] = x[n] ⨁ x[n+16 (mod 24)] ⨁ x[n+10 (mod 24)]
+
+Observation: All of the even-order bits of the output are dependent upon only even-order bits of the input. In our equation, only the even-order bits keep to themselves, and the odd-order bits mingle with their own kind. This means that this 24-bit tranformation from x to y is functionally identical to interleaving (Mortonizing) the 12-bit transformation f' : x' -> y' = x' ⨁ rotl12(x', 4) ⨁ rotl12(x', 7) when applied separately to the even-order bits and the odd-order bits of the original 24-bit space. Thus, this isn't really a 24-bit problem at all. It's a 12-bit problem, just applied to two input values (that happen to be the de-interleaved bits of x), producing two output values and interleaving them to produce a 24-bit Morton number. If this were a 64-bit key we were looking for, reducing the problem to solving it for two 32-bit numbers would be critical to brute-forcing the answer within the timeframe of a CTF competition. As it is, 24 bits takes a fraction of a second to brute force. So it's interesting, but not necessary for solving.
+
+Anyways, back to the transformation matrix A. Using simple Gaussian Elimination to find the matrix B that gives x = By, we find that
+
+   x = rotl24(y, 4) ⨁ rotl24(y, 6) ⨁ rotl24(y, 8) ⨁ rotl24(y, 12) ⨁ rotl24(y, 14) ⨁ rotl24(y, 16) ⨁ rotl24(y, 18)
+

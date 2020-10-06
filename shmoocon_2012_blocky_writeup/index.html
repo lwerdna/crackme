@@ -1,0 +1,420 @@
+<html>
+ <head>
+  <title>Shmoocon 2012 Blocky Writeup</title>
+  <link rel="stylesheet" type="text/css" href="style_entry.css" />
+ </head>
+<h1>Shmoocon 2012 Blocky Writeup</h1>
+<hr>
+1&nbsp;<a href="#Intro">Intro</a><br>
+2&nbsp;<a href="#Minecraft_Analysis">Minecraft Analysis</a><br>
+2.1&nbsp;&nbsp;<a href="#Get_Creative">Get Creative</a><br>
+2.2&nbsp;&nbsp;<a href="#Minecraft_Circuits">Minecraft Circuits</a><br>
+2.3&nbsp;&nbsp;<a href="#Labelling">Labelling</a><br>
+3&nbsp;<a href="#Circuit_Analysis">Circuit Analysis</a><br>
+4&nbsp;<a href="#Solving">Solving</a><br>
+4.1&nbsp;&nbsp;<a href="#Keygenning_with_Linear_Algebra">Keygenning with Linear Algebra</a><br>
+4.2&nbsp;&nbsp;<a href="#Keygenning_with_SAT">Keygenning with SAT</a><br>
+5&nbsp;<a href="#Conclusion">Conclusion</a><br>
+<hr>
+
+
+
+
+
+
+<img style="margin:8px; float:right" src=./screenshot0.png />
+
+<a name="Intro" />
+<h2>1 Intro</h2>
+
+<p>
+The <a href="http://ghostintheshellcode.com">Ghost In The Shellcode</a> competition had a really cool
+challenge in the RE category called Blocky. It's a minecraft world where the game elements are used
+to perform a bitwise function on the input and compare the output to a fixed value. The correct
+input (inverse) is the "launch code" as requested by the level.
+</p>
+
+<p>
+My friend Scott has written an insane guide on how to extract
+the circuit from the game, and how to solve it using linear algebra. His complete writeup is <a href="./writeup.txt">here</a>
+and a slightly abridged version follows below. Then we'll solve it a second way by converting the
+circuit to a <a href="http://en.wikipedia.org/wiki/Boolean_satisfiability_problem">SAT</a> instance and 
+solving it with <a href="http://fmv.jku.at/picosat">picosat</a>.
+</p>
+
+<a name="Minecraft_Analysis" />
+<h2>2 Minecraft Analysis</h2>
+
+<a name="Get_Creative" />
+<h3>2.1 Get Creative</h3>
+
+
+<p>
+First, modify the world to be in Creative mode. Now it's trivially easy to add or remove any type of block from the world. I stripped away the north half of the building so I could fly straight down to the switches, and I also removed the entire TNT cannon since it was covering the "signal bus" coming straight from the switches. Also, I removed the tamper-resistance line just because I didn't want it confusing me as I traced out the circuit. But the most important reason to be in Creative mode is so that you can easily label your traces without having to acquire resources to make colored wool or whatever you use for your labeling scheme.
+</p>
+
+<a name="Minecraft_Circuits" />
+<h3>2.2 Minecraft Circuits</h3>
+
+
+<p>
+Circuits are made using Redstone Powder (often just called Redstone), Redstone Torches, Redstone Repeaters, and Switches. See <a href=http://www.minecraftwiki.net/wiki/Redstone_Circuits>this wiki link</a> for more information.
+</p>
+
+<ul>
+<li>Redstone Powder, or just Redstone, is the "current carrying" element, the wiring.
+<li>Redstone Torches (not to be confused with normal Torches) can power Redstone circuits. They burn indefinitely. They can also be switched on or off if they are mounted on top of or on the side of a block. This creates an inverter.
+<li>Switches and Redstone torches can only power a Redstone circuit for a distance of 15 blocks. Redstone Repeaters are like line buffers that will retransmit their input signal, allowing you to carry a circuit indefinitely as long as you space repeaters every 16 blocks or closer. Also, like electrical line buffers, they are unidirectional -- they act like diodes, passing the signal only in the direction of their "arrow".
+<li>Redstone Repeaters are also configurable delay elements. This behavior is not used in this circuit.
+<li>Blocky only uses NOT, AND, and XOR gates
+</ul>
+
+<img width=1000 src=./blocky-00-gate-examples.png />
+
+<a name="Labelling" />
+<h3>2.3 Labelling</h3>
+
+
+<p>
+I used colored wool blocks to come up with a color code for the circuit traces. The 4 gray-scale wool blocks (white, light-gray, dark-gray, and black) grouped 6 bits, and each line in the groups were denoted by Red, Orange, Yellow, Green, Blue, and Purple. I also found it helpful to use another visually distinctive block (such as Gold) to label a line that had been inverted prior to entering a logic gate. In my "colored wool" notation, Switch 'Bit 0' is White-Red, down to 'Bit 23' = Black-Purple.
+</p>
+
+<img width=1000 src=./blocky-01-labels.png />
+
+<p>
+First I labeled all the switches, then I traced out every line to the input of a logic gate. I followed all branches of the switch lines. I didn't bother labeling the outputs of logic gates because they were much easier to follow as busses than the input lines were. 
+</p>
+
+<a name="Circuit_Analysis" />
+<h2>3 Circuit Analysis</h2>
+
+
+<p>
+If you fly up high and look down at the circuit, you'll see that the West side is 24 XOR gates, with their outputs being bussed together quite nicely North, along the Northern edge of the circuit, and then fanned out nicely to the gates on the East side. The East side is a collection of another 24 XOR gates, whose outputs are pairwise AND'ed together to a single line, the one that fires the TNT cannon.
+</p>
+
+<img width=1000 src=./blocky-02-overview.png />
+
+<p>
+So at the most basic level, the gates appear to describe the following equation:
+</p>
+
+<div class="data">(a ^ b) ^ c = 0xFFFFFF</div>
+
+
+<p>
+where "a ^ b" is the West side XOR group, which is XOR'ed with c on the East side. a, b, and c are some unknown functions of the input word (switches).
+</p>
+
+<p>
+That describes all the uses of the AND and XOR gates, but what about the NOT gates? They just invert some of the inputs to the XOR gates. Realizing that XOR'ing with 1 is the same as inverting a bit (NOT) and XOR'ing with 0 is the same as, well, a wire or a no-op, we can collect up the inverters (and non-inverted lines) to form XOR masks on the input lines to the actual XOR gates. Thus we can see that our functions (a,b,c) are:
+</p>
+
+<div class="data">a = x ^ P
+b = w ^ Q
+c = z ^ R</div>
+
+
+<p>
+where P, Q, and R are constants, and x, w, and z are the input lines to the gates. So the circuit is now described by:
+</p>
+
+<div class="data">((x ^ P) ^ (w ^ Q)) ^ (x ^ R) = 0xFFFFFF</div>
+
+
+<p>
+Starting on the West side XOR group, I chose the Southern-input (left, if you're looking at the input side of the gate) as "a", and the Northern (right) input as "b". Starting at the Northern-most end, you see !"White-Red" ^  !"DarkGray-Blue" (where '!' denotes NOT). That's !Bit0 ^ !Bit16. Moving over South to the next XOR gate, you see "White-Orange" ^ !"DarkGray-Purple", or Bit1 ^ !Bit17.
+</p>
+
+<img width=1000 src=./blocky-03-westdetail.png>
+
+<p>
+This pattern of XOR'ing Bit(n) with Bit(n+16 mod 24) -- ignoring the NOT's -- continues for the entire West side XOR gate group. Letting our 'x' represent the left-inputs of the gates, and 'w' represent the right inputs of the gates, x is just the input word, and w is the input word rotated left (circular shift left, barrel rotate left, whatever you want to call it) by 8 bits. In C, it could be written as:
+</p>
+
+<table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre>1
+2
+3
+4
+5
+6</pre></div></td><td class="code"><div class="highlight"><pre><span class="kt">uint32_t</span> 
+<span class="nf">rotl24</span> <span class="p">(</span><span class="kt">uint32_t</span> <span class="n">x</span><span class="p">,</span> <span class="kt">unsigned</span> <span class="kt">int</span> <span class="n">n</span><span class="p">)</span> 
+<span class="p">{</span>
+    <span class="n">x</span> <span class="o">&amp;=</span> <span class="mh">0xFFFFFF</span><span class="p">;</span>
+    <span class="k">return</span> <span class="mh">0xFFFFFF</span> <span class="o">&amp;</span> <span class="p">((</span><span class="n">x</span> <span class="o">&lt;&lt;</span> <span class="n">n</span><span class="p">)</span> <span class="o">|</span> <span class="p">(</span><span class="n">x</span> <span class="o">&gt;&gt;</span> <span class="p">(</span><span class="mi">24</span> <span class="o">-</span> <span class="n">n</span><span class="p">)));</span>
+<span class="p">}</span>
+</pre></div>
+</td></tr></table>
+
+<p>
+Collecting up the Gold block constants (where Gold blocks are 1, and no Gold block is 0), we find P = 0xC7F101 and Q = 0xC123AB. This looks promising. 0xC7F101... "CTF 101"... and 0xC123AB is just 0xABC123 left-rotated by 8 bits. We're on the right track.
+</p>
+
+<img width=1000 src=./blocky-04-west-xor.png>
+
+<p>
+Movin' on up to the East side (to a deluxe apartment in the sky... sorry), we see the bus of lines from the West side XOR gates fans back out in an orderly fashion without any more bit rotations or inverters (NOT gates), into the North input of each East side XOR gate. So only the Southern (right) inputs of the East XOR gates have any inversions.
+</p>
+
+<img width=1000 src=./blocky-05-east-xor.png>
+
+<p>
+Looking at Southern-most XOR gate on the East side, we see "LightGray-Blue" ^ [the output of the Northern-most West side XOR gate]. "LightGray-Blue" corresponds to Bit10, and after verifying the color pattern, we see that the East side XOR gates are just [West side XOR outputs] ^ rotl24(x, 14) (again, ignoring the NOTs on the rotated inputs). Collecting the XOR-mask bits, we find R = 0x505050. That looks like a sensible sentinel value, so let's assume we're still tracking correctly.
+</p>
+
+<p>
+Okay, we're done with Minecraft for now. Our circuit can be described by the following equation:
+</p>
+
+<div class="data">((x ^ 0xC7F101) ^ (w ^ 0xC123AB)) ^ (z ^ 0x505050) = 0xFFFFFF</div>
+
+
+<a name="Solving" />
+<h2>4 Solving</h2>
+
+
+<p>
+Now, since the equation only contains XOR's, and since XOR is commutative, let's rewrite and reduce this to:
+</p>
+
+<div class="data">x ^ w ^ z ^ 0xC7F101 ^ 0xC123AB ^ 0x505050 = 0xFFFFFF
+x ^ w ^ z ^ 0x5682FA = 0xFFFFFF</div>
+
+
+<p>
+If we XOR both sides by 0x5682FA to eliminate it from the left hand side, we have:
+</p>
+
+<div class="data">x ^ w ^ z = 0xA97D05</div>
+
+
+<p>
+or
+</p>
+
+<div class="data">x ^ rotl24(x, 8) ^ rotl24(x, 14) = 0xA97D05</div>
+
+
+<p>
+Solve for x, set the switches correspondingly, and light the TNT cannon up. 
+</p>
+
+<p>
+A simple brute-force solver yields x = 0x37A8D8; this is the only value of x that will fire the cannon.
+</p>
+
+<p>
+Let's write the equation as y = Ax, where y replaces the constant, both x and y are column vectors of the bits of the input and output, respectively, and A is the transformation matrix that describes the rotations in the original equation. Going bit-by-bit, we see that y[0] = x[0] ^ x[16] ^ x[10]. For the next bit of output, y[1] = x[1] ^ x[17] ^ x[11]. It's a pretty obvious pattern: y[n] = x[n] ^ x[n+16 (mod 24)] ^ x[n+10 (mod 24)]
+</p>
+
+<p>
+Observation: All of the even-order bits of the output are dependent upon only even-order bits of the input. In our equation, only the even-order bits keep to themselves, and the odd-order bits mingle with their own kind. This means that this 24-bit tranformation from x to y is functionally identical to interleaving (Mortonizing) the 12-bit transformation f' : x' -&gt; y' = x' ^ rotl12(x', 4) ^ rotl12(x', 7) when applied separately to the even-order bits and the odd-order bits of the original 24-bit space. Thus, this isn't really a 24-bit problem at all. It's a 12-bit problem, just applied to two input values (that happen to be the de-interleaved bits of x), producing two output values and interleaving them to produce a 24-bit Morton number. If this were a 64-bit key we were looking for, reducing the problem to solving it for two 32-bit numbers would be critical to brute-forcing the answer within the timeframe of a CTF competition. As it is, 24 bits takes a fraction of a second to brute force. So it's interesting, but not necessary for solving.
+</p>
+
+<a name="Keygenning_with_Linear_Algebra" />
+<h3>4.1 Keygenning with Linear Algebra</h3>
+
+
+<p>
+Anyways, back to the transformation matrix A. Using simple Gaussian Elimination to find the matrix B that gives x = By, we find that:
+</p>
+
+<div class="data">x = rotl24(y, 4) ^ rotl24(y, 6) ^ rotl24(y, 8) ^ rotl24(y, 12) ^ rotl24(y, 14) ^ rotl24(y, 16) ^ rotl24(y, 18)</div>
+
+
+<p>
+A keygen that doesn't reduce this far and leaves it in matrix multiply form is available <a href="./keygen.py">here</a>
+</p>
+
+<a name="Keygenning_with_SAT" />
+<h3>4.2 Keygenning with SAT</h3>
+
+
+<p>
+XOR'ing the x and the two rotations, we can write an equation for each bit of the output 
+(targetting 0xA97D05)
+</p>
+
+<div class="data">1=((x0^x16)^x10)
+0=((x1^x17)^x11)
+1=((x2^x18)^x12)
+0=((x3^x19)^x13)
+0=((x4^x20)^x14)
+0=((x5^x21)^x15)
+0=((x6^x22)^x16)
+0=((x7^x23)^x17)
+1=((x8^x0)^x18)
+0=((x9^x1)^x19)
+1=((x10^x2)^x20)
+1=((x11^x3)^x21)
+1=((x12^x4)^x22)
+1=((x13^x5)^x23)
+1=((x14^x6)^x0)
+0=((x15^x7)^x1)
+1=((x16^x8)^x2)
+0=((x17^x9)^x3)
+0=((x18^x10)^x4)
+1=((x19^x11)^x5)
+0=((x20^x12)^x6)
+1=((x21^x13)^x7)
+0=((x22^x14)^x8)
+1=((x23^x15)^x9)</div>
+
+
+<p>
+Now for every gate is introduced a new variable representing its
+output. Then a precomputed CNF is substituted that evaluates to true
+when the gate is operating properly. This is called the 
+Tseitin transformation and I threw up a description and a small example on
+<a href="http://en.wikipedia.org/wiki/Tseitin-Transformation">Wikipedia</a>.
+</p>
+
+<p>
+The new formula is equisatisfiable and has more
+variables the the original, but its length has grown linearly compared
+to the input formula, vs using De-Morgan and distribution laws which
+can have exponential expansion of the input formula. The final "top
+output" of each new circuit can then be placed in its own clause
+(possibly complemented) to aim it at a particular output.
+</p>
+
+<p>
+Equation 0 converts to:
+</p>
+
+<div class="data">(gate2*(/gate1+x10+gate2)*(/x10+gate1+gate2)*(x10+gate1+/gate2)*
+(/gate1+/x10+/gate2)*(/x0+x16+gate1)*(/x16+x0+gate1)*(x16+x0+/gate1)*(/x0+/x16+/gate1))</div>
+
+
+<p>
+Equation 1 converts to:
+</p>
+
+<div class="data">(/gate4*(/gate3+x11+gate4)*(/x11+gate3+gate4)*(x11+gate3+/gate4)*
+(/gate3+/x11+/gate4)*(/x1+x17+gate3)*(/x17+x1+gate3)*(x17+x1+/gate3)*(/x1+/x17+/gate3))</div>
+
+
+<p>
+And so on for <a href="./conversions.txt">all 24 equations</a>.
+Since all of these must be true at the same time, you can just "AND"
+them all together, resulting in:
+
+<div class="data">(gate30*
+(/gate2F+x9+gate30) *(/x9+gate2F+gate30) *(x9+gate2F+/gate30) *(/gate2F+/x9+/gate30)  *
+(/x23+x15+gate2F)   *(/x15+x23+gate2F)   *(x15+x23+/gate2F)   *(/x23+/x15+/gate2F)    */gate2E*
+(/gate2D+x8+gate2E) *(/x8+gate2D+gate2E) *(x8+gate2D+/gate2E) *(/gate2D+/x8+/gate2E)  *
+(/x22+x14+gate2D)   *(/x14+x22+gate2D)   *(x14+x22+/gate2D)   *(/x22+/x14+/gate2D)    *gate2C*
+(/gate2B+x7+gate2C) *(/x7+gate2B+gate2C) *(x7+gate2B+/gate2C) *(/gate2B+/x7+/gate2C)  *
+(/x21+x13+gate2B)   *(/x13+x21+gate2B)   *(x13+x21+/gate2B)   *(/x21+/x13+/gate2B)    */gate2A*
+(/gate29+x6+gate2A) *(/x6+gate29+gate2A) *(x6+gate29+/gate2A) *(/gate29+/x6+/gate2A)  *
+(/x20+x12+gate29)   *(/x12+x20+gate29)   *(x12+x20+/gate29)   *(/x20+/x12+/gate29)    *gate28*
+(/gate27+x5+gate28) *(/x5+gate27+gate28) *(x5+gate27+/gate28) *(/gate27+/x5+/gate28)  *
+(/x19+x11+gate27)   *(/x11+x19+gate27)   *(x11+x19+/gate27)   *(/x19+/x11+/gate27)    */gate26*
+(/gate25+x4+gate26) *(/x4+gate25+gate26) *(x4+gate25+/gate26) *(/gate25+/x4+/gate26)  *
+(/x18+x10+gate25)   *(/x10+x18+gate25)   *(x10+x18+/gate25)   *(/x18+/x10+/gate25)    */gate24*
+(/gate23+x3+gate24) *(/x3+gate23+gate24) *(x3+gate23+/gate24) *(/gate23+/x3+/gate24)  *
+(/x17+x9+gate23)    *(/x9+x17+gate23)    *(x9+x17+/gate23)    *(/x17+/x9+/gate23)     *gate22*
+(/gate21+x2+gate22) *(/x2+gate21+gate22) *(x2+gate21+/gate22) *(/gate21+/x2+/gate22)  *
+(/x16+x8+gate21)    *(/x8+x16+gate21)    *(x8+x16+/gate21)    *(/x16+/x8+/gate21)     */gate20*
+(/gate1F+x1+gate20) *(/x1+gate1F+gate20) *(x1+gate1F+/gate20) *(/gate1F+/x1+/gate20)  *
+(/x15+x7+gate1F)    *(/x7+x15+gate1F)    *(x7+x15+/gate1F)    *(/x15+/x7+/gate1F)     *gate1E*
+(/gate1D+x0+gate1E) *(/x0+gate1D+gate1E) *(x0+gate1D+/gate1E) *(/gate1D+/x0+/gate1E)  *
+(/x14+x6+gate1D)    *(/x6+x14+gate1D)    *(x6+x14+/gate1D)    *(/x14+/x6+/gate1D)     *gate1C*
+(/gate1B+x23+gate1C)*(/x23+gate1B+gate1C)*(x23+gate1B+/gate1C)*(/gate1B+/x23+/gate1C) *
+(/x13+x5+gate1B)    *(/x5+x13+gate1B)    *(x5+x13+/gate1B)    *(/x13+/x5+/gate1B)     *gate1A*
+(/gate19+x22+gate1A)*(/x22+gate19+gate1A)*(x22+gate19+/gate1A)*(/gate19+/x22+/gate1A) *
+(/x12+x4+gate19)    *(/x4+x12+gate19)    *(x4+x12+/gate19)    *(/x12+/x4+/gate19)     *gate18*
+(/gate17+x21+gate18)*(/x21+gate17+gate18)*(x21+gate17+/gate18)*(/gate17+/x21+/gate18) *
+(/x11+x3+gate17)    *(/x3+x11+gate17)    *(x3+x11+/gate17)    *(/x11+/x3+/gate17)     *gate16*
+(/gate15+x20+gate16)*(/x20+gate15+gate16)*(x20+gate15+/gate16)*(/gate15+/x20+/gate16) *
+(/x10+x2+gate15)    *(/x2+x10+gate15)    *(x2+x10+/gate15)    *(/x10+/x2+/gate15)     */gate14*
+(/gate13+x19+gate14)*(/x19+gate13+gate14)*(x19+gate13+/gate14)*(/gate13+/x19+/gate14) *
+(/x9+x1+gate13)     *(/x1+x9+gate13)     *(x1+x9+/gate13)     *(/x9+/x1+/gate13)      *gate12*
+(/gate11+x18+gate12)*(/x18+gate11+gate12)*(x18+gate11+/gate12)*(/gate11+/x18+/gate12) *
+(/x8+x0+gate11)     *(/x0+x8+gate11)     *(x0+x8+/gate11)     *(/x8+/x0+/gate11)      */gate10*
+(/gateF+x17+gate10) *(/x17+gateF+gate10) *(x17+gateF+/gate10) *(/gateF+/x17+/gate10)  *
+(/x7+x23+gateF)     *(/x23+x7+gateF)     *(x23+x7+/gateF)     *(/x7+/x23+/gateF)      */gateE*
+(/gateD+x16+gateE)  *(/x16+gateD+gateE)  *(x16+gateD+/gateE)  *(/gateD+/x16+/gateE)   *
+(/x6+x22+gateD)     *(/x22+x6+gateD)     *(x22+x6+/gateD)     *(/x6+/x22+/gateD)      */gateC*
+(/gateB+x15+gateC)  *(/x15+gateB+gateC)  *(x15+gateB+/gateC)  *(/gateB+/x15+/gateC)   *
+(/x5+x21+gateB)     *(/x21+x5+gateB)     *(x21+x5+/gateB)     *(/x5+/x21+/gateB)      */gateA*
+(/gate9+x14+gateA)  *(/x14+gate9+gateA)  *(x14+gate9+/gateA)  *(/gate9+/x14+/gateA)   *
+(/x4+x20+gate9)     *(/x20+x4+gate9)     *(x20+x4+/gate9)     *(/x4+/x20+/gate9)      */gate8*
+(/gate7+x13+gate8)  *(/x13+gate7+gate8)  *(x13+gate7+/gate8)  *(/gate7+/x13+/gate8)   *
+(/x3+x19+gate7)     *(/x19+x3+gate7)     *(x19+x3+/gate7)     *(/x3+/x19+/gate7)      *gate6*
+(/gate5+x12+gate6)  *(/x12+gate5+gate6)  *(x12+gate5+/gate6)  *(/gate5+/x12+/gate6)   *
+(/x2+x18+gate5)     *(/x18+x2+gate5)     *(x18+x2+/gate5)     *(/x2+/x18+/gate5)      */gate4*
+(/gate3+x11+gate4)  *(/x11+gate3+gate4)  *(x11+gate3+/gate4)  *(/gate3+/x11+/gate4)   *
+(/x1+x17+gate3)     *(/x17+x1+gate3)     *(x17+x1+/gate3)     *(/x1+/x17+/gate3)*gate2*
+(/gate1+x10+gate2)  *(/x10+gate1+gate2)  *(x10+gate1+/gate2)  *(/gate1+/x10+/gate2)   *
+(/x0+x16+gate1)     *(/x16+x0+gate1)     *(x16+x0+/gate1)     *(/x0+/x16+/gate1))</div>
+
+
+<p>
+Cool formula huh? There are 72 variables and 216 clauses. It's
+definitely in CNF. The only thing left to do is <a href="./blocky.dimacs">put it in DIMACS
+format</a> so that a sat solver can actually consume it and produce us an
+answer! Given to Picosat, the output is:
+</p>
+
+<div class="data">s SATISFIABLE
+v 1 -2 -3 4 -5 -6 -7 8 -9 10 11 12 13 14 15 16 -17 18 -19 20 21 22 -23 24 -25
+v 26 27 28 -29 -30 31 -32 -33 34 35 36 -37 38 39 40 -41 -42 -43 44 -45 46 -47
+v 48 -49 -50 -51 52 -53 54 -55 56 57 58 59 -60 -61 62 63 -64 -65 66 67 -68 69
+v 70 -71 -72 0</div>
+
+
+<p>
+The integers [1,72] refer to the variables we made. Positive values
+mean "true" while negative values mean "false". We discard
+assignments to the dummy "gate" variables which leaves us with:
+</p>
+
+<div class="data">x0: 0, x1: 0, x10: 0, x11: 1, x12: 0, x13: 1, x14: 0, x15: 1, x16: 1, x17: 1, x18: 1, 
+x19: 0, x2: 0, x20: 1, x21: 1, x22: 0, x23: 0, x3: 1, x4: 1, x5: 0, x6: 1, x7: 1, x8: 0, x9: 0</div>
+
+
+<p>
+Ordering the bits to get 001101111010100011011000.
+Separate the nibbles to get 0011-0111-1010-1000-1101-1000.
+Convert to hex to get 0x37A8D8.
+</p>
+
+<a name="Conclusion" />
+<h2>5 Conclusion</h2>
+
+
+<p>
+When Scott showed me this challenge and what he found inside, I got pretty excited and thought of all
+the times I intended on learning about and applying SAT solving.
+</p>
+
+<p>
+I thought that if you could frame a problem as a boolean equation requiring a satisfying assignment,
+you'd essentially be done. SAT solvers admit problems consisting of and's and or's, so maybe some 
+manipulation would be required to fit the equation into an expected form (CNF). Well that manipulation 
+can be very difficult. De Morgan's law potentially
+expands equations exponentially in size.
+</p>
+
+<p>
+The answer is Tseitin transformation. Counter-intuitively, it adds even more variables to the mix, but
+does not balloon the equation size like repeated application of De Morgan's law. Essentially, a output
+equation is constructed with CNF expressions that enforce that the input equation's operators are 
+behaving properly.
+</p>
+
+<p>
+From this point, actual solving is deferred to whatever SAT solver you choose. I've found picosat to
+be very simple to compile and use.
+</p>
+
+<p>
+It's fun to think about: with a SAT solver at one's disposal, you gain a sort of a flanking attack 
+option against a huge set of problems. Instead of directly solving, you instead solve the alternate 
+problem of finding a good translation, or encoding, of that problem into a SAT instance.
+</p>
+<hr>
+created: 2012-02-07<br>
+modified: 2012-03-21<br>
+</html>

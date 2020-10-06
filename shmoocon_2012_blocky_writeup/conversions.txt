@@ -1,0 +1,48 @@
+equation 0 converts to:
+(gate2*(/gate1+x10+gate2)*(/x10+gate1+gate2)*(x10+gate1+/gate2)*(/gate1+/x10+/gate2)*(/x0+x16+gate1)*(/x16+x0+gate1)*(x16+x0+/gate1)*(/x0+/x16+/gate1))
+equation 1 converts to:
+(/gate4*(/gate3+x11+gate4)*(/x11+gate3+gate4)*(x11+gate3+/gate4)*(/gate3+/x11+/gate4)*(/x1+x17+gate3)*(/x17+x1+gate3)*(x17+x1+/gate3)*(/x1+/x17+/gate3))
+equation 2 converts to:
+(gate6*(/gate5+x12+gate6)*(/x12+gate5+gate6)*(x12+gate5+/gate6)*(/gate5+/x12+/gate6)*(/x2+x18+gate5)*(/x18+x2+gate5)*(x18+x2+/gate5)*(/x2+/x18+/gate5))
+equation 3 converts to:
+(/gate8*(/gate7+x13+gate8)*(/x13+gate7+gate8)*(x13+gate7+/gate8)*(/gate7+/x13+/gate8)*(/x3+x19+gate7)*(/x19+x3+gate7)*(x19+x3+/gate7)*(/x3+/x19+/gate7))
+equation 4 converts to:
+(/gateA*(/gate9+x14+gateA)*(/x14+gate9+gateA)*(x14+gate9+/gateA)*(/gate9+/x14+/gateA)*(/x4+x20+gate9)*(/x20+x4+gate9)*(x20+x4+/gate9)*(/x4+/x20+/gate9))
+equation 5 converts to:
+(/gateC*(/gateB+x15+gateC)*(/x15+gateB+gateC)*(x15+gateB+/gateC)*(/gateB+/x15+/gateC)*(/x5+x21+gateB)*(/x21+x5+gateB)*(x21+x5+/gateB)*(/x5+/x21+/gateB))
+equation 6 converts to:
+(/gateE*(/gateD+x16+gateE)*(/x16+gateD+gateE)*(x16+gateD+/gateE)*(/gateD+/x16+/gateE)*(/x6+x22+gateD)*(/x22+x6+gateD)*(x22+x6+/gateD)*(/x6+/x22+/gateD))
+equation 7 converts to:
+(/gate10*(/gateF+x17+gate10)*(/x17+gateF+gate10)*(x17+gateF+/gate10)*(/gateF+/x17+/gate10)*(/x7+x23+gateF)*(/x23+x7+gateF)*(x23+x7+/gateF)*(/x7+/x23+/gateF))
+equation 8 converts to:
+(gate12*(/gate11+x18+gate12)*(/x18+gate11+gate12)*(x18+gate11+/gate12)*(/gate11+/x18+/gate12)*(/x8+x0+gate11)*(/x0+x8+gate11)*(x0+x8+/gate11)*(/x8+/x0+/gate11))
+equation 9 converts to:
+(/gate14*(/gate13+x19+gate14)*(/x19+gate13+gate14)*(x19+gate13+/gate14)*(/gate13+/x19+/gate14)*(/x9+x1+gate13)*(/x1+x9+gate13)*(x1+x9+/gate13)*(/x9+/x1+/gate13))
+equation 10 converts to:
+(gate16*(/gate15+x20+gate16)*(/x20+gate15+gate16)*(x20+gate15+/gate16)*(/gate15+/x20+/gate16)*(/x10+x2+gate15)*(/x2+x10+gate15)*(x2+x10+/gate15)*(/x10+/x2+/gate15))
+equation 11 converts to:
+(gate18*(/gate17+x21+gate18)*(/x21+gate17+gate18)*(x21+gate17+/gate18)*(/gate17+/x21+/gate18)*(/x11+x3+gate17)*(/x3+x11+gate17)*(x3+x11+/gate17)*(/x11+/x3+/gate17))
+equation 12 converts to:
+(gate1A*(/gate19+x22+gate1A)*(/x22+gate19+gate1A)*(x22+gate19+/gate1A)*(/gate19+/x22+/gate1A)*(/x12+x4+gate19)*(/x4+x12+gate19)*(x4+x12+/gate19)*(/x12+/x4+/gate19))
+equation 13 converts to:
+(gate1C*(/gate1B+x23+gate1C)*(/x23+gate1B+gate1C)*(x23+gate1B+/gate1C)*(/gate1B+/x23+/gate1C)*(/x13+x5+gate1B)*(/x5+x13+gate1B)*(x5+x13+/gate1B)*(/x13+/x5+/gate1B))
+equation 14 converts to:
+(gate1E*(/gate1D+x0+gate1E)*(/x0+gate1D+gate1E)*(x0+gate1D+/gate1E)*(/gate1D+/x0+/gate1E)*(/x14+x6+gate1D)*(/x6+x14+gate1D)*(x6+x14+/gate1D)*(/x14+/x6+/gate1D))
+equation 15 converts to:
+(/gate20*(/gate1F+x1+gate20)*(/x1+gate1F+gate20)*(x1+gate1F+/gate20)*(/gate1F+/x1+/gate20)*(/x15+x7+gate1F)*(/x7+x15+gate1F)*(x7+x15+/gate1F)*(/x15+/x7+/gate1F))
+equation 16 converts to:
+(gate22*(/gate21+x2+gate22)*(/x2+gate21+gate22)*(x2+gate21+/gate22)*(/gate21+/x2+/gate22)*(/x16+x8+gate21)*(/x8+x16+gate21)*(x8+x16+/gate21)*(/x16+/x8+/gate21))
+equation 17 converts to:
+(/gate24*(/gate23+x3+gate24)*(/x3+gate23+gate24)*(x3+gate23+/gate24)*(/gate23+/x3+/gate24)*(/x17+x9+gate23)*(/x9+x17+gate23)*(x9+x17+/gate23)*(/x17+/x9+/gate23))
+equation 18 converts to:
+(/gate26*(/gate25+x4+gate26)*(/x4+gate25+gate26)*(x4+gate25+/gate26)*(/gate25+/x4+/gate26)*(/x18+x10+gate25)*(/x10+x18+gate25)*(x10+x18+/gate25)*(/x18+/x10+/gate25))
+equation 19 converts to:
+(gate28*(/gate27+x5+gate28)*(/x5+gate27+gate28)*(x5+gate27+/gate28)*(/gate27+/x5+/gate28)*(/x19+x11+gate27)*(/x11+x19+gate27)*(x11+x19+/gate27)*(/x19+/x11+/gate27))
+equation 20 converts to:
+(/gate2A*(/gate29+x6+gate2A)*(/x6+gate29+gate2A)*(x6+gate29+/gate2A)*(/gate29+/x6+/gate2A)*(/x20+x12+gate29)*(/x12+x20+gate29)*(x12+x20+/gate29)*(/x20+/x12+/gate29))
+equation 21 converts to:
+(gate2C*(/gate2B+x7+gate2C)*(/x7+gate2B+gate2C)*(x7+gate2B+/gate2C)*(/gate2B+/x7+/gate2C)*(/x21+x13+gate2B)*(/x13+x21+gate2B)*(x13+x21+/gate2B)*(/x21+/x13+/gate2B))
+equation 22 converts to:
+(/gate2E*(/gate2D+x8+gate2E)*(/x8+gate2D+gate2E)*(x8+gate2D+/gate2E)*(/gate2D+/x8+/gate2E)*(/x22+x14+gate2D)*(/x14+x22+gate2D)*(x14+x22+/gate2D)*(/x22+/x14+/gate2D))
+equation 23 converts to:
+(gate30*(/gate2F+x9+gate30)*(/x9+gate2F+gate30)*(x9+gate2F+/gate30)*(/gate2F+/x9+/gate30)*(/x23+x15+gate2F)*(/x15+x23+gate2F)*(x15+x23+/gate2F)*(/x23+/x15+/gate2F))
