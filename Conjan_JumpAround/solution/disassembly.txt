@@ -1,0 +1,767 @@
+.text:004019C8 sub_4019C8 proc near                            ; CODE XREF: _TForm3_SpeedButton1Click+14p
+.text:004019C8                                                 ; _TForm3_SpeedButton3Click+14p
+.text:004019C8
+.text:004019C8 third_result= qword ptr -0CCh
+.text:004019C8 dw1     = dword ptr -0B8h
+.text:004019C8 dw2     = dword ptr -0B4h
+.text:004019C8 dw3     = dword ptr -0B0h
+.text:004019C8 dw4     = dword ptr -0ACh
+.text:004019C8 dw5     = dword ptr -0A8h
+.text:004019C8 dw6     = dword ptr -0A4h
+.text:004019C8 dw7     = dword ptr -0A0h
+.text:004019C8 other_side_char= dword ptr -9Ch
+.text:004019C8 current_char= dword ptr -98h
+.text:004019C8 first_result= qword ptr -94h
+.text:004019C8 init0_  = byte ptr -89h
+.text:004019C8 compareB= qword ptr -88h
+.text:004019C8 compareA= qword ptr -80h
+.text:004019C8 _0_thru_5= dword ptr -78h
+.text:004019C8 loopvar = dword ptr -74h
+.text:004019C8 current_DW= dword ptr -70h
+.text:004019C8 init6   = dword ptr -6Ch
+.text:004019C8 init5   = dword ptr -68h
+.text:004019C8 init4   = dword ptr -64h
+.text:004019C8 init3   = dword ptr -60h
+.text:004019C8 init2   = dword ptr -5Ch
+.text:004019C8 init1   = dword ptr -58h
+.text:004019C8 init0   = dword ptr -54h
+.text:004019C8 var_50  = dword ptr -50h
+.text:004019C8 var_4C  = dword ptr -4Ch
+.text:004019C8 var_48  = dword ptr -48h
+.text:004019C8 wtf     = word ptr -38h
+.text:004019C8 varIncremented= dword ptr -2Ch
+.text:004019C8 singleCharString= byte ptr -24h
+.text:004019C8 string0 = byte ptr -20h
+.text:004019C8 strDashChar= byte ptr -1Ch
+.text:004019C8 serial  = byte ptr -18h
+.text:004019C8 pString = byte ptr -14h
+.text:004019C8 var_10  = byte ptr -10h
+.text:004019C8 serialCopy_= byte ptr -0Ch
+.text:004019C8 serialCopy= byte ptr -8
+.text:004019C8 pStringCopy= dword ptr -4
+.text:004019C8
+.text:004019C8         nop
+.text:004019C9         push    ebp
+.text:004019CA         mov     ebp, esp
+.text:004019CC         add     esp, 0FFFFFF48h
+.text:004019D2         push    ebx
+.text:004019D3         push    esi
+.text:004019D4         push    edi
+.text:004019D5         mov     [ebp+var_50], edx
+.text:004019D8         mov     [ebp+var_4C], eax
+.text:004019DB         mov     eax, offset stru_49E3F4
+.text:004019E0         call    @__InitExceptBlockLDTC
+.text:004019E5         xor     edx, edx
+.text:004019E7         mov     [ebp+init0], edx
+.text:004019EA         mov     [ebp+init1], 1
+.text:004019F1         mov     [ebp+init2], 2
+.text:004019F8         mov     [ebp+init3], 3
+.text:004019FF         mov     [ebp+init4], 4
+.text:00401A06         mov     [ebp+init5], 5
+.text:00401A0D         mov     [ebp+init6], 6
+.text:00401A14         mov     [ebp+wtf], 0Ch
+.text:00401A1A         lea     eax, [ebp+pStringCopy]
+.text:00401A1D         call    subExceptionStuff
+.text:00401A22         inc     [ebp+varIncremented]
+.text:00401A25         mov     [ebp+wtf], 18h
+.text:00401A2B         mov     [ebp+wtf], 24h
+.text:00401A31         lea     eax, [ebp+serialCopy]
+.text:00401A34         call    subExceptionStuff
+.text:00401A39         inc     [ebp+varIncremented]
+.text:00401A3C         mov     [ebp+wtf], 18h
+.text:00401A42         mov     [ebp+wtf], 30h
+.text:00401A48         lea     eax, [ebp+serialCopy_]
+.text:00401A4B         call    subExceptionStuff
+.text:00401A50
+.text:00401A50 loc_401A50:                                     ; CODE XREF: .text:00402ADDj
+.text:00401A50         inc     [ebp+varIncremented]
+.text:00401A53         mov     [ebp+wtf], 18h
+.text:00401A59         cmp     [ebp+var_50], 1                 ; was a 2 (hardcore?)
+.text:00401A5D         jnz     hardcore_mode                   ; taken
+.text:00401A63
+.text:00401A63 easy_mode:
+.text:00401A63         mov     [ebp+wtf], 3Ch
+.text:00401A69         lea     eax, [ebp+var_10]
+.text:00401A6C         call    subExceptionStuff
+.text:00401A71         mov     edx, eax
+.text:00401A73         inc     [ebp+varIncremented]
+.text:00401A76         mov     ecx, [ebp+var_4C]
+.text:00401A79         mov     eax, [ecx+364h]
+.text:00401A7F         call    @Controls@TControl@GetText$qqrv ; Controls::TControl::GetText(void)
+.text:00401A84         lea     edx, [ebp+var_10]
+.text:00401A87         lea     eax, [ebp+serialCopy_]
+.text:00401A8A         call    strcpy_maybe
+.text:00401A8F         dec     [ebp+varIncremented]
+.text:00401A92         lea     eax, [ebp+var_10]
+.text:00401A95         mov     edx, 2
+.text:00401A9A         call    freeString
+.text:00401A9F         lea     eax, [ebp+serialCopy_]
+.text:00401AA2         call    @System@AnsiString@Length$xqqrv ; System::AnsiString::Length(void)
+.text:00401AA7         and     eax, 80000001h
+.text:00401AAC         jns     loc_401AB7
+.text:00401AB2         dec     eax
+.text:00401AB3         or      eax, 0FFFFFFFEh
+.text:00401AB6         inc     eax
+.text:00401AB7
+.text:00401AB7 loc_401AB7:                                     ; CODE XREF: sub_4019C8+E4j
+.text:00401AB7         test    eax, eax
+.text:00401AB9         jg      loc_401ACF
+.text:00401ABF         lea     eax, [ebp+serialCopy_]
+.text:00401AC2         call    @System@AnsiString@Length$xqqrv ; System::AnsiString::Length(void)
+.text:00401AC7         test    eax, eax
+.text:00401AC9         jnz     ok__
+.text:00401ACF
+.text:00401ACF loc_401ACF:                                     ; CODE XREF: sub_4019C8+F1j
+.text:00401ACF                                                 ; sub_4019C8+29Fj
+.text:00401ACF         mov     dword_49E228, 1
+.text:00401AD9         dec     [ebp+varIncremented]
+.text:00401ADC         lea     eax, [ebp+serialCopy_]
+.text:00401ADF         mov     edx, 2
+.text:00401AE4         call    freeString
+.text:00401AE9         dec     [ebp+varIncremented]
+.text:00401AEC         lea     eax, [ebp+serialCopy]
+.text:00401AEF         mov     edx, 2
+.text:00401AF4         call    freeString
+.text:00401AF9         dec     [ebp+varIncremented]
+.text:00401AFC         lea     eax, [ebp+pStringCopy]
+.text:00401AFF         mov     edx, 2
+.text:00401B04         call    freeString
+.text:00401B09         mov     ecx, [ebp+var_48]
+.text:00401B0C         mov     fs:0, ecx
+.text:00401B12         pop     edi
+.text:00401B13         pop     esi
+.text:00401B14         pop     ebx
+.text:00401B15         mov     esp, ebp
+.text:00401B17         pop     ebp
+.text:00401B18         retn
+.text:00401B19 ; ---------------------------------------------------------------------------
+.text:00401B19
+.text:00401B19 hardcore_mode:                                  ; CODE XREF: sub_4019C8+95j
+.text:00401B19         cmp     [ebp+var_50], 2                 ; is a 2
+.text:00401B1D         jnz     loc_401D7E                      ; is zero, not taken
+.text:00401B1D                                                 ;
+.text:00401B23         xor     edx, edx
+.text:00401B25         mov     [ebp+loopvar], edx
+.text:00401B28
+.text:00401B28 init_area_6DW:                                  ; CODE XREF: sub_4019C8+173j
+.text:00401B28                                                 ; sub_4019C8+409j
+.text:00401B28         mov     ecx, [ebp+loopvar]
+.text:00401B2B         xor     eax, eax
+.text:00401B2D
+.text:00401B2D loc_401B2D:                                     ; CODE XREF: .text:00402B9Bj
+.text:00401B2D         mov     [ebp+ecx*4+dw1], eax            ;
+.text:00401B2D                                                 ;
+.text:00401B34         inc     [ebp+loopvar]
+.text:00401B37         cmp     [ebp+loopvar], 6
+.text:00401B3B         jle     init_area_6DW                   ;
+.text:00401B3B                                                 ;
+.text:00401B41         mov     [ebp+wtf], 48h                  ;
+.text:00401B41                                                 ;
+.text:00401B47         lea     eax, [ebp+pString]
+.text:00401B4A         xor     edx, edx
+.text:00401B4C         call    itoa_maybe                      ; Borland Visual Component Library & Packages
+.text:00401B51         inc     [ebp+varIncremented]            ;
+.text:00401B51                                                 ;
+.text:00401B54         lea     edx, [ebp+pString]
+.text:00401B57         lea     eax, [ebp+pStringCopy]
+.text:00401B5A         call    strcpy_maybe                    ;
+.text:00401B5A                                                 ;
+.text:00401B5F         dec     [ebp+varIncremented]
+.text:00401B62         lea     eax, [ebp+pString]
+.text:00401B65         mov     edx, 2
+.text:00401B6A         call    freeString                      ;
+.text:00401B6A                                                 ;
+.text:00401B6F         xor     ecx, ecx
+.text:00401B71         mov     [ebp+_0_thru_5], ecx            ;
+.text:00401B71                                                 ;
+.text:00401B74         mov     [ebp+wtf], 54h
+.text:00401B7A         lea     eax, [ebp+serial]
+.text:00401B7D         call    subExceptionStuff
+.text:00401B82         mov     edx, eax
+.text:00401B84         inc     [ebp+varIncremented]
+.text:00401B87         mov     ecx, [ebp+var_4C]
+.text:00401B8A         mov     eax, [ecx+364h]
+.text:00401B90         call    @Controls@TControl@GetText$qqrv ;
+.text:00401B90                                                 ;
+.text:00401B95         lea     edx, [ebp+serial]
+.text:00401B98         lea     eax, [ebp+serialCopy]
+.text:00401B9B         call    strcpy_maybe                    ;
+.text:00401B9B                                                 ;
+.text:00401BA0         dec     [ebp+varIncremented]
+.text:00401BA3         lea     eax, [ebp+serial]
+.text:00401BA6         mov     edx, 2
+.text:00401BAB         call    freeString                      ;
+.text:00401BAB                                                 ;
+.text:00401BB0         mov     [ebp+wtf], 60h
+.text:00401BB6         mov     edx, offset dashChar
+.text:00401BBB         lea     eax, [ebp+strDashChar]
+.text:00401BBE         call    @System@AnsiString@$bctr$qqrpxc ;
+.text:00401BBE                                                 ;
+.text:00401BC3         inc     [ebp+varIncremented]
+.text:00401BC6         mov     edx, [eax]
+.text:00401BC8         lea     eax, [ebp+serialCopy]
+.text:00401BCB         call    strcat_maybe                    ; adds dash to serial
+.text:00401BCB                                                 ;
+.text:00401BD0         dec     [ebp+varIncremented]
+.text:00401BD3         lea     eax, [ebp+strDashChar]
+.text:00401BD6         mov     edx, 2
+.text:00401BDB         call    freeString                      ;
+.text:00401BDB                                                 ;
+.text:00401BE0         mov     [ebp+loopvar], 1
+.text:00401BE7         lea     eax, [ebp+serialCopy]
+.text:00401BEA         call    @System@AnsiString@Length$xqqrv ; System::AnsiString::Length(void)
+.text:00401BEF         cmp     eax, [ebp+loopvar]              ; if(strlen(serial.'-') > 1)
+.text:00401BF2         jge     continue_                       ; yes, jump
+.text:00401BF2                                                 ;
+.text:00401BF8         xor     edx, edx
+.text:00401BFA         mov     [ebp+loopvar], edx
+.text:00401BFD
+.text:00401BFD check_if_dw_0:                                  ; CODE XREF: sub_4019C8+62Ej
+.text:00401BFD         mov     ecx, [ebp+loopvar]
+.text:00401C00         mov     eax, [ebp+ecx*4+dw1]
+.text:00401C07         mov     [ebp+current_DW], eax           ;
+.text:00401C07                                                 ;
+.text:00401C0A         mov     edx, [ebp+loopvar]
+.text:00401C0D         cmp     [ebp+edx*4+dw1], 0
+.text:00401C15         jnz     ok_                             ; is 1'th dude 0?
+.text:00401C15                                                 ;
+.text:00401C1B         mov     dword_49E228, 1
+.text:00401C25         dec     [ebp+varIncremented]
+.text:00401C28         lea     eax, [ebp+serialCopy_]
+.text:00401C2B         mov     edx, 2
+.text:00401C30         call    freeString
+.text:00401C35         dec     [ebp+varIncremented]
+.text:00401C38         lea     eax, [ebp+serialCopy]
+.text:00401C3B         mov     edx, 2
+.text:00401C40         call    freeString
+.text:00401C45         dec     [ebp+varIncremented]
+.text:00401C48         lea     eax, [ebp+pStringCopy]
+.text:00401C4B         mov     edx, 2
+.text:00401C50         call    freeString
+.text:00401C55         mov     ecx, [ebp+var_48]
+.text:00401C58         mov     fs:0, ecx
+.text:00401C5E         pop     edi
+.text:00401C5F         pop     esi
+.text:00401C60         pop     ebx
+.text:00401C61         mov     esp, ebp
+.text:00401C63         pop     ebp
+.text:00401C64         retn
+.text:00401C65 ; ---------------------------------------------------------------------------
+.text:00401C65         test    eax, eax
+.text:00401C67         jg      loc_401ACF
+.text:00401C6D         lea     eax, [ebp+serialCopy_]
+.text:00401C70         call    @System@AnsiString@Length$xqqrv ; System::AnsiString::Length(void)
+.text:00401C75         test    eax, eax
+.text:00401C77         jnz     ok__
+.text:00401C7D         mov     dword_49E228, 1
+.text:00401C87         dec     [ebp+varIncremented]
+.text:00401C8A         lea     eax, [ebp+serialCopy_]
+.text:00401C8D         mov     edx, 2
+.text:00401C92         call    freeString
+.text:00401C97         dec     [ebp+varIncremented]
+.text:00401C9A         lea     eax, [ebp+serialCopy]
+.text:00401C9D         mov     edx, 2
+.text:00401CA2         call    freeString
+.text:00401CA7         dec     [ebp+varIncremented]
+.text:00401CAA         lea     eax, [ebp+pStringCopy]
+.text:00401CAD         mov     edx, 2
+.text:00401CB2         call    freeString
+.text:00401CB7         mov     ecx, [ebp+var_48]
+.text:00401CBA         mov     fs:0, ecx
+.text:00401CC0         pop     edi
+.text:00401CC1         pop     esi
+.text:00401CC2         pop     ebx
+.text:00401CC3         mov     esp, ebp
+.text:00401CC5         pop     ebp
+.text:00401CC6         retn
+.text:00401CC7 ; ---------------------------------------------------------------------------
+.text:00401CC7         mov     dword_49E228, 1
+.text:00401CD1         dec     [ebp+varIncremented]
+.text:00401CD4         lea     eax, [ebp+serialCopy_]
+.text:00401CD7         mov     edx, 2
+.text:00401CDC         call    freeString
+.text:00401CE1         dec     [ebp+varIncremented]
+.text:00401CE4         lea     eax, [ebp+serialCopy]
+.text:00401CE7         mov     edx, 2
+.text:00401CEC         call    freeString
+.text:00401CF1         dec     [ebp+varIncremented]
+.text:00401CF4         lea     eax, [ebp+pStringCopy]
+.text:00401CF7         mov     edx, 2
+.text:00401CFC         call    freeString
+.text:00401D01         mov     ecx, [ebp+var_48]
+.text:00401D04         mov     fs:0, ecx
+.text:00401D0A         pop     edi
+.text:00401D0B         pop     esi
+.text:00401D0C         pop     ebx
+.text:00401D0D         mov     esp, ebp
+.text:00401D0F         pop     ebp
+.text:00401D10         retn
+.text:00401D11 ; ---------------------------------------------------------------------------
+.text:00401D11
+.text:00401D11 ok__:                                           ; CODE XREF: sub_4019C8+101j
+.text:00401D11                                                 ; sub_4019C8+2AFj
+.text:00401D11         mov     [ebp+loopvar], 1
+.text:00401D18         lea     eax, [ebp+serialCopy_]
+.text:00401D1B         call    @System@AnsiString@Length$xqqrv ; System::AnsiString::Length(void)
+.text:00401D20         sar     eax, 1                          ; divide in half
+.text:00401D22         jns     loc_401D2B
+.text:00401D28         adc     eax, 0
+.text:00401D2B
+.text:00401D2B loc_401D2B:                                     ; CODE XREF: sub_4019C8+35Aj
+.text:00401D2B                                                 ; sub_4019C8+A1Dj
+.text:00401D2B         cmp     eax, [ebp+loopvar]
+.text:00401D2E         jge     loc_4020B3
+.text:00401D34         mov     dword_49E228, 2
+.text:00401D3E ; quitblock
+.text:00401D7D         retn
+.text:00401D7E ; ---------------------------------------------------------------------------
+.text:00401D7E
+.text:00401D7E loc_401D7E:                                     ; CODE XREF: sub_4019C8+155j
+.text:00401D7E         dec     [ebp+varIncremented]
+.text:00401D81         lea     eax, [ebp+serialCopy_]
+.text:00401D84         mov     edx, 2
+.text:00401D89         call    freeString
+.text:00401D8E         dec     [ebp+varIncremented]
+.text:00401D91         lea     eax, [ebp+serialCopy]
+.text:00401D94         mov     edx, 2
+.text:00401D99         call    freeString
+.text:00401D9E         dec     [ebp+varIncremented]
+.text:00401DA1         lea     eax, [ebp+pStringCopy]
+.text:00401DA4         mov     edx, 2
+.text:00401DA9         call    freeString
+.text:00401DAE         mov     ecx, [ebp+var_48]
+.text:00401DB1         mov     fs:0, ecx
+.text:00401DB7         pop     edi
+.text:00401DB8         pop     esi
+.text:00401DB9         pop     ebx
+.text:00401DBA         mov     esp, ebp
+.text:00401DBC         pop     ebp
+.text:00401DBD         retn
+.text:00401DBE ; ---------------------------------------------------------------------------
+.text:00401DBE         mov     ecx, [ebp+loopvar]
+.text:00401DC1         xor     eax, eax
+.text:00401DC3         mov     [ebp+ecx*4+dw1], eax
+.text:00401DCA         inc     [ebp+loopvar]
+.text:00401DCD         cmp     [ebp+loopvar], 6
+.text:00401DD1         jle     init_area_6DW
+.text:00401DD7         mov     [ebp+wtf], 48h
+.text:00401DDD         lea     eax, [ebp+pString]
+.text:00401DE0         xor     edx, edx
+.text:00401DE2         call    itoa_maybe                      ; Borland Visual Component Library & Packages
+.text:00401DE7         inc     [ebp+varIncremented]
+.text:00401DEA         lea     edx, [ebp+pString]
+.text:00401DED         lea     eax, [ebp+pStringCopy]
+.text:00401DF0         call    strcpy_maybe
+.text:00401DF5         dec     [ebp+varIncremented]
+.text:00401DF8         lea     eax, [ebp+pString]
+.text:00401DFB         mov     edx, 2
+.text:00401E00         call    freeString
+.text:00401E05         xor     ecx, ecx
+.text:00401E07         mov     [ebp+_0_thru_5], ecx
+.text:00401E0A         mov     [ebp+wtf], 54h
+.text:00401E10         lea     eax, [ebp+serial]
+.text:00401E13         call    subExceptionStuff
+.text:00401E18         mov     edx, eax
+.text:00401E1A         inc     [ebp+varIncremented]
+.text:00401E1D         mov     ecx, [ebp+var_4C]
+.text:00401E20         mov     eax, [ecx+364h]
+.text:00401E26         call    @Controls@TControl@GetText$qqrv ; Controls::TControl::GetText(void)
+.text:00401E2B         lea     edx, [ebp+serial]
+.text:00401E2E         lea     eax, [ebp+serialCopy]
+.text:00401E31         call    strcpy_maybe
+.text:00401E36         dec     [ebp+varIncremented]
+.text:00401E39         lea     eax, [ebp+serial]
+.text:00401E3C         mov     edx, 2
+.text:00401E41         call    freeString
+.text:00401E46         mov     [ebp+wtf], 60h
+.text:00401E4C         mov     edx, offset dashChar
+.text:00401E51         lea     eax, [ebp+strDashChar]
+.text:00401E54         call    @System@AnsiString@$bctr$qqrpxc ; System::AnsiString::AnsiString(char *)
+.text:00401E59         inc     [ebp+varIncremented]
+.text:00401E5C         mov     edx, [eax]
+.text:00401E5E         lea     eax, [ebp+serialCopy]
+.text:00401E61         call    strcat_maybe                    ; Borland Visual Component Library & Packages
+.text:00401E66         dec     [ebp+varIncremented]
+.text:00401E69         lea     eax, [ebp+strDashChar]
+.text:00401E6C         mov     edx, 2
+.text:00401E71         call    freeString
+.text:00401E76         mov     [ebp+loopvar], 1
+.text:00401E7D         lea     eax, [ebp+serialCopy]
+.text:00401E80         call    @System@AnsiString@Length$xqqrv ; System::AnsiString::Length(void)
+.text:00401E85         cmp     eax, [ebp+loopvar]
+.text:00401E88         jge     continue_
+.text:00401E8E         xor     edx, edx
+.text:00401E90         mov     [ebp+loopvar], edx
+.text:00401E93         mov     ecx, [ebp+loopvar]
+.text:00401E96         mov     eax, [ebp+ecx*4+dw1]
+.text:00401E9D         mov     [ebp+current_DW], eax
+.text:00401EA0         mov     edx, [ebp+loopvar]
+.text:00401EA3         cmp     [ebp+edx*4+dw1], 0
+.text:00401EAB         jnz     ok_
+.text:00401EB1         mov     dword_49E228, 1
+.text:00401EBB         dec     [ebp+varIncremented]
+.text:00401EBE         lea     eax, [ebp+serialCopy_]
+.text:00401EC1         mov     edx, 2
+.text:00401EC6         call    freeString
+.text:00401ECB         dec     [ebp+varIncremented]
+.text:00401ECE         lea     eax, [ebp+serialCopy]
+.text:00401ED1         mov     edx, 2
+.text:00401ED6         call    freeString
+.text:00401EDB         dec     [ebp+varIncremented]
+.text:00401EDE         lea     eax, [ebp+pStringCopy]
+.text:00401EE1         mov     edx, 2
+.text:00401EE6         call    freeString
+.text:00401EEB         mov     ecx, [ebp+var_48]
+.text:00401EEE         mov     fs:0, ecx
+.text:00401EF4         pop     edi
+.text:00401EF5         pop     esi
+.text:00401EF6         pop     ebx
+.text:00401EF7         mov     esp, ebp
+.text:00401EF9         pop     ebp
+.text:00401EFA         retn
+.text:00401EFB ; ---------------------------------------------------------------------------
+.text:00401EFB
+.text:00401EFB continue_:                                      ; CODE XREF: sub_4019C8+22Aj
+.text:00401EFB                                                 ; sub_4019C8+4C0j ...
+.text:00401EFB         lea     eax, [ebp+serialCopy]
+.text:00401EFE         mov     edx, [ebp+loopvar]
+.text:00401F01         call    @System@AnsiString@$bsubs$qqrxi ; System::AnsiString::operator[](int)
+.text:00401F06         movsx   ecx, byte ptr [eax]             ; get the loopvar'th character
+.text:00401F09         cmp     ecx, 2Dh
+.text:00401F0C         jnz     add_character                   ;
+.text:00401F0C                                                 ;
+.text:00401F12         mov     [ebp+wtf], 6Ch
+.text:00401F18         mov     eax, [ebp+pStringCopy]
+.text:00401F1B         call    @Sysutils@StrToInt$qqrx17System@AnsiString ; Sysutils::StrToInt(System::AnsiString)
+.text:00401F20         mov     edx, [ebp+_0_thru_5]
+.text:00401F23         mov     [ebp+edx*4+dw1], eax            ; write to dword area
+.text:00401F2A         mov     [ebp+wtf], 18h                  ;
+.text:00401F2A                                                 ;
+.text:00401F30         mov     edx, [ebp+_0_thru_5]
+.text:00401F33         mov     ecx, [ebp+edx*4+dw1]
+.text:00401F3A         mov     [ebp+current_DW], ecx
+.text:00401F3D         mov     [ebp+wtf], 78h                  ;
+.text:00401F3D                                                 ;
+.text:00401F43         lea     eax, [ebp+string0]
+.text:00401F46         xor     edx, edx
+.text:00401F48         call    itoa_maybe                      ;
+.text:00401F48                                                 ;
+.text:00401F4D         inc     [ebp+varIncremented]
+.text:00401F50         lea     edx, [ebp+string0]
+.text:00401F53         lea     eax, [ebp+pStringCopy]
+.text:00401F56         call    strcpy_maybe                    ;
+.text:00401F56                                                 ;
+.text:00401F5B         dec     [ebp+varIncremented]
+.text:00401F5E         lea     eax, [ebp+string0]
+.text:00401F61         mov     edx, 2
+.text:00401F66         call    freeString                      ;
+.text:00401F66                                                 ;
+.text:00401F6B         inc     [ebp+_0_thru_5]
+.text:00401F6E         inc     [ebp+loopvar]
+.text:00401F71         lea     eax, [ebp+serialCopy]
+.text:00401F74         call    @System@AnsiString@Length$xqqrv ; System::AnsiString::Length(void)
+.text:00401F79         cmp     eax, [ebp+loopvar]
+.text:00401F7C         jge     continue_                       ;
+.text:00401F7C                                                 ;
+.text:00401F82         xor     edx, edx
+.text:00401F84         mov     [ebp+loopvar], edx              ;
+.text:00401F84                                                 ;
+.text:00401F87         mov     ecx, [ebp+loopvar]
+.text:00401F8A         mov     eax, [ebp+ecx*4+dw1]
+.text:00401F91         mov     [ebp+current_DW], eax           ; null's the end of the 6DW list
+.text:00401F91                                                 ;
+.text:00401F91                                                 ;
+.text:00401F94         mov     edx, [ebp+loopvar]
+.text:00401F97         cmp     [ebp+edx*4+dw1], 0
+.text:00401F9F         jnz     ok_                             ; is first dword in list 0?
+.text:00401F9F                                                 ;
+.text:00401FA5 ; quit_block
+.text:00401FEE         retn
+.text:00401FEF ; ---------------------------------------------------------------------------
+.text:00401FEF
+.text:00401FEF ok_:                                            ; CODE XREF: sub_4019C8+24Dj
+.text:00401FEF                                                 ; sub_4019C8+4E3j ...
+.text:00401FEF         inc     [ebp+loopvar]
+.text:00401FF2         cmp     [ebp+loopvar], 6
+.text:00401FF6         jle     check_if_dw_0                   ;
+.text:00401FF6                                                 ;
+.text:00401FFC
+.text:00401FFC all_7DW_nonzero:
+.text:00401FFC         cmp     [ebp+dw3], 1Eh
+.text:00402003         jg      loc_402016
+.text:00402009         cmp     [ebp+dw4], 50h
+.text:00402010         jle     loc_4022B0                      ; '3' must be <= 0x1E (30d)
+.text:00402010                                                 ; '4' must be <= 0x50 (80d)
+.text:00402016 ; quit_block
+.text:0040205F         retn
+.text:00402060 ; ---------------------------------------------------------------------------
+.text:00402060         cmp     eax, [ebp+loopvar]
+.text:00402063         jge     loc_4020B3
+.text:00402069         mov     dword_49E228, 2
+.text:00402073         dec     [ebp+varIncremented]
+.text:00402076         lea     eax, [ebp+serialCopy_]
+.text:00402079         mov     edx, 2
+.text:0040207E         call    freeString
+.text:00402083         dec     [ebp+varIncremented]
+.text:00402086         lea     eax, [ebp+serialCopy]
+.text:00402089         mov     edx, 2
+.text:0040208E         call    freeString
+.text:00402093         dec     [ebp+varIncremented]
+.text:00402096         lea     eax, [ebp+pStringCopy]
+.text:00402099         mov     edx, 2
+.text:0040209E         call    freeString
+.text:004020A3         mov     ecx, [ebp+var_48]
+.text:004020A6         mov     fs:0, ecx
+.text:004020AC         pop     edi
+.text:004020AD         pop     esi
+.text:004020AE         pop     ebx
+.text:004020AF         mov     esp, ebp
+.text:004020B1         pop     ebp
+.text:004020B2         retn
+.text:004020B3 ; ---------------------------------------------------------------------------
+.text:004020B3
+.text:004020B3 loc_4020B3:                                     ; CODE XREF: sub_4019C8+366j
+.text:004020B3                                                 ; sub_4019C8+69Bj ...
+.text:004020B3         lea     eax, [ebp+serialCopy_]
+.text:004020B6         mov     edx, [ebp+loopvar]              ; get pointer to loopvar'th char in string
+.text:004020B9         call    @System@AnsiString@$bsubs$qqrxi ; System::AnsiString::operator[](int)
+.text:004020BE         movsx   ecx, byte ptr [eax]
+.text:004020C1         mov     [ebp+current_char], ecx
+.text:004020C7         lea     eax, [ebp+serialCopy_]
+.text:004020CA         call    @System@AnsiString@Length$xqqrv ; System::AnsiString::Length(void)
+.text:004020CF         mov     edx, eax
+.text:004020D1         sub     edx, [ebp+loopvar]
+.text:004020D4         inc     edx
+.text:004020D5         lea     eax, [ebp+serialCopy_]
+.text:004020D8         call    @System@AnsiString@$bsubs$qqrxi ; System::AnsiString::operator[](int)
+.text:004020DD         movsx   edx, byte ptr [eax]
+.text:004020E0         sub     edx, [ebp+loopvar]              ; other side char has to be - loopvar
+.text:004020E3         mov     [ebp+other_side_char], edx
+.text:004020E9         mov     ecx, [ebp+current_char]
+.text:004020EF         cmp     ecx, [ebp+other_side_char]
+.text:004020F5         jz      loc_4023D8
+.text:004020FB         mov     dword_49E228, 1
+.text:00402105 ; quitblock
+.text:00402144         retn
+.text:00402145 ; ---------------------------------------------------------------------------
+.text:00402145
+.text:00402145 add_character:                                  ; CODE XREF: sub_4019C8+544j
+.text:00402145         mov     [ebp+wtf], 84h
+.text:0040214B         lea     eax, [ebp+serialCopy]
+.text:0040214E         mov     edx, [ebp+loopvar]
+.text:00402151         call    @System@AnsiString@$bsubs$qqrxi ; System::AnsiString::operator[](int)
+.text:00402156         mov     dl, [eax]
+.text:00402158         lea     eax, [ebp+singleCharString]
+.text:0040215B         call    @System@AnsiString@$bctr$qqrc   ; System::AnsiString::AnsiString(char)
+.text:00402160         inc     [ebp+varIncremented]
+.text:00402163         mov     edx, [eax]
+.text:00402165         lea     eax, [ebp+pStringCopy]
+.text:00402168         call    strcat_maybe                    ; Borland Visual Component Library & Packages
+.text:0040216D         dec     [ebp+varIncremented]
+.text:00402170         lea     eax, [ebp+singleCharString]
+.text:00402173         mov     edx, 2
+.text:00402178         call    freeString                      ;
+.text:00402178                                                 ;
+.text:0040217D         inc     [ebp+loopvar]
+.text:00402180         lea     eax, [ebp+serialCopy]
+.text:00402183         call    @System@AnsiString@Length$xqqrv ; System::AnsiString::Length(void)
+.text:00402188         cmp     eax, [ebp+loopvar]
+.text:0040218B         jge     continue_                       ;
+.text:0040218B                                                 ;
+.text:00402191         xor     edx, edx
+.text:00402193         mov     [ebp+loopvar], edx
+.text:00402196         mov     ecx, [ebp+loopvar]
+.text:00402199         mov     eax, [ebp+ecx*4+dw1]
+.text:004021A0         mov     [ebp+current_DW], eax
+.text:004021A3         mov     edx, [ebp+loopvar]
+.text:004021A6         cmp     [ebp+edx*4+dw1], 0
+.text:004021AE         jnz     ok_
+.text:004021B4         mov     dword_49E228, 1
+.text:004021BE         dec     [ebp+varIncremented]
+.text:004021C1         lea     eax, [ebp+serialCopy_]
+.text:004021C4         mov     edx, 2
+.text:004021C9         call    freeString
+.text:004021CE         dec     [ebp+varIncremented]
+.text:004021D1         lea     eax, [ebp+serialCopy]
+.text:004021D4         mov     edx, 2
+.text:004021D9         call    freeString
+.text:004021DE         dec     [ebp+varIncremented]
+.text:004021E1         lea     eax, [ebp+pStringCopy]
+.text:004021E4         mov     edx, 2
+.text:004021E9         call    freeString
+.text:004021EE         mov     ecx, [ebp+var_48]
+.text:004021F1         mov     fs:0, ecx
+.text:004021F7         pop     edi
+.text:004021F8         pop     esi
+.text:004021F9         pop     ebx
+.text:004021FA         mov     esp, ebp
+.text:004021FC         pop     ebp
+.text:004021FD         retn
+.text:004021FE ; ---------------------------------------------------------------------------
+.text:004021FE         mov     ecx, [ebp+loopvar]
+.text:00402201         mov     eax, [ebp+ecx*4+dw1]
+.text:00402208         mov     [ebp+current_DW], eax
+.text:0040220B         mov     edx, [ebp+loopvar]
+.text:0040220E         cmp     [ebp+edx*4+dw1], 0
+.text:00402216         jnz     ok_
+.text:0040221C         mov     dword_49E228, 1
+.text:00402226         dec     [ebp+varIncremented]
+.text:00402229         lea     eax, [ebp+serialCopy_]
+.text:0040222C         mov     edx, 2
+.text:00402231         call    freeString
+.text:00402236         dec     [ebp+varIncremented]
+.text:00402239         lea     eax, [ebp+serialCopy]
+.text:0040223C         mov     edx, 2
+.text:00402241         call    freeString
+.text:00402246         dec     [ebp+varIncremented]
+.text:00402249         lea     eax, [ebp+pStringCopy]
+.text:0040224C         mov     edx, 2
+.text:00402251         call    freeString
+.text:00402256         mov     ecx, [ebp+var_48]
+.text:00402259         mov     fs:0, ecx
+.text:0040225F         pop     edi
+.text:00402260         pop     esi
+.text:00402261         pop     ebx
+.text:00402262         mov     esp, ebp
+.text:00402264         pop     ebp
+.text:00402265         retn
+.text:00402266 ; ---------------------------------------------------------------------------
+.text:00402266         mov     dword_49E228, 1
+.text:00402270         dec     [ebp+varIncremented]
+.text:00402273         lea     eax, [ebp+serialCopy_]
+.text:00402276         mov     edx, 2
+.text:0040227B         call    freeString
+.text:00402280         dec     [ebp+varIncremented]
+.text:00402283         lea     eax, [ebp+serialCopy]
+.text:00402286         mov     edx, 2
+.text:0040228B         call    freeString
+.text:00402290         dec     [ebp+varIncremented]
+.text:00402293         lea     eax, [ebp+pStringCopy]
+.text:00402296         mov     edx, 2
+.text:0040229B         call    freeString
+.text:004022A0         mov     ecx, [ebp+var_48]
+.text:004022A3         mov     fs:0, ecx
+.text:004022A9         pop     edi
+.text:004022AA         pop     esi
+.text:004022AB         pop     ebx
+.text:004022AC         mov     esp, ebp
+.text:004022AE         pop     ebp
+.text:004022AF         retn
+.text:004022B0 ; ---------------------------------------------------------------------------
+.text:004022B0
+.text:004022B0 loc_4022B0:                                     ; CODE XREF: sub_4019C8+648j
+.text:004022B0         mov     [ebp+init0_], 0
+.text:004022B7         xor     eax, eax
+.text:004022B9         mov     [ebp+loopvar], eax              ; did trace thru with easy number choices...
+.text:004022B9                                                 ; {dw1, dw2, ..., dw7} = {1, 2, ..., 7}
+.text:004022BC
+.text:004022BC loc_4022BC:                                     ; CODE XREF: sub_4019C8+A83j
+.text:004022BC         fild    [ebp+dw7]                       ; dw7 on stack
+.text:004022C2         fld     ds:p01                          ; .01
+.text:004022C8         fmulp   st(1), st                       ; .07
+.text:004022CA         fild    [ebp+loopvar]
+.text:004022CD         fld     ds:p001                         ; .001
+.text:004022D3         fmulp   st(1), st                       ; .001 * loopvar
+.text:004022D5         faddp   st(1), st
+.text:004022D7         fstp    [ebp+first_result]              ; .001 * loopvar + .01 * dw7 = .07
+.text:004022D7                                                 ;
+.text:004022DD         fild    [ebp+dw3]
+.text:004022E3         fmul    ds:_2pi                         ; 3 * 2 * pi
+.text:004022E9         fmul    [ebp+first_result]              ; second_result =
+.text:004022E9                                                 ; dw3 * 2pi * (.001 * loopvar + .01 * dw7) = 1.31946864
+.text:004022E9                                                 ;
+.text:004022EF         fild    [ebp+dw5]
+.text:004022F5         fmul    ds:pi
+.text:004022FB         fld     ds:p00555555
+.text:00402301         fmulp   st(1), st                       ; dw5 * .0055555 * pi = 0.08726557178
+.text:00402303         faddp   st(1), st                       ; + second_result = 1.40673421178
+.text:00402305         add     esp, 0FFFFFFF8h
+.text:00402308         fstp    [esp+0CCh+third_result]         ;
+.text:00402308                                                 ;
+.text:0040230B         call    _sin                            ; of 1.40673 *radians* = 9.8657216160696
+.text:00402310         add     esp, 8
+.text:00402313         fild    [ebp+dw1]
+.text:00402319         fmulp   st(1), st                       ; dw1 * sin(...) = 9.86572161
+.text:0040231B         add     esp, 0FFFFFFF8h
+.text:0040231E         fstp    [esp+0CCh+third_result]
+.text:00402321         mov     al, 0F8h                        ; round to 8 decimal places...
+.text:00402323         call    @Math@RoundTo$qqrxdxzc          ; 9.865721600000000313100e-0001
+.text:00402328         fstp    [ebp+compareA]                  ;
+.text:00402328                                                 ;
+.text:0040232B         fild    [ebp+dw4]
+.text:00402331         fmul    ds:_2pi                         ; 4*2pi = 25.132736
+.text:00402337         fmul    [ebp+first_result]              ; 4*2pi*.07 = 1.75929152
+.text:00402337                                                 ;
+.text:0040233D         fild    [ebp+dw6]
+.text:00402343         fmul    ds:pi
+.text:00402349         fld     ds:p00555555
+.text:0040234F         fmulp   st(1), st
+.text:00402351         faddp   st(1), st
+.text:00402353         add     esp, 0FFFFFFF8h
+.text:00402356         fstp    [esp+0CCh+third_result]         ; 1.864011641129944086900
+.text:00402359         call    _cos                            ; = -0.28903042319649258385619599595479
+.text:00402359                                                 ;
+.text:0040235E         add     esp, 8
+.text:00402361         fild    [ebp+dw2]
+.text:00402367         fmulp   st(1), st                       ; *2 = -0.57806084639298516771239199190958
+.text:00402369         add     esp, 0FFFFFFF8h
+.text:0040236C         fstp    [esp+0CCh+third_result]
+.text:0040236F         mov     al, 0F8h
+.text:00402371         call    @Math@RoundTo$qqrxdxzc          ; Math::RoundTo(double,signed char)
+.text:00402376         fstp    [ebp+compareB]                  ; -0.57806359
+.text:00402376                                                 ;
+.text:0040237C         fld     [ebp+compareA]
+.text:0040237F         fcomp   [ebp+compareB]
+.text:00402385         fnstsw  ax
+.text:00402387         sahf                                    ; "Sahf has one major use. When using a floating  point  processor
+.text:00402387                                                 ;  (8087, 80287, 80387, 80486, Pentium, etc.) you can use the sahf
+.text:00402387                                                 ;  instruction to copy the floating point  status  register  flags
+.text:00402387                                                 ;  into the 80x86's flag register. You'll  see  this  use  in  the
+.text:00402387                                                 ;  chapter on floating point arithmetic  (See  Chapter  Fourteen)."
+.text:00402388         jz      loc_402441
+.text:0040238E         mov     dword_49E228, 1
+.text:00402398 ; quit_block
+.text:004023D7         retn
+.text:004023D8 ; ---------------------------------------------------------------------------
+.text:004023D8
+.text:004023D8 loc_4023D8:                                     ; CODE XREF: sub_4019C8+72Dj
+.text:004023D8         inc     [ebp+loopvar]
+.text:004023DB         lea     eax, [ebp+serialCopy_]
+.text:004023DE         call    @System@AnsiString@Length$xqqrv ; System::AnsiString::Length(void)
+.text:004023E3         sar     eax, 1
+.text:004023E5         jns     loc_401D2B
+.text:004023EB         adc     eax, 0
+.text:004023EE         cmp     eax, [ebp+loopvar]
+.text:004023F1         jge     loc_4020B3
+.text:004023F7         mov     dword_49E228, 2
+.text:00402401         dec     [ebp+varIncremented]
+.text:00402404         lea     eax, [ebp+serialCopy_]
+.text:00402407         mov     edx, 2
+.text:0040240C         call    freeString
+.text:00402411         dec     [ebp+varIncremented]
+.text:00402414         lea     eax, [ebp+serialCopy]
+.text:00402417         mov     edx, 2
+.text:0040241C         call    freeString
+.text:00402421         dec     [ebp+varIncremented]
+.text:00402424         lea     eax, [ebp+pStringCopy]
+.text:00402427         mov     edx, 2
+.text:0040242C         call    freeString
+.text:00402431         mov     ecx, [ebp+var_48]
+.text:00402434         mov     fs:0, ecx
+.text:0040243A         pop     edi
+.text:0040243B         pop     esi
+.text:0040243C         pop     ebx
+.text:0040243D         mov     esp, ebp
+.text:0040243F         pop     ebp
+.text:00402440         retn
+.text:00402441 ; ---------------------------------------------------------------------------
+.text:00402441
+.text:00402441 loc_402441:                                     ; CODE XREF: sub_4019C8+9C0j
+.text:00402441         inc     [ebp+loopvar]
+.text:00402444         cmp     [ebp+loopvar], 1388h            ; 5000
+.text:0040244B         jle     loc_4022BC                      ; dw7 on stack
+.text:00402451         mov     dword_49E228, 2
+.text:0040245B ; quit_block
+.text:0040249A         retn
+.text:0040249A sub_4019C8 endp
+

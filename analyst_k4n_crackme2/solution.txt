@@ -1,0 +1,211 @@
+Keygen solution by andrewl
+
+  Date: July 31st, 2008
+Target: analyst's keygenning4newbies Crackme 2
+ Tools: IDA, WinDBG
+
+[----------------------------------------------------------------------------------]
+  CONVENTIONS
+[----------------------------------------------------------------------------------]
+
+Eight digit numbers are base sixteen and usually refer to addresses, eg: 004096C8
+
+Numbers ending in 'h' are base sixteen, eg: DEADh
+
+Numbers ending in 'd' are base ten, eg: 1024d
+
+All other numbers containing only digits are assumed base ten.
+
+Will use INTEL conventions when describing memory locations:
+
+lower/below/down refers to addresses of less quantity
+higher/above/up refers to address of greater quantity
+
+Examples: "The stack grows downwards towards lower addresses.  The import  table  is
+located above the DOS header in the memory mapped exe image."
+
+[----------------------------------------------------------------------------------]
+  SERIAL GENERATING ROUTINE
+[----------------------------------------------------------------------------------]
+
+There is a constant  0x12F5F4  used  here.   It  is  variable  "a"  in  the  keygen.
+
+There are four calculations made.  They are variables c0, c1, c2, c3 in the  keygen.
+
+They   are   used   in   an   sprintf()   call   to   form   the   correct   serial.
+
+0000:004010F7     xor edx, edx
+0000:004010F9     xor ebx, ebx
+0000:004010FB     mov edx, [ebp+strlen_name]
+0000:004010FE     add [ebp+strlen_name_times2], edx
+0000:00401101     add [ebp+strlen_name_times2], edx  
+0000:00401101                                       
+0000:00401104     mov eax, edx
+0000:00401106     add eax, 5
+0000:00401109     mov [ebp+strlen_name_plus5], eax  
+0000:00401109                                        
+0000:0040110C     xor eax, eax
+0000:0040110E     mov ecx, edi
+0000:00401110     add ecx, 4
+0000:00401113     mov [ebp+buffPlus4], ecx
+0000:00401116     xor ecx, ecx
+0000:00401118     add [ebp+buffPlus_strlen_name], edx
+0000:0040111B     add [ebp+buffPlus_strlen_name], edi
+0000:0040111E     imul edi, 3
+0000:00401121     mov [ebp+buff_times_3], edi
+0000:00401124     xor edi, edi
+0000:00401126     movsx ecx, [ebp+eax+name]
+0000:0040112E     cmp ecx, 61h                       
+0000:00401131     jl  short loc_40113A
+0000:00401133     nop
+0000:00401134     nop
+0000:00401135     nop
+0000:00401136     nop
+0000:00401137     sub ecx, 20h                       
+0000:0040113A
+0000:0040113A loc_40113A:                             
+0000:0040113A     mov esi, ecx
+0000:0040113C     add ebx, esi
+0000:0040113E     imul ebx, ecx                      <-- priming input for loop to
+0000:00401141     dec edx                                calculate c0
+0000:00401142
+0000:00401142 loc_401142:                             
+0000:00401142     movsx ecx, byte ptr [edi+ebp-0BCh]
+0000:0040114A     movsx esi, byte ptr [edi+ebp-0BBh]
+0000:00401152     cmp ecx, 61h
+0000:00401155     jge short loc_401169
+0000:00401157     nop
+0000:00401158     nop
+0000:00401159     nop
+0000:0040115A     nop
+0000:0040115B
+0000:0040115B loc_40115B:                             
+0000:0040115B     cmp esi, 61h
+0000:0040115E     jge short loc_40116E
+0000:00401160     nop
+0000:00401161     nop
+0000:00401162     nop
+0000:00401163     nop
+0000:00401164     jmp short loc_401171
+0000:00401169
+0000:00401169 loc_401169:                             
+0000:00401169     sub ecx, 20h
+0000:0040116C     jmp short loc_40115B
+0000:0040116E loc_40116E:                             
+0000:0040116E     sub esi, 20h
+0000:00401171
+0000:00401171 loc_401171:                             
+0000:00401171     inc edi
+0000:00401172     add ebx, esi
+0000:00401174     imul ebx, ecx
+0000:00401177     dec edx
+0000:00401178     jnz short loc_401142
+0000:0040117A     mov [ebp+c0], ebx                  <-- c0 final calculation finished
+0000:0040117D     xor ecx, ecx
+0000:0040117F     xor edx, edx
+0000:00401181     xor ebx, ebx
+0000:00401183     xor eax, eax
+0000:00401185     cmp [ebp+strlen_name], 32h
+0000:00401189     jge loc_40122F
+0000:0040118F
+0000:0040118F loc_40118F:                             
+0000:0040118F     movsx eax, [ebp+ecx+name]
+0000:00401197     add eax, ecx
+0000:00401199     add ebx, eax                       <-- EBX accrues, but is never used
+0000:0040119B     inc ecx                                see c1 in keygen
+0000:0040119C     cmp ecx, [ebp+strlen_name]
+0000:0040119F     jnz short loc_40118F
+0000:004011A1     rol eax, 1                         <-- c2 calculation
+0000:004011A3     xor eax, 1E240h
+0000:004011A8     mov [ebp+c2], eax                 
+0000:004011AB     xor ecx, ecx
+0000:004011AD     xor edx, edx
+0000:004011AF     xor ebx, ebx
+0000:004011B1     xor eax, eax
+0000:004011B3
+0000:004011B3 loc_4011B3:                             
+0000:004011B3     movsx eax, [ebp+ecx+name]
+0000:004011BB     imul edx, eax, 6
+0000:004011BE     xor eax, edx
+0000:004011C0     add ebx, eax
+0000:004011C2     inc ecx
+0000:004011C3     cmp ecx, [ebp+strlen_name]
+0000:004011C6     jnz short loc_4011B3
+0000:004011C8     add ebx, [ebp+c2]
+0000:004011CB     mov [ebp+c3], ebx                  <-- c3
+0000:004011CE     push [ebp+buff_times_3]
+0000:004011D1     push [ebp+strlen_name_times2]
+0000:004011D4     push [ebp+buffPlus_strlen_name]
+0000:004011D7     push [ebp+c0]
+0000:004011DA     push [ebp+buffPlus4]
+0000:004011DD     push [ebp+strlen_name_plus5]
+0000:004011E0     push [ebp+c3]
+0000:004011E3     push [ebp+c2]
+0000:004011E6     push offset format                 <-- "%lX%lu-%lu%lX-%lu%lu-%lX%lX"
+0000:004011EB     lea eax, [ebp+buffer]
+0000:004011F1     push eax                      
+0000:004011F2     call _sprintf                      <-- serial string made
+
+[----------------------------------------------------------------------------------]
+  EXAMPLE KEYS
+[----------------------------------------------------------------------------------]
+   user: coded by the analyst
+ serial: 1E34E135211-2512F5F8-38743037691242632-2838E1DC
+
+   user: aWEFsdfaweGE
+ serial: 1E2E0130311-1712F5F8-9688611061242624-1838E1DC
+
+   user: 32f89uafsWFE
+ serial: 1E2E0129447-1712F5F8-6128277361242624-1838E1DC
+
+   user: af8E*FJEJ
+ serial: 1E2E4127695-1412F5F8-41700815081242621-1238E1DC
+
+[----------------------------------------------------------------------------------]
+  KEYGEN
+[----------------------------------------------------------------------------------]
+
+// os stuff
+#include <windows.h>
+
+// runtime stuff
+#include <stdio.h>
+#include <conio.h>
+
+void main(int argc, char * argv[])
+{
+    CHAR user[256] = "coded by the analyst";
+    CHAR userC[256];
+    UINT a=0x12F5F4;
+    UINT c0=0, c1=0, c2=0, c3=0;
+    UINT len=0;
+
+    if(argc<2)
+        printf("[*] no username argument supplied, defaulting..\n");
+    else
+        strcpy(user, argv[1]);
+
+    len = strlen(user);
+
+    // make capitalized version of name
+    for(int i=0; i<=len; ++i)
+        userC[i] = (user[i] > 0x60) ? user[i]-0x20 : user[i];
+
+    c0 = userC[0] * userC[0];
+    for(int i=1; i<len; ++i)
+        c0 = (c0 + userC[i]) * userC[i-1];
+
+    for(int i=0; i<len; ++i)
+        c1 += user[i] + i;
+
+    c2 = (2*(user[len-1] + len-1)) ^ 0x1E240;
+
+    for(int i=0; i<len; ++i)
+        c3 += ((6 * user[i]) ^ user[i]);
+    c3 += c2;
+
+    printf("[*]   user: %s\n", user);
+    printf("[*] serial: %lX%lu-%lu%lX-%lu%lu-%lX%lX\n", c2, c3, len+5, a+4, c0, a+len, 2*len, 3*a);
+    
+    ReadConsole(GetStdHandle(STD_INPUT_HANDLE), user, 1, (LPDWORD)&a, 0);
+}

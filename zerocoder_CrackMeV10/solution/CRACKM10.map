@@ -1,0 +1,26 @@
+
+
+  Address         Publics by Value
+
+ 0000:0100       start
+ 0000:0104       VM_setup
+ 0000:010C       VM_fetch
+ 0000:011B       Instr0
+ 0000:0121       VM_hop
+ 0000:0128       Instr1
+ 0000:0146       jmp_modifiable
+ 0000:0148       jmp_target0
+ 0000:014B       jmp_target1
+ 0000:01BF       Goodboy
+ 0000:028E       sum0
+ 0000:0290       sum1
+ 0000:0292       sum2
+ 0000:0294       chksum0
+ 0000:0296       chksum1
+ 0000:0298       chksum2
+ 0000:029A       chksum3
+ 0000:029C       serial_buff_room
+ 0000:029D       serial_buff_actual
+ 0000:029E       serial_buff
+
+Program entry point at 0000:0100

@@ -1,0 +1,589 @@
+How to keygen NeoN's 192bit keygen
+9/22/2007 andrewl
+
+break on user32!GetDlgItemTextA
+
+First, much code in here jumps over junk and sometimes even will jump
+into operand of overhead instruction. Just follow a couple of these
+in your debugger and you'll get the pattern. Then use "c" and "d" in
+IDA to convert to code or data.
+
+.text:00401391                 push    0FFh            ; nMaxCount
+.text:00401396                 push    offset ascii_serial ; serial @ 00403138
+.text:0040139B                 push    3ECh            ; nIDDlgItem
+.text:004013A0                 push    hDlg            ; hDlg
+.text:004013A6                 call    GetDlgItemTextA <---- get serial 
+.text:004013AB                 push    0FFh            ; nMaxCount
+.text:004013B0                 push    offset ascii_user ; user @ 00403039
+.text:004013B5                 push    3F1h            ; nIDDlgItem
+.text:004013BA                 push    hDlg            ; hDlg
+.text:004013C0                 call    GetDlgItemTextA <---- get username
+.text:004013C5                 call    loc_40122F      <---- do some computation
+.text:004013CA                 or      eax, eax
+.text:004013CC                 jnz     short loc_4013E0
+.text:004013CE                 push    10h             ; uType
+.text:004013D0                 push    0               ; lpCaption
+.text:004013D2                 push    offset aSorryWrongKeyT ; lpText
+.text:004013D7                 push    0               ; hWnd
+.text:004013D9                 call    MessageBoxA
+.text:004013DE                 jmp     short loc_4013F0
+
+If the result of the call is not 0, it jumps over failed message to success
+message.
+
+.text:0040122F loc_40122F:                             ; CODE XREF: sub_401364+61p
+.text:0040122F                 push    offset ascii_serial
+.text:00401234                 call    lstrlenA
+.text:00401234 ; ---------------------------------------------------------------------------
+.text:00401239                 db 0BAh
+.text:0040123A ; ---------------------------------------------------------------------------
+.text:0040123A                 jmp     short loc_401242 ; eax is return from lstrlenA
+.text:0040123A ; ---------------------------------------------------------------------------
+.text:0040123C                 db 0F4h ; (
+.text:0040123D                 db  68h ; h
+.text:0040123E                 db 0EBh
+.text:0040123F                 db 0FAh ; ·
+.text:00401240                 db 68h
+.text:00401241                 db 0BDh ; +
+.text:00401242 ; ---------------------------------------------------------------------------
+.text:00401242 
+.text:00401242 loc_401242:                             ; CODE XREF: .text:0040123Aj
+.text:00401242                 cmp     eax, 30h        ; eax is return from lstrlenA
+.text:00401245                 jnz     loc_401337
+
+Get length of serial, if it's not 0x30 (48 characters, or 192 bits) then fail. We now know
+to enter in this length.
+
+Here is what it does with serial, I will not show junk bytes:
+
+.text:00401270 loc_401270:                             ; CODE XREF: .text:00401269j
+.text:00401270                 jmp     short $+2
+.text:00401272                 xor     ebx, ebx
+.text:00401274                 xor     ecx, ecx
+.text:00401276 
+.text:00401276 loc_401276:                             ; CODE XREF: .text:004012A9j
+.text:00401276                 shl     ebx, 4          ; on incoming, esi = ascii serial
+.text:00401279                 lodsb                   ; get serial[esi]
+.text:0040127A                 sub     al, 30h         ; sub 30 (get numeric value)
+.text:00401280 loc_401280:                             ; CODE XREF: .text:0040127Cj
+.text:00401280                 cmp     al, 9
+.text:00401282                 jle     short near ptr byte_401286 ; is it a digit?
+.text:00401284                 sub     al, 7           ; else, sub 7 from it (get value of hex char)
+.text:0040128E                 jmp     short $+2
+.text:00401290                 or      bl, al          ; bl = al
+.text:0040129B                 inc     ecx
+.text:004012A6                 cmp     ecx, 7
+.text:004012A9                 jle     short loc_401276
+.text:004012AB                 bswap   ebx		; reverse order
+.text:004012B6                 mov     [edi], ebx
+.text:004012BC                 add     edi, 4
+.text:004012C3                 cmp     esi, offset ascii_serial_end ; this is end of source of serial transformation
+.text:004012D2                 jl      short near ptr byte_401268 ; if serial store source reached end
+
+It scans over your serial, loading it into the bottom part of ebx, and sliding it over one at a time. When
+ebx is full, it bswap's it, then stores it at edi. EDI and ESI are incremented, and the ending condition
+is when esi is at an offset which is 48 chars after the offset of serial start. So the address range where
+the entered serial exists is hardcoded.
+
+To get a feel for this, enter a simple serial number:
+
+123456781234567812345678123456781234567812345678
+
+Now look at memory when you're done:
+
+0:000> db 0040327f
+0040327f  12 34 56 78 12 34 56 78-12 34 56 78 12 34 56 78  .4Vx.4Vx.4Vx.4Vx
+0040328f  12 34 56 78 12 34 56 78-00 00 00 00 61 73 64 66  .4Vx.4Vx....asdf
+
+It basically did a straight hex conversion - treating your entered characters as hex characters and entering
+the hex quantities into memory.
+
+What's next? (junk bytes/jumps removed)
+
+.text:004012D4                 push    offset xformed_serial
+.text:004012D4 ; ---------------------------------------------------------------------------
+.text:004012E2                 push    offset after_serial ; done writing xformed serial to mem
+.text:004012E2 ; ---------------------------------------------------------------------------
+.text:004012F2 loc_4012F2:                             ; CODE XREF: .text:004012EFj
+.text:004012F2                 push    offset pre_serial
+.text:004012FB                 push    offset super_modulus
+.text:00401304                 call    sub_401000      ; callerooski
+.text:00401304 ; ---------------------------------------------------------------------------
+.text:00401312                 push    offset ascii_user ; gonna do somethign with username now
+.text:00401317                 push    offset after_serial
+.text:0040131C                 call    lstrcmpA
+.text:0040131C ; ---------------------------------------------------------------------------
+.text:0040132C                 cmp     eax, 0
+.text:0040132F                 jnz     short loc_401337
+.text:00401331                 mov     eax, 1
+.text:00401336                 retn                 ; <--- if nonzero returned, we're good
+
+So the current function (the one we want to return nonzero) will return 1 if the result of lstrcmpA
+is 0. We know that means the strings are identical.
+
+Notice I've made these namings for the arguments pushed to sub_401000:
+0x0040327f as "xformed_serial" since this is where our transformed serial lies
+0x0040325b as "pre_serial" since that's where it is 
+0x00403237 as "super_modulus" - it's a hardcoded value that we'll see later
+0x0040329b as "after_serial" since that's where this guy points
+
+So let's go into callerooski:
+
+.text:00401000                 push    ebp
+.text:00401001                 mov     ebp, esp
+.text:00401003                 add     esp, 0FFFFFFC8h
+.text:00401006                 mov     edi, [ebp+after_serial]
+.text:0040100D                 mov     eax, 1
+.text:00401016                 stosd                   ; after_serial starts at 1
+.text:0040101E                 mov     ecx, 6
+.text:0040102C                 dec     eax
+.text:0040102D                 jmp     short loc_401031
+.text:00401031                 repe stosd              ; remaining after_serial gets 0
+
+This guy initializes after_serial (0040329b) to a 1 byte followed by a bunch of 0 bytes. Notice the ordering,
+starting to wonder if these 192 bit things are stored little endian.
+
+.text:0040103A                 lea     edi, [ebp+copy_xformed_serial]
+.text:00401046                 mov     esi, [ebp+14h] ; <--- xformed_serial
+.text:0040104D                 mov     ecx, 7
+.text:00401056                 repe movsd              ; 0012fc1c gets reversed serial thing
+
+This guy copies from address 0040327f (xformed_serial) to 0012fc1c (named copy_xformed_serial)
+
+Now:
+
+.text:0040105C                 mov     edi, [ebp+0ch] <--- this is pre_serial
+.text:00401068                 call    get_bit_right_edi_to_ebx
+.text:00401071                 xor     edx, edx
+
+The address 0x0040325b is loaded into EDI. I'm not going to analyze the call - it is very short
+and just moves right to left over the memory in edi until it finds a set bit. When it does it
+writes the offset (from edi) to ebx.
+
+Take a timeout and set a read breakpoint on pre_serial. It's a harcoded value that never changes
+based on  user input. For this reason, you will always get ebx=0x10 result here.
+
+Alright, here's the main part:
+
+.text:00401073 loc_401073:                             ; CODE XREF: sub_401000+BBj
+.text:00401073                 push    edx
+.text:00401078                 push    ebx
+.text:0040107D                 mov     eax, [ebp+pre_serial]
+.text:00401080                 bt      [eax], edx
+.text:0040108C                 jnb     short loc_40109A ; after serial bit 0 is NOT set
+.text:0040108E                 mov     edx, [ebp+after_serial] ; the guy is addend and result dude
+.text:00401095                 call    sub_4010C1      ; edx is the guy that adds to after rotate, mod, and result is written there
+.text:0040109A 
+.text:0040109A loc_40109A:                             ; CODE XREF: sub_401000+8Cj
+.text:0040109A                 lea     edx, [ebp+copy_xformed_serial] ; this guy is addend and result dude
+.text:004010A1 loc_4010A1:                             ; CODE XREF: sub_401000+9Dj
+.text:004010A1                 call    sub_4010C1
+.text:004010A6                 pop     ebx
+.text:004010AB                 pop     edx
+.text:004010AC                 jmp     short loc_4010B0
+.text:004010B0                 inc     edx
+.text:004010B5                 cmp     edx, ebx
+.text:004010B7                 jmp     short loc_4010BB
+.text:004010BB                 jbe     short loc_401073
+.text:004010BD                 leave
+.text:004010BE                 retn    10h
+.text:004010BE sub_401000      endp
+
+Let's try top down analysis. It saves edx and ebx, and loads eax with pre_serial. Then it sees if the bit
+from get_bit_right_edi_to_ebx() is set. Of course it is because we just called this function on pre_serial
+and got result into ebx.
+
+If the bit is set, the carry flag is set. Another way of looking at it is the bit moves into the carry
+flag.
+
+Since the carry flag is set when we do a cmp A, B and A<B, the jump-if-not-below is the same thing as
+jump-if-above which means carry is not set. So the JNB is taken when the bit is not set.
+
+If the bit is not set, it jumps over a call sub_4010c1. In either case, it calls this function at 4010a1.
+
+It then restores these registers, increments edx, sees if edx is equal to ebx (which was the offset that a
+bit was set in pre serial harcoded value 0x10001. So it loops over each bit in this hardcoded value before
+it leaves. That's alot of junk, let's see some pseudocode:
+
+bit_offset = get_bit_offset(0x10001)
+
+for(i=0; i<=bit_offset; ++i)
+{
+	if(bit_is_set(0x10001, i)
+		call sub_4010c1 after edx is loaded with after_serial
+
+	call sub_4010c1 after edx is loaded with copy_xformed_serial
+}
+
+Remember the caller of this function did a lstrcmpA of the username with after_serial.
+
+So what do we do now? Well honestly the call gets pretty deep into code. Let's first instead see if we
+can choose some intelligent probe value and watch memory as this call happens to infer what it does.
+
+Enter serial 02 !!!!!!!!!!!!!!
+
+Now move down to the first call. Open memory windows on after_serial (0040329b) and
+copy_xformed_serial (0012fc1c).
+
+0:000> dd 12fc1c L6; dd 40329b L6
+0012fc1c  00000002 00000000 00000000 00000000
+0012fc2c  00000000 00000000
+0040329b  00000001 00000000 00000000 00000000
+004032ab  00000000 00000000
+
+Proceed over call:
+
+0:000> dd 12fc1c L6; dd 40329b L6
+0012fc1c  00000002 00000000 00000000 00000000
+0012fc2c  00000000 00000000
+0040329b  00000002 00000000 00000000 00000000
+004032ab  00000000 00000000
+
+It looks like after_serial was affected. We can gain that edx is probably some argument to this call.
+Also it went from 1 to 2. This can be explained as a doubling, a multiply by copy_xformed_serial, or
+any other crazy math you can think of. But quickly enter another serial, say 7, and see that this now
+goes to 7. You can conclude that it's being multiplied by the other value.
+
+Go to the next call (at 004010A1), the one not inside the conditional.
+
+0:000> dd 12fc1c L6; dd 40329b L6
+0012fc1c  00000002 00000000 00000000 00000000
+0012fc2c  00000000 00000000
+0040329b  00000002 00000000 00000000 00000000
+004032ab  00000000 00000000
+
+Proceed over call:
+
+0:000> dd 12fc1c L6; dd 40329b L6
+0012fc1c  00000004 00000000 00000000 00000000
+0012fc2c  00000000 00000000
+0040329b  00000002 00000000 00000000 00000000
+004032ab  00000000 00000000
+
+The value 192 bit value pointed to by edx before the call was doubled (12fc1c). What math happened to it?
+
+Let the loop go back around. This time the call inside the conditional won't happen, go to the unconditional
+one that targets copy_xformed_serial (12fc1c) again. Proceed over call:
+
+0:000> dd 12fc1c L6; dd 40329b L6
+0012fc1c  00000010 00000000 00000000 00000000
+0012fc2c  00000000 00000000
+0040329b  00000002 00000000 00000000 00000000
+004032ab  00000000 00000000
+
+From 2 to 4 to 16. It's not doubling, it's being squared.
+
+Let this happen a few times and watch it further. Quickly this value becomes greater than 192 bits. When it
+does, it gets modded by the 192 bit value super_mod (at 0x00403237)
+
+That harcoded value 0x10001 expands to 10000000000000001 so the bt is going to make the conditional call
+happen on the 0'th and 16'th time around. The unconditional one will happen the total 17 times.
+
+The pseudocode now looks like this:
+
+after_serial = 1;
+copy_xformed_serial = transformed serial;
+
+for(i=0; i<17; ++i)
+{
+	if(i==0 || i==16)
+		after_serial = (after_serial * copy_xformed_serial) % super_mod;
+
+	copy_xformed_serial = (copy_xformed_serial * copy_xformed_serial) % super_mod;
+}
+
+And remember, the caller of this function compares after_serial to the username.
+
+So if we let a running value square itself 16 times (after_serial is not affected by copy_xformed_serial
+on the 17th run) then is there a simpler formula for it?
+
+Make a table:
+
+run | value of xformed_serial
+-----------------------------
+  0 | serial
+  1 | (serial)^2
+  2 | (serial^2)^2 = serial^4
+  3 | (serial^4)^2 = serial^8
+....
+
+In general, the value is serial^(2^run) and we can see that on the 16th run it'll get serial^65536.
+
+But on the 16th run after_serial (which original holds the serial) muliplies by that, bringing
+after_serial to serial^65537 % super_mod.
+
+If this guy has to equal the username, then the full equation is:
+
+username = serial^65537 % super_mod
+
+If you don't recognise this, it's RSA.
+
+In RSA:
+
+CIPHERTEXT = PLAINTEXT ^ e % N
+PLAINTEXT = CIPHERTEXT ^ d % N
+
+We can thus treat:
+CIPHERTEXT = username
+PLAINTEXT = key, which we need to find
+e = 65537 (public key)
+N = super_mod
+
+There are many papers on RSA, so no need to repeat here. I use Msieve by "jasonp" to factor the modulus, see
+http://www.boo.net/~jasonp/qs.html.
+
+4334687418001776494064519822354979895306094686353721834857
+
+into:
+
+56820299132471488072643744243
+76287655717824315207331163699
+
+The Euler phi is then: 4334687418001776494064519822221871940455798883073746926916
+
+And now the decryption key is just the smallest value such that, multiplied by the encryption key (65537) it
+has a residue 1 after being divided by Euler phi.
+
+This is computed as: 1380694872374186861064694009321170892122233267988532692973
+
+Now you just have to do the decryption part:
+
+username ^ 1380694872374186861064694009321170892122233267988532692973 % 4334687418001776494064519822354979895306094686353721834857
+
+And that's the key.
+
+I left the computation of these values in the source of the keygen.
+
+Also I didn't go into detail about every part of of the program, but I included here a program that emulates
+all the functions of the crackme using structs of 192 bits.
+
+#include <stdio.h>
+
+typedef struct _THING
+{
+    unsigned long dword1;
+    unsigned long dword2;
+    unsigned long dword3;
+    unsigned long dword4;
+    unsigned long dword5;
+    unsigned long dword6;
+    unsigned long dword7; // usually 0
+} THING;
+
+THING super_mod = { 0x1892bd69, 0x6eec41a7, 0xd27029ed, 0xc4f8ef72,
+                    0x63bfddc3, 0xb0c83f8f, 0x00000000  };
+
+THING before_serial = { 0x00010001, 0x00000000, 0x00000000, 0x00000000,
+                        0x00000000, 0x00000000, 0x00000000  };
+
+THING after_serial = {      0x00000001, 0x00000000, 0x00000000, 0x00000000,
+                            0x00000000, 0x00000000, 0x00000000  };
+
+void rotate_thing(THING * thing)
+{
+    int i;
+    unsigned long * currDword;
+
+    unsigned long carry_now = 0;
+    unsigned long carry_temp = 0;
+
+    for(i=0, currDword = (unsigned long *)thing; i<7; ++i, ++currDword)
+    {
+        carry_temp = (*currDword & 0x80000000) ? 1 : 0;
+        *currDword <<= 1;
+        *currDword |= carry_now;
+        carry_now = carry_temp;
+    }
+}
+
+unsigned int bit_set_from_right_side_thing(THING * thing)
+{
+    unsigned int current_byte_index;
+    int shifts;
+    char temp;
+
+    for(current_byte_index = sizeof(THING)-1; current_byte_index >= 0; --current_byte_index)
+    {
+        temp = *((char *)thing + current_byte_index);
+
+        for(shifts = 7; shifts >= 0; --shifts)
+        {
+            if(temp & 0x80)
+                return current_byte_index * 8 + shifts;
+                
+            temp <<= 1;
+        }
+    }
+
+    return -1;
+}
+
+void print_thing(THING * thing)
+{
+    int i;
+    unsigned long * temp;
+
+    for(i=0, temp = (unsigned long *) thing; i<7; ++i, ++temp)
+        printf("0x%08x ", *temp);
+
+    printf("\n");
+}
+
+void subtract_thing(THING * a, THING * b)
+{
+    int i;
+
+    unsigned long temp;
+    unsigned long carry;
+
+    unsigned long * aDword;
+    unsigned long * bDword;
+
+    aDword = (unsigned long *) a;
+    bDword = (unsigned long *) b;
+
+    for(i=6; i>=0; --i)
+        if(bDword[i] > aDword[i]) // b is greater than a, return
+            return;
+        else if(bDword[i] == aDword[i]) // they're equal, go to less significant dword
+            continue;
+        else // a is greater than b, need to subtract
+            break;
+
+    carry = 0;
+
+    for(i=0; i<7; ++i)
+    {
+        temp = aDword[i];
+        aDword[i] = aDword[i] - bDword[i] - carry;
+        carry = (aDword[i] > temp) ? 1 : 0; // detect if sub descended below 0
+    }
+}
+
+void add_thing(THING * a, THING * b)
+{
+    int i;
+
+    unsigned long temp;
+    unsigned long carry;
+
+    unsigned long * aDword;
+    unsigned long * bDword;
+
+    aDword = (unsigned long *) a;
+    bDword = (unsigned long *) b;
+
+    carry = 0;
+
+    for(i=0; i<7; ++i)
+    {
+        temp = aDword[i];
+        aDword[i] = aDword[i] + bDword[i] + carry;
+        carry = (aDword[i] < temp) ? 1 : 0; // detect if add ascended over 0
+    }
+}
+
+int bt_thing(THING * thing, int index)
+{
+    char byte;
+    int i;
+
+    byte = *((char *)thing + (index/8));
+
+    for(i=index % 8; i>0; --i)
+        byte >>= 1;
+
+    if(byte & 1)
+        return 1;
+
+    return 0;
+}
+
+THING copyC1C = {0};
+
+void rot_mod_add_mod(THING * pTarget)
+{
+    THING result = {0};
+
+    int bit_set_pos_from_right;
+
+    bit_set_pos_from_right = bit_set_from_right_side_thing(&copyC1C);
+
+    for(; bit_set_pos_from_right>=0; --bit_set_pos_from_right)
+    {
+        int bt = 0;
+
+        rotate_thing(&result);
+        subtract_thing(&result, &super_mod);
+
+        if(bt_thing(&copyC1C, bit_set_pos_from_right))
+        {
+            add_thing(&result, pTarget);
+            subtract_thing(&result, &super_mod);
+        }
+    }
+
+    memcpy(&copyC1C, &result, sizeof(THING));
+    memcpy(pTarget, &result, sizeof(THING));
+}
+
+int main(int argc, char * argv[])
+{
+    THING xformed_serial = {0};
+    THING xformed_serial_copy = {0};
+    THING xformed_serial_working = {0};
+    int i, j, k;
+    unsigned char * pByte;
+
+    if(argc < 2)
+        { printf("enter serial\n"); return 0; }
+
+    if(strlen(argv[1]) != 48)
+        { printf("serial must be 48 chars\n"); return 0; }
+
+    //
+    // transform ascii serial into thing
+    //
+    pByte = (char *)&xformed_serial;
+
+    for(i=0; i<48; i+=2)
+    {
+        argv[1][i] -= 48;
+        argv[1][i+1] -= 48;
+
+        if(argv[1][i] > 9)
+            argv[1][i] -= 7;
+
+        if(argv[1][i+1] > 9)
+            argv[1][i+1] -= 7;
+
+        *pByte++ = (argv[1][i] << 4) | (argv[1][i+1]);
+    }
+
+    // set after_serial to 1000000000000...0
+    
+    memcpy(&copyC1C, &xformed_serial, sizeof(THING));
+
+    memcpy(&xformed_serial_copy, &xformed_serial, sizeof(THING));
+
+    for(i=0; i<=16; ++i)
+    {
+        if(i==0 || i==16) // this is all before_serial does
+        {
+//            print_thing(&after_serial);
+            rot_mod_add_mod(&after_serial);
+//            print_thing(&after_serial);
+        }
+
+//        print_thing(&xformed_serial_copy);
+        rot_mod_add_mod(&xformed_serial_copy);
+//        print_thing(&xformed_serial_copy);
+    }   
+
+    return 0;
+        
+}
+
+example pair:
+user: asdf
+ key: 5E197D1F672B4178CA2C0B9D2F0AB333944E4217460D1BAA

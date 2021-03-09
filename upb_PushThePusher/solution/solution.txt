@@ -1,0 +1,592 @@
+
+    
+    Crackme Solution
+    
+    Target: "Push the Pusher" by upb
+      Date: June 23rd, 2009
+     Tools: IDA, WinDBG, Google
+    
+    [+--------------------------------------------------------------------------------+]
+     | ANALYSIS 1                                                                     |
+    [+--------------------------------------------------------------------------------+]
+    
+    IDA identifies main @401050.
+    
+        .text:00401050                 push    ebp
+        .text:00401051                 mov     ebp, esp
+        .text:00401053                 sub     esp, 0E8h
+        .text:00401059                 push    ebx
+        .text:0040105A                 jmp     loc_40DD00
+    
+    Continuing at 40DD00..
+    
+        .text:0040DD00                 push    esi
+        .text:0040DD01                 mov     eax, [ebp+argc]
+        .text:0040DD04                 xor     edx, edx
+        .text:0040DD06                 jmp     loc_40105F
+    
+    Continuing at 40105F..
+    
+        .text:0040105F                 mov     ecx, 5550423Eh
+        .text:00401064                 idiv    ecx
+        .text:00401066                 cmp     edx, 50534852h
+        .text:0040106C                 jnz     loc_40114E
+    
+    The idiv instruction puts quotient in EAX and remainder in EDX.
+    
+    We need to solve X = 50534852 (mod 5550423E). Within a 32-bit register
+    there are only three solutions: {50534852, A5A38A90, FAF3CCCE}
+    
+    Simply try these values in the debugger and trace down... The value
+    seeds srand() and rand() is used to decrypt a message at 412070:
+    
+        .text:00401072                 mov     edx, [ebp+argc_]
+        .text:00401075                 push    edx
+        .text:00401076                 call    srand                 ; value used to seed
+        .text:0040107B                 add     esp, 4
+        .text:0040107E loop_setup:
+        .text:0040107E                 mov     [ebp+loopvar], 0
+        .text:00401085                 jmp     short loop_body
+        .text:00401087 loop_next:        
+        .text:00401087                 mov     eax, [ebp+loopvar]
+        .text:0040108A                 add     eax, 1
+        .text:0040108D                 mov     [ebp+loopvar], eax
+        .text:00401090 loop_body:      
+        .text:00401090                 mov     ecx, [ebp+loopvar]
+        .text:00401093                 movsx   edx, msg[ecx]
+        .text:0040109A                 test    edx, edx
+        .text:0040109C                 jz      loop_done 
+        .text:0040109C                                     
+        .text:004010A2                 call    _rand                 ; de-obfuscation values from LCG PRNG
+        .text:004010A7                 mov     [ebp+randA], ax
+        .text:004010AB                 call    _rand
+        .text:004010B0                 mov     [ebp+randB], ax
+        .text:004010B4                 call    _rand
+        .text:004010B9                 mov     [ebp+randC], ax
+        .text:004010B9                                        
+        .text:004010BD                 mov     eax, [ebp+loopvar]    ; get one char
+        .text:004010C0                 mov     cl, msg[eax]
+        .text:004010C6                 mov     [ebp+char], cl 
+        .text:004010C6                                        
+        .text:004010C9                 movzx   edx, [ebp+randC]      ; some transformation
+        .text:004010CD                 sar     edx, 5
+        .text:004010D0                 movzx   eax, dl
+        .text:004010D3                 movzx   ecx, [ebp+char]
+        .text:004010D7                 sub     ecx, eax
+        .text:004010D9                 mov     [ebp+char], cl
+        .text:004010DC                 movzx   edx, [ebp+randB]
+        .text:004010E0                 sar     edx, 4
+        .text:004010E3                 movzx   eax, dl
+        .text:004010E6                 movzx   ecx, [ebp+char]
+        .text:004010EA                 xor     ecx, eax
+        .text:004010EC                 mov     [ebp+char], cl
+        .text:004010EF                 movzx   ebx, [ebp+char]
+        .text:004010F3                 movzx   eax, [ebp+randA]
+        .text:004010F7                 sar     eax, 3
+        .text:004010FA                 cdq
+        .text:004010FB                 mov     ecx, 7
+        .text:00401100                 idiv    ecx
+        .text:00401102                 movzx   ecx, dl
+        .text:00401105                 sar     ebx, cl
+        .text:00401107                 movzx   esi, [ebp+char]
+        .text:0040110B                 movzx   eax, [ebp+randA]
+        .text:0040110F                 sar     eax, 3
+        .text:00401112                 cdq
+        .text:00401113                 mov     ecx, 7
+        .text:00401118                 idiv    ecx
+        .text:0040111A                 movzx   edx, dl
+        .text:0040111D                 mov     ecx, 8
+        .text:00401122                 sub     ecx, edx
+        .text:00401124                 shl     esi, cl
+        .text:00401126                 or      ebx, esi
+        .text:00401128                 mov     [ebp+char], bl
+        .text:0040112B
+        .text:0040112B                 mov     al, [ebp+char]        ; print transformation result
+        .text:0040112E                 push    eax
+        .text:0040112F                 push    offset dword_4141B0
+        .text:00401134                 call    print_char
+        .text:00401139
+        .text:00401139                 add     esp, 8
+        .text:0040113C                 jmp     loop_next
+    
+    For 50534852 and A5A38A90 it prints junk, but for FAF3CCCE it prints:
+    
+    "congrats :P to see the source, go to http://preteam.org/FAF3CCCE.txt"
+    
+    Download this file, we got source code :) I made a couple changes to get it to
+    compile, see crackme.cpp.
+    
+    [+--------------------------------------------------------------------------------+]
+     | ANALYSIS 2                                                                     |
+    [+--------------------------------------------------------------------------------+]
+    
+    With the source, we can see the main idea of the crackme. All of the work is done
+    in main(), and it's setup like a big switch statement on the argc value. So for
+    main to call a function, it instead calls main() with argc set to some functionality
+    identifier. Here is rough description:
+    
+    if(ac == 0xFAF3CCCE)
+    {
+      // decode and print message, return
+    }
+    else if(ac == -1)
+    {
+      // xor buffer, return
+    }
+    else if(ac == 0x1001)
+    {
+      // exit, return  
+    }
+    if(ac != 0 && ac != 1)
+    {
+      // error, return
+    }
+    // else
+    
+    serial syntax: XXXX-YY...Y
+    
+    srand(XXXX);
+    
+    initialize 4k buffer using encrypted message and username
+     - 4k buffer is initially zero'd
+     - 0x45 bytes of encrypted message is copied
+     - username characters are XOR'd into the first strlen(username) bytes
+     - all 4k bytes are XOR'd with low byte of rand() calls
+    
+    buffer is modified using YY...Y part of serial:
+    
+     - conversion to byte is tricky: crackme uses alphabet "1234567890ABCDEF" 
+     - so '1' represents 0, '2' represents '1', etc...
+     - every four characters in YY...Y is split into two byte pairs eg: "AABB" -> 0xAA, 0xBB
+     - each byte is a bit position in the plaintext array
+     - every bit [0xAA .. 0xBB] in the buffer is complemented
+     - the position-to-array index conversion screwy
+       here are the calculations:
+         plaintext array byte index: 0x1000 - (position / 8) + 1
+         plaintext array bit index: position % 8
+    
+       given position array access
+       -------------- -----------
+       0              array[1]   bit 0
+       1              array[1]   bit 1
+       ...            ...
+       8              array[0]   bit 0
+       9              array[0]   bit 1
+       ...
+       16             array[fff] bit 0
+       17             array[fff] bit 1
+       ...
+    
+       bug? upb probably meant:
+         0x1000 - (position / 8 + 1) which would give more sensical:
+    
+       given position array access
+       -------------- -----------
+       0              array[FFF] bit 0
+       1              array[FFE] bit 1
+       ...            ...
+    
+     - the actual changing of the buffer is done by calling main(-1)
+     - after the changes, a CRC32() is calculated of the input buff with poly 0xEDB88320
+       and initial CRC result value 0x21337455 ("too leet for push ebp"? (credit:comrade))
+     - main(CRC result) (the mod equation we solved potentially picks this up)
+    
+    [+--------------------------------------------------------------------------------+]
+     | ANALYSIS REVIEW                                                                |
+    [+--------------------------------------------------------------------------------+]
+    
+    To print the goodboy message, the final CRC result must be 0xFAFC333E.
+    
+    Our serial number encodes both how to generate the CRC input, and also how to toggle
+    that input to force the CRC calculation to the target value.
+    
+    Controlling a CRC is the main theme and will be the only focus of the remainder of
+    this. See keygen.cpp for how any of the other little extra stuff was done.
+    
+    [+--------------------------------------------------------------------------------+]
+     | CONTROLLING CRC: CRC COMPUTATION VIEW                                          |
+    [+--------------------------------------------------------------------------------+]
+    
+    This assumes you know what a CRC is and how to calculate it. There are a billion
+    resources on the web about it. The method here is long division, where the
+    individual subtraction results are replaced into the dividend since we are
+    discarding the quotient. The CRC example from wikipedia is:
+    
+        dividend = 11010011101100
+         divisor =           1011
+             CRC =            101
+    
+    Suppose we want it to instead be 111. We think about the divisor, scanning left-
+    to-right during the long division process, getting XOR'd (subtracted) where the
+    current dividend has a leading 0:
+    
+        11010011101100
+        1011
+        --------------
+        01100011101100
+         1011
+        --------------
+         0111011101100
+          1011
+        --------------
+          010111101100
+           1011
+        --------------
+           00001101100
+               1011
+        --------------
+                110100
+                1011
+        --------------
+                 11000
+                 1011
+        --------------
+                  1110
+                  1011
+        --------------
+                   101 <-- CRC
+    
+    Let's choose these labels:
+    
+        b13,b12,...,b0 = bits of the dividend
+              c2,c1,c0 = bits of the CRC
+    
+    Notice that in the above example, on the last few steps:
+    
+        c2 = b2 ^ 1 ^ 1 ^ 0
+        c1 = b1 ^ 1 ^ 1
+        c0 = b0 ^ 1
+    
+    We want to have full control over c2,c1,c0 and with knowledge of the input data b2,b1,b0
+    it seems like there is no problem. But the bits that XOR with b2,b1,b0 are from the
+    divisor, and when bits from the divisor are applied depends on dividend bits to the left
+    (more significant) than b2.
+    
+    The easiest way to proceed is to set a "trap" at the end of the dividend. We substitute
+    0 bits, since this is the XOR identity. After the CRC is calculated, c2,c1,c0 will contain
+    what bits would have been XOR'd with b2,b1,b0. Finally this information can be used to
+    solve for modified b2,b1,b0 in order to reach a CRC of our choosing. Here's what I mean:
+    
+    We take instead a CRC of 11010011101[000] (the "trap" is the last 3 bits)
+    
+        11010011101000
+        1011
+        --------------
+        01100011101000
+         1011
+        --------------
+         0111011101000
+          1011
+        --------------
+          010111101000
+           1011
+        --------------
+           00001101000
+               1011
+        --------------
+                110000
+                1011
+        --------------
+                011100
+                 1011
+        --------------
+                 01010
+                  1011
+        --------------
+                     1
+    
+    Now we know that b2,b1,b0 gets XOR'd with 0,0,1. To reach a target CRC of 111, we
+    now have these equations:
+    
+        1 = b2 ^ 0
+        1 = b1 ^ 0
+        1 = b0 ^ 1
+    
+    Solving, b2,b1,b0 = 1,1,0. Now we have a modified dividend 11010011101[110] and
+    test if our efforts worked:
+    
+        11010011101110
+        1011
+        -------------
+        01100011101110
+         1011
+        -------------
+         0111011101110
+          1011
+        -------------
+          010111101110
+           1011
+        -------------
+           00001101110
+               1011
+        -------------
+               0110110
+                1011
+        --------------
+                 11010
+                 1011
+        --------------
+                  1100
+                  1011
+        --------------
+                   111 <-- TARGET CRC!
+    
+    [+--------------------------------------------------------------------------------+]
+     | CONTROLING CRC: MATH VIEW                                                      |
+    [+--------------------------------------------------------------------------------+]
+    
+    This assumes you know about how CRC calculation is really GF(2)[X]/<CRC poly>.
+    
+    Recall this fact about piece-wise computation of remainders:
+    
+        A+B(mod N) = (A(mod N)+B(mod N))(mod N)
+    
+    Let's now convert the bit representation in the previous example to polynomials:
+                  
+        dividend = 11010011101100 = x^13 + x^12 + x^10 + x^7 + x^6 + x^5 + x^3 + x^2
+         divisor =           1011 = x^3 + x + 1
+             CRC =            101 = x^2 + 1
+      target CRC =            111 = x^2 + x + 1
+    
+    Setting the "trap" is really splitting the polynomial into two addends:
+    
+         addendA = x^13 + x^12 + x^10 + x^7 + x^6 + x^5 + x^3
+         addendB = x^2
+    
+    We could now individually take the remainder after division by the CRC poly:
+    
+        addendA % (x^3 + x + 1) = 1
+        addendB % (x^3 + x + 1) = x^2
+                                                                
+    And now we see that their sum is x^2 + 1, verifying the original CRC calculation. We
+    may now change addendB so that it contributes in addition to addendA's remainder just
+    enough to reach the target CRC. This task is simplified if we keep its degree <= 2,
+    because then it won't be divisible by the CRC polynomial and is therefore its own
+    remainder.
+    
+        addendB' = (x^2 + x + 1) - 1
+                 = x^2 + x
+    
+    The new dividend is now addendA + addendB':
+    
+        dividend' = x^13 + x^12 + x^10 + x^7 + x^6 + x^5 + x^3 + x^2 + x
+    
+    And we can finally verify:
+     
+        dividend' % (x^3 + x + 1) = x^2 + x + 1
+    
+    [+--------------------------------------------------------------------------------+]
+     | CRC32 AND ITS INTRODUCED COMPLICATIONS                                         |
+    [+--------------------------------------------------------------------------------+]
+    
+    As you may know, there are a freaking ton of variations on CRC. A good tutorial is
+    "A Painless Guide to CRC Error Detection Algorithms" by Ross Williams.
+    
+    Here are the details on the CRC32 algorithm contained in the crackme. First, you
+    may consider the divisor poly stored "backward":
+    
+     CRC32 poly = 0xEDB88320
+                = 11101101101110001000001100100000_
+                  ||| || || |||   |     ||  |     |
+                  ||| || || |||   |     ||  |     +- x^32 (implied)
+                  ||| || || |||   |     ||  |  
+                  ||| || || |||   |     ||  +------- x^26
+                  ||| || || |||   |     |+---------- x^23
+                  ||| || || |||   |     +----------- x^22
+                  ||| || || |||   +----------------- x^16
+                  ||| || || ||+--------------------- x^12
+                  ||| || || |+---------------------- x^11
+                  ||| || || +----------------------- x^10
+                  ||| || |+------------------------- x^8
+                  ||| || +-------------------------- x^7
+                  ||| |+---------------------------- x^5
+                  ||| +----------------------------- x^4
+                  ||+------------------------------- x^2
+                  |+-------------------------------- x^1
+                  +--------------------------------- 1
+    
+    Since the bytes of the input data are read left-to-right, you may suspect that
+    the bits at the start of the input data actually represent the higher term
+    coefficients. The 0th byte actually stores (from MSB to LSB) the coefficients
+    of the x^(N-7), x^(N-6), ..., x^(N) terms and the 1st byte actually stores
+    (from MSB to LSB) the x^(N-15), x^(N-14), ..., x^(N-8) and so on...
+    
+    So consider the input buffer {0xDE, 0xAD, 0xBE, 0xEF}:
+    
+    0xDE = 11011110 = x^(N-7) + x^(N-6) + x^(N-4) + x^(N-3) + x^(N-2) + x^(N-1)
+    0xAD = 10101101 = x^(N-15) + x^(N-13) + x^(N-11) + x^(N-10) + x^(N-8)
+    0xBE = 10111110 = x^(N-23) + x^(N-21) + x^(N-20) + x^(N-19) + x^(N-18) + x^(N-17)
+    0xEF = 11101111 = x^(N-31) + x^(N-30) + x^(N-29) + x^(N-27) + x^(N-26) + x^(N-25) + x^(N-24)
+    
+    Storing this as a bit string left-to-right from lowest terms to highest terms,
+    (mirroring the CRC32 representation) we get 1110111110111110101011011101111. But
+    we're still not able to divide yet. You must multiply by x^L where L is the
+    degree of the divisor poly. I'm thinking this is because you don't want any
+    inputs with less than L bits to be their own CRC value (no division would occur
+    since the divisor poly is larger). So multiplying in this case by x^32, the
+    bit representation shifts by 32 zeros:
+    
+    000000000000000000000000000000001110111110111110101011011101111
+    
+    Finally! Due to the "backwards" representation, where the highest degree terms
+    are on the right, we can perform long division from right-to-left instead :)
+    Here is a fully worked example of the CRC32 of {0xDE, 0xAD, 0xBE, 0xEF}:
+    
+    000000000000000000000000000000001110111110111110101011011101111
+                                  111011011011100010000011001000001
+    ---------------------------------------------------------------
+    000000000000000000000000000000110101100101011100101000010101110
+                                 111011011011100010000011001000001
+    ---------------------------------------------------------------
+    00000000000000000000000000000100001101001001100010111000010110
+                                111011011011100010000011001000001
+    ---------------------------------------------------------------
+    0000000000000000000000000000101011101111000100001000101001010
+                               111011011011100010000011001000001
+    ---------------------------------------------------------------
+    000000000000000000000000000101110101100000000000111011100100
+                             111011011011100010000011001000001
+    ---------------------------------------------------------------
+    0000000000000000000000000110000110000100010000010111111000
+                          111011011011100010000011001000001
+    ---------------------------------------------------------------
+    0000000000000000000000111101011101100110010011011111110
+                         111011011011100010000011001000001
+    ---------------------------------------------------------------
+    000000000000000000000100101110101010001001010100111110
+                        111011011011100010000011001000001
+    ---------------------------------------------------------------
+    00000000000000000000101001100001001010100110011011110
+                       111011011011100010000011001000001
+    ---------------------------------------------------------------
+    0000000000000000000101111101011000111010000000101110
+                      111011011011100010000011001000001
+    ---------------------------------------------------------------
+    000000000000000000101100101110000001101011001010110
+                     111011011011100010000011001000001
+    ---------------------------------------------------------------
+    00000000000000000101101001100100010110110101101010
+                    111011011011100010000011001000001
+    ---------------------------------------------------------------
+    0000000000000000101101111101110011011000011110100
+                  111011011011100010000011001000001
+    ---------------------------------------------------------------
+    00000000000000110000000100111110110101001111100
+                111011011011100010000011001000001
+    ---------------------------------------------------------------
+    000000000000110111011010101101101110011011110
+               111011011011100010000011001000001
+    ---------------------------------------------------------------
+    00000000000100000110110110100110100000101110
+              111011011011100010000011001000001
+    ---------------------------------------------------------------
+    0000000000101011000000111000011001001010110
+             111011011011100010000011001000001
+    ---------------------------------------------------------------
+    000000000101110111011111110001111101101010
+            111011011011100010000011001000001
+    ---------------------------------------------------------------
+    00000000101100000110011101000100111110100
+          111011011011100010000011001000001
+    ---------------------------------------------------------------
+    000000110000011010000101010010000111100
+        111011011011100010000011001000001
+    ---------------------------------------------------------------
+    0000110111011101000011010111101001110
+       111011011011100010000011001000001
+    ---------------------------------------------------------------
+    000100000110101000011101000111100110
+      111011011011100010000011001000001
+    ---------------------------------------------------------------
+    00101011000001000011110111010110010
+     111011011011100010000011001000001
+    ---------------------------------------------------------------
+     1011101110110000111110001000110000
+    
+    Which is 0x5DD87C46, the correct CRC32 value.
+    
+    Most CRC32 implementations will starts the remainder buffer at 0xFFFFFFFF and will do
+    an additional XOR of 0xFFFFFFFF on the final CRC output. The crackme instead starts
+    with a quotient of 0x21337455 and doesn't appear to do a final XOR.
+    
+    If you attempt to use the procedure discussed earlier to manipulate CRC32, you'll
+    find that it doesn't work. Finding out why was pretty difficult: debugging is hard
+    because the crackme's implementation uses a precomputed table. But remember
+    that this table is for dividend polys that have been multiplied by x^32. The
+    introduction of the initial remainder value buffer has no mathematical analog that
+    I can think of either. So we must make a modified procedure:
+    
+    1) Find what 32-bit input has CRC32 of 0xFAF3CCCE with initial remainder
+       buffer of 0x21337455:
+    
+       for(UINT i=0;i<0xFFFFFFFF;++i) {
+           *(PULONG)buf=i;
+           crc=crc32((PUCHAR)buf,4,0);
+           if(crc==0xFAF3CCCE)
+               printf("%08X\n",i);
+       }
+    
+       The answer is 0x86C92F0B, but remember this is for an input buffer (in vanilla
+       CRC viewpoint) of {0x0B, 0x2F, 0xC9, 0x86, 0x00, 0x00, 0x00, 0x00}
+    
+    2) Calculate the CRC32 of the 4k buffer, less 4 bytes, the input buff (in vanilla
+       CRC viewpoint) is now something like:
+    
+       0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 
+       0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 
+       ...
+       0xXX, 0xXX, 0xXX, 0xXX, 0x00, 0x00, 0x00, 0x00
+    
+    3) we know now that if we added four more bytes (the last four of the full 4k
+       buffer), they would incur an xor of step 2)'s result before division continued
+    
+       note CRC32(input,4,X) == CRC32(input^X,4,0)
+       
+       thus we can form this new input buffer:
+    
+       0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 
+       0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 
+       ...
+       0xXX, 0xXX, 0xXX, 0xXX, 0xRR, 0xRR, 0xRR, 0xRR
+    
+       where 0xRRRRRRRR == CRC32(input,0xFFC,0x21337455) ^ 0x86C92F0B
+    
+    [+--------------------------------------------------------------------------------+]
+     | GENERATING KEYS                                                                |
+    [+--------------------------------------------------------------------------------+]
+    
+    1) emulate crackme behavior in producing the CRC input buffer from username and the
+       first part of the serial (which we can generate randomly)
+    2) determine what modified input buffer would produce CRC FAF3CCCE
+    3) encode the original buffer modifications into a key
+    
+    Example keys:
+    
+      name: upb
+    serial: 4190-21212222252526262828292920202C2C2D2D323233333434393930303B3B3C3C3D3D
+    
+      name: pusher
+    serial: E2C8-242425252727282829292C2C2E2E3131333336363838393930303A3A3B3B3F3F
+    
+      name: crackmes.de
+    serial: 0BBA-222224242525262629292A2A2B2B2D2D2E2E2F2F313135353838393930303B3B3C3C3F3F
+    
+    See keygen.cpp!
+    
+    [+--------------------------------------------------------------------------------+]
+     | CONCLUSION                                                                     |
+    [+--------------------------------------------------------------------------------+]
+    
+    This is one of those crackmes that made me learn something. Thank you upb! But it
+    was also very difficult (MUCH more than I initially imagined) to get every bit just
+    correct and under control; damn you upb and CRC modifiers! :P
+    
+    ~[list of names]~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    E.L.,numernia,cyclops,obnoxious,dihux,artif,upb,indomit,jbadger,simonzack,KernelJ,
+    pusher
+    
+    ~[thanks for reading]~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    andrewl
+    crackmes.de
+
+

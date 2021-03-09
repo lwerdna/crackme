@@ -1,0 +1,477 @@
+Solution to BUBlic's "Security Pow-1" - andrewl - 1/26/2009
+
+[----------------------------------------------------------------------------------]
+ INTRO
+[----------------------------------------------------------------------------------]
+
+In the solution to "Security Pow-2" divinomas identified NTRU use. That crackme had
+the same clue "N-joy Tricking the Riddle Unassisted", a phrase with four letters
+"NTRU" -> this crackme probably uses NTRU also.
+
+[----------------------------------------------------------------------------------]
+ About NTRU - Basics of truncated polynomials
+[----------------------------------------------------------------------------------]
+
+NTRU stands for "N'th-degree Truncated polynomial Ring". Full explanation here:
+
+http://www.ntru.com/cryptolab/tutorials.htm
+
+An entire understanding of the NTRU cryptosystem is not required to solve this
+crackme; just some knowledge of how NTRU polynomials work.
+
+An NTRU polynomial has N terms (some possibly with 0 coeffs) and maximum degree N-1.
+
+Multiplying and adding NTRU polys is done typically (normal polynomial
+multiplication and addition), followed by reducing all exponents mod N. 
+
+NTRU polys themselves can be inputs to a special mod operation which reduces each
+coefficient using the modulus operation.
+
+[----------------------------------------------------------------------------------]
+ About NTRU - Representation
+[----------------------------------------------------------------------------------]
+
+The NTRU convention is to represent polynomials by listing the coefficients from the
+0th-degree term to the N-1th degree term.
+
+For example, let N=5, the poly:
+
+   x^2 + 2x + 3
+
+Is represented:
+
+   3 2 1 0 0
+
+From now on these coefficients will be referred to as c0, c1, ..., cN-1.
+
+To disambiguate the same coefficient c0 in two different polys A and B, A.c0 and
+B.c0 will be written.
+
+[----------------------------------------------------------------------------------]
+ About NTRU - multiplication, inverses
+[----------------------------------------------------------------------------------]
+
+Suppose two NTRU polys are being multiplied with N=3:
+
+   A = 3x^2 + 2x + 1
+   B = 6x^2 + 2x + 3 
+
+And you want to know what the c0 coefficient is. Obviously the product of both A.c0
+and B.c0 (1 from the first poly, 3 from the second) will contribute to it. But so
+will any other coefficients of terms whose product's exponent (mod N) == 0:
+
+   1 * 3                     A.c0 * B.c0 terms
+   2 * 6                     A.c1 * B.c2 terms
+   3 * 2                     A.c2 * B.c1 terms
+
+Their sum is 3 + 12 + 6 = 21.
+
+Indeed A * B = 19x^2 + 26x + 21 and the calculation of 21 is verified.
+
+Generally, coefficient cX is calculated by summing each of the N products:
+
+A.cY * B.cZ where Y * Z = X (mod N)
+
+If you treat the list of integer representing the poly as a vector, each coefficient
+of the product becomes a dot product of a reversed rotation of the integer
+representation of the other poly factor. Using the same example:
+
+   (1 2 3) * (3 2 6) = (21 26 19)
+
+   Since:
+
+   c0 = <1 2 3> (dot) <3 6 2> = 1*3 + 2*6 + 3*2 = 21
+   c1 = <1 2 3> (dot) <2 3 6> = 1*2 + 2*3 + 3*6 = 26
+   c2 = <1 2 3> (dot) <6 2 3> = 1*6 + 2*2 + 3*3 = 19
+
+This view is helpful for identifying the NTRU multiplication function @00401000.
+
+In matrix form, this calculation is equivalently:
+
+   |3 6 2| |1|   |21|
+   |2 3 6| |2| = |26|
+   |6 2 3| |3|   |19|
+
+This view is helpful in calculating the inverse of an NTRU poly, which is done by
+simply solving for the factor which would yield the poly 1:
+
+   |  c0   cN-1   cN-2 ....   c1| |  i.c0|   |  1|
+   |  c1     c0   cN-1 ....   c2| |  i.c1| = |  0|
+   |....   ....   .... .... ....| |......|   |...|
+   |cN-1   cN-2   cN-3 ....   c0| |i.cN-1|   |  0|
+
+[----------------------------------------------------------------------------------]
+ About NTRU - The ring
+[----------------------------------------------------------------------------------]
+
+7 days!!
+
+The NTRU polys qualify as elements of a ring.
+
+With further reduction of their coefficients, the ring is finite.
+
+If the coefficients are reduced (mod k), then the polynomials have N terms each with
+possibly k coefficients, making the ring size k^N.
+
+I wanted to see what a multiplication and addition table would look like in this
+ring. See scripts\tables_N_3.html for a picture with N=3 and coefficients reduced
+mod 3. It was produced using scripts\table_html.pl.
+
+The diagonal symmetry of the tables illustrate commutativity.
+
+[----------------------------------------------------------------------------------]
+ The algorithm
+[----------------------------------------------------------------------------------]
+
+Name/serial are read @004010BE. Crackme requires len(name) >= 3, len(serial) == 32.
+Serial format verified by ensuring each character is a member of an alphabet:
+
+  .text:0040112C bad_serial_fmt:
+  .text:0040112C         push    0
+  .text:0040112E         push    offset Caption          ; "Error"
+  .text:00401133         push    offset aWrongSerialFor  ; "Wrong serial format!"
+  .text:00401138         jmp     msgbox
+  .text:0040113D
+  .text:0040113D loop_init:
+  .text:0040113D         and     loopvar, 0
+  .text:00401144         mov     edi, offset alphabet32  ; "0123456789ABCDEFGHIJKLMNOPQRSTUV"
+  .text:00401149
+  .text:00401149 loop_body:
+  .text:00401149         mov     eax, loopvar
+  .text:0040114E         movzx   eax, serial[eax]
+  .text:00401155         push    eax
+  .text:00401156         push    edi                     ; and the alphabet
+  .text:00401157         call    strstr
+  .text:0040115C         test    eax, eax
+  .text:0040115E         pop     ecx
+  .text:0040115F         pop     ecx
+  .text:00401160         jz      short bad_serial_fmt    ;
+  .text:00401160                                         ;
+  .text:00401162         inc     loopvar
+  .text:00401168         cmp     loopvar, ebp            ; is 20h?
+  .text:0040116E         jnz     short loop_body         ;
+
+MD5 of username taken:
+
+  .text:00401170 phase_md5:
+  .text:00401170         push    MD5_ctx
+  .text:00401176         call    MD5_Init
+  .text:0040117B         push    esi                     ; -> name
+  .text:0040117C         call    strlen
+  .text:00401181         push    eax
+  .text:00401182         push    esi
+  .text:00401183         push    MD5_ctx
+  .text:00401189         call    MD5_Update              ;
+  .text:00401189                                         ;
+  .text:0040118E         push    MD5_ctx
+  .text:00401194         push    offset digest
+  .text:00401199         call    MD5_Final               ;
+
+Least significant bit (32 total) of each nybble in hash becomes coefficient of a poly:
+
+  .text:004011A3         mov     eax, esi
+  .text:004011A5         cdq
+  .text:004011A6         sub     eax, edx                ; ?? edx always 0
+  .text:004011A8         sar     eax, 1                  ; loopvar/2
+  .text:004011AA         movzx   eax, digest[eax]        ; get hash byte
+  .text:004011B1         mov     ecx, esi
+  .text:004011B3         and     ecx, 80000001h
+  .text:004011B9         jns     short loc_4011C0        ;
+  .text:004011B9                                         ;
+  .text:004011BB         dec     ecx
+  .text:004011BC         or      ecx, 0FFFFFFFEh
+  .text:004011BF         inc     ecx
+  .text:004011C0
+  .text:004011C0 loc_4011C0:
+  .text:004011C0         shl     cl, 2
+  .text:004011C3         shr     eax, cl                 ; if(loopvar is odd)
+  .text:004011C3                                         ;    eax << 4;
+  .text:004011C5         and     eax, 80000001h
+  .text:004011CA         jns     short loc_4011D1        ;
+  .text:004011CA                                         ;
+  .text:004011CC         dec     eax
+  .text:004011CD         or      eax, 0FFFFFFFEh
+  .text:004011D0         inc     eax
+  .text:004011D1
+  .text:004011D1 loc_4011D1:
+  .text:004011D1         mov     poly_hash[esi*4], eax
+  .text:004011D8         inc     esi
+  .text:004011D9         cmp     esi, ebp                ; 20h
+  .text:004011DB         jnz     short loc_4011A3        ;
+
+The offsets within the alphabet of each serial character become coefficients of a poly.
+At the same time, a mod 3 version of the poly is constructed.
+
+  .text:004011DF         movzx   eax, serial[esi]
+  .text:004011E6         push    eax
+  .text:004011E7         push    edi                     ; alphabet
+  .text:004011E8         call    strstr
+  .text:004011ED         pop     ecx
+  .text:004011EE         sub     eax, edi                ; eax = offset into alphabet
+  .text:004011F0         pop     ecx
+  .text:004011F1         mov     poly_serial[esi*4], eax
+  .text:004011F8         push    3
+  .text:004011FA         cdq
+  .text:004011FB         pop     ecx
+  .text:004011FC         idiv    ecx
+  .text:004011FE         inc     esi
+  .text:004011FF         cmp     esi, ebp
+  .text:00401201         mov     dword_40D13C[esi*4], edx ; +4 is poly_serial_mod3
+  .text:00401208         jnz     short loc_4011DF        ;
+
+If the mod 3 version is equal to the poly generated from the hash of the username, it
+is considered cheating. A clue? We'll see :)
+
+  .text:0040120A         push    offset poly_serial_mod3
+  .text:0040120F         mov     ebx, offset poly_hash
+  .text:00401214         push    ebx
+  .text:00401215         call    NTRU_compare            ; returns 1 if equal, 0 if not
+  .text:0040121A         test    al, al
+  .text:0040121C         pop     ecx
+  .text:0040121D         pop     ecx
+  .text:0040121E         jz      short loc_40122E        ;
+  .text:0040121E                                         ;
+  .text:00401220         push    0
+  .text:00401222         push    offset Caption          ; "Error"
+  .text:00401227         push    offset aNoCheating      ; "No cheating!"
+  .text:0040122C         jmp     short msgbox
+
+Calculate poly_a = poly_f_3 * poly_serial (mod 32) where poly_f_3 is hardcoded at 40C000
+
+  .text:0040122E         push    ebp                     ; 32d == q "big modulus"
+  .text:0040122F         mov     edi, offset poly_a
+  .text:00401234         push    edi
+  .text:00401235         push    offset poly_serial
+  .text:0040123A         push    offset poly_f_3
+  .text:0040123F         call    NTRU_multiply           ; poly_a = poly_serial * poly_f_3 (mod 32d)
+
+This function NTRU_mod adjusts poly_a's coefficients to lie between (-16,16] instead of [0,32)
+but we can ignore this. I label the result poly_c but really the changes were done in place.
+
+  .text:00401244         push    ebp
+  .text:00401245         push    edi
+  .text:00401246         call    NTRU_mod                ; poly_b = poly_a (mod 32d)
+  .text:00401246                                         ;
+ 
+Calculate poly_c = poly_f_3_inverse * poly_b (mod 3)
+
+  .text:0040124B         push    3                       ; p == 3 "small modulus"
+  .text:0040124D         mov     esi, offset c
+  .text:00401252         push    esi
+  .text:00401253         push    offset poly_f_3_inverse
+  .text:00401258         push    edi
+  .text:00401259         call    NTRU_multiply           ; c = f^-1 * b (mod 3)
+
+The poly_c's coefficients are adjusted to be (-1,1];
+
+  .text:0040125E         push    3                       ; p
+  .text:00401260         push    esi
+  .text:00401261         call    NTRU_mod                ; poly_c = poly_c (mod p)
+
+Good boy criteria is tested:
+
+  .text:00401266         push    esi
+  .text:00401267         push    ebx
+  .text:00401268         call    NTRU_compare            ; compare poly_c to poly_hash
+  .text:0040126D         add     esp, 38h                ;
+  .text:0040126D                                         ;
+  .text:00401270         test    al, al
+  .text:00401272         push    0                       ; uType
+  .text:00401274         jz      short badboy            ;
+  .text:00401274                                         ;
+  .text:00401276         push    offset aGoodBoy         ; "Good boy"
+  .text:0040127B         push    offset aYouDidIt        ; "You did it!"
+  .text:00401280         jmp     short msgbox
+
+summary:
+
+               +-----------------+  nybbles/coeffs
+  name ------> |       MD5       | ----------------> poly_hash
+               +-----------------+
+  
+               +-----------------+  offsets/coeffs                 
+  serial ----> | alphabet lookup | ----------------> poly_serial 
+               +-----------------+                            
+
+Requirements:
+
+  poly_hash (mod 3) != poly_serial
+
+  poly_hash == poly_f_3_inverse * (poly_f * poly_serial (mod 32)) (mod 3)
+
+[----------------------------------------------------------------------------------]
+ Attacking the algo
+[----------------------------------------------------------------------------------]
+
+Let's divide the final calculation into two stages:
+
+  poly_B = poly_f * poly_serial (mod 32)
+
+  poly_C = poly_f_3_inv * poly_B (mod 3)
+
+poly_f is:    0, 1, 0, 0, 0,-1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+              1, 0, 0, 0, 0, 0, 0,-1, 1, 0, 0, 0, 0, 1,-1, 0
+
+poly_f_3_inv: 0, 1, 0, 1, 2, 2, 1, 2, 1, 2, 2, 0, 0, 0, 0, 1,
+              2, 1, 0, 2, 1, 2, 2, 0, 0, 0, 2, 1, 2, 0, 1, 0
+
+Their inverse relationship (mod 3) is tested and verified in scripts\test_inverses.pl
+
+First, it was considered cheating if poly_serial == poly_hash (mod 3). What would
+happen if we were allowed to cheat?
+
+  poly_B = poly_f * poly_serial (mod 32)
+         = poly_f * (poly_hash) (mod 32)
+
+  poly_C = poly_f_3_inv * poly_B (mod 3)
+         = poly_f_3_inv * (poly_f * poly_hash (mod 32)) (mod 3)
+
+The most important point in this calculation is that poly_f has very special
+coefficients. The quantity of 1's is one more than the quantity of -1's. This means
+that the coefficients of poly_hash, already reduced mod 32, will not require
+further reduction mod 32 when multiplied by poly_f, making the (mod 32) completely
+inconsequential.
+
+         = poly_f_3_inv * poly_f * poly_hash (mod 3)
+
+And since we're multiplying (mod 3) the inverses (mod 3), the result is the
+multiplicative identity 1.
+
+         = 1 * poly_hash
+         
+And the serial requirement is met.
+
+So in the trivial case, we supply exactly the poly_hash, and the multiplication by
+f and the inverse of f (mod 3) cancels out, leaving poly_hash.
+
+That is why BUBlic forbids it as cheating.
+
+[----------------------------------------------------------------------------------]
+ Keygenning
+[----------------------------------------------------------------------------------]
+
+An input other than poly_hash must be found such that the serial verification 
+calculation outputs poly_hash.
+
+Being lazy (or clever?), maybe poly_hash (the cheating input) which we know works,
+can be slightly modified to skip the cheating test, while preserving the result.
+
+Introducing:
+
+poly_serial = 3 * poly_f_32_inv + poly_hash (mod 3)
+
+All I did here is add 3 * poly_f_32_inv to the cheating input.
+
+The calculations are now:
+
+  poly_B = poly_f * poly_serial (mod 32)
+         = poly_f * (3 * poly_f_32_inv + poly_hash) (mod 32)
+         = 3 * poly_f * poly_f_32_inv (mod 32) + poly_f * poly_hash (mod 32)
+         = 3 + poly_f * poly_hash (mod 32)
+
+  poly_C = poly_f_3_inv * poly_B (mod 3)
+         = poly_f_3_inv * (3 + poly_f * poly_hash) (mod 3)
+         = poly_f_3_inv * 3 (mod 3) + 1 * poly_hash
+         = 0 + poly_hash
+
+It should work. The inverse of poly_f (mod 32) was added because multiplication would
+cancel, leaving a 1. But leaving a 1 would make the result poly_hash + 1. So multiply
+this by 3 (the reduction mod of the final equation) to make our addition equivalent
+to zero in the final mod reduction.
+
+Any multiple of 3 should work, allowing you to get many serials per name.
+
+The inverse of poly_f (mod 32) must still be found. Using the matrix form of
+multiplication, the inverase i can be solved for easily:
+
+    |f.c00 f.c31 f.c30 ... f.c01| |i.c00|   |1|
+    |f.c01 f.c00 f.c31 ... f.c02| |i.c01| = |0|
+    |...                        | |...  |   |0|
+    |f.c31 f.c30 f.c29 ... f.c00| |i.c31|   |0|
+
+In PARI/GP I use this:
+
+  M=[ \  
+  0,0,-1,1,0,0,0,0,1,-1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,-1,0,0,0,1; \
+  1,0,0,-1,1,0,0,0,0,1,-1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,-1,0,0,0; \
+  0,1,0,0,-1,1,0,0,0,0,1,-1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,-1,0,0; \
+  0,0,1,0,0,-1,1,0,0,0,0,1,-1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,-1,0; \
+  0,0,0,1,0,0,-1,1,0,0,0,0,1,-1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,-1; \
+  -1,0,0,0,1,0,0,-1,1,0,0,0,0,1,-1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0; \
+  0,-1,0,0,0,1,0,0,-1,1,0,0,0,0,1,-1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0; \
+  0,0,-1,0,0,0,1,0,0,-1,1,0,0,0,0,1,-1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0; \
+  0,0,0,-1,0,0,0,1,0,0,-1,1,0,0,0,0,1,-1,0,0,0,0,0,0,1,0,0,0,0,0,0,0; \
+  0,0,0,0,-1,0,0,0,1,0,0,-1,1,0,0,0,0,1,-1,0,0,0,0,0,0,1,0,0,0,0,0,0; \
+  0,0,0,0,0,-1,0,0,0,1,0,0,-1,1,0,0,0,0,1,-1,0,0,0,0,0,0,1,0,0,0,0,0; \
+  0,0,0,0,0,0,-1,0,0,0,1,0,0,-1,1,0,0,0,0,1,-1,0,0,0,0,0,0,1,0,0,0,0; \
+  0,0,0,0,0,0,0,-1,0,0,0,1,0,0,-1,1,0,0,0,0,1,-1,0,0,0,0,0,0,1,0,0,0; \
+  0,0,0,0,0,0,0,0,-1,0,0,0,1,0,0,-1,1,0,0,0,0,1,-1,0,0,0,0,0,0,1,0,0; \
+  0,0,0,0,0,0,0,0,0,-1,0,0,0,1,0,0,-1,1,0,0,0,0,1,-1,0,0,0,0,0,0,1,0; \
+  0,0,0,0,0,0,0,0,0,0,-1,0,0,0,1,0,0,-1,1,0,0,0,0,1,-1,0,0,0,0,0,0,1; \
+  1,0,0,0,0,0,0,0,0,0,0,-1,0,0,0,1,0,0,-1,1,0,0,0,0,1,-1,0,0,0,0,0,0; \
+  0,1,0,0,0,0,0,0,0,0,0,0,-1,0,0,0,1,0,0,-1,1,0,0,0,0,1,-1,0,0,0,0,0; \
+  0,0,1,0,0,0,0,0,0,0,0,0,0,-1,0,0,0,1,0,0,-1,1,0,0,0,0,1,-1,0,0,0,0; \
+  0,0,0,1,0,0,0,0,0,0,0,0,0,0,-1,0,0,0,1,0,0,-1,1,0,0,0,0,1,-1,0,0,0; \
+  0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,-1,0,0,0,1,0,0,-1,1,0,0,0,0,1,-1,0,0; \
+  0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,-1,0,0,0,1,0,0,-1,1,0,0,0,0,1,-1,0; \
+  0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,-1,0,0,0,1,0,0,-1,1,0,0,0,0,1,-1; \
+  -1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,-1,0,0,0,1,0,0,-1,1,0,0,0,0,1; \
+  1,-1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,-1,0,0,0,1,0,0,-1,1,0,0,0,0; \
+  0,1,-1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,-1,0,0,0,1,0,0,-1,1,0,0,0; \
+  0,0,1,-1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,-1,0,0,0,1,0,0,-1,1,0,0; \
+  0,0,0,1,-1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,-1,0,0,0,1,0,0,-1,1,0; \
+  0,0,0,0,1,-1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,-1,0,0,0,1,0,0,-1,1; \
+  1,0,0,0,0,1,-1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,-1,0,0,0,1,0,0,-1; \
+  -1,1,0,0,0,0,1,-1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,-1,0,0,0,1,0,0; \
+  0,-1,1,0,0,0,0,1,-1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,-1,0,0,0,1,0 ]
+
+  B=[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]~
+
+  I=matsolvemod(M,32,B)
+
+PARI/GP gives:
+
+  [-3, -15, 11, 13, 13, -2, -15, -8, 0, -14, -5, -1, -15, -15, -5, -1, -12,
+  -11, 15, -11, -2, -14, 5, 6, -14, -11, -14, -11, 9, 13, 1, -14]~
+
+This inverse is verified in scripts\test_inverses.pl.
+
+Next, multiply by 3 (mod 32):
+
+  R=3*I % 32
+
+  [23, 19, 1, 7, 7, 26, 19, 8, 0, 22, 17, 29, 19, 19, 17, 29, 28, 31, 13, 
+  31, 26, 22, 15, 18, 22, 31, 22, 31, 27, 7, 3, 22]~
+
+Producing serials is dirt easy now. Simply generate the poly from the username,
+and add this poly to it :)
+
+..and encode the poly back into those alphabet characters.
+
+This is implemented in scripts\keygen.pl.
+
+[----------------------------------------------------------------------------------]
+ Conclusion
+[----------------------------------------------------------------------------------]
+
+NTRU polynomials are very interesting, so thanks to BUBlic for implementing them in
+this crackme.
+
+Credit to divinomas for doing probably what is the hardest part of this crackme:
+identifying its behavior as NTRU.
+
+Hi to E.L., all crackmes.de and all #c4n.
+
+Example serials:
+
+BUBlic
+NK287RJ81MITJJITS0D0RNFIM0N0S74N
+
+crackmes.de
+OK278QJ80MHTKJHUT0DVQMGJM0NVS73M
+
+cracking4newbies
+OJ287QK81MHUJKITS0D0RNFJNVMVR73M
+
+
+

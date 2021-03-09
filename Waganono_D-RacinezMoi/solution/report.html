@@ -1,0 +1,642 @@
+<html>
+
+<head>
+  <title>How to keygen D-Racinez-Moi</title>
+
+  <style type="text/css">
+
+<!--
+   BODY
+   {
+      background : #FFFFFF;
+      background-color: darkgreen;
+      color : #000000;
+      font-family : normal arial, helvetica;
+      font-size: 12px;
+      align: center;
+      text-align: center;
+   }
+   DIV.x
+   {
+    background-color: white;
+    border-style: solid;
+    border-width: 1;
+    border-color: black;
+    padding-left: 4;
+    padding-top: 8;
+    padding-right: 4;
+    padding-bottom: 4;
+    width: 96%;
+    margin-left: auto;
+    margin-right: auto;
+    text-align: justify;
+   }
+   H3.center
+   {
+        text-align: center;
+   }
+   H3
+   {
+      font-size : 16px;
+      text-align : left;
+   }
+   A:link, A:visited
+   {
+      color: #0000FF;
+      text-decoration: none;
+   }
+
+   pre.code
+   {
+        background-color: #C0C0C0
+   }
+
+   pre.math
+   {
+        background-color: #FFCCFF
+   }
+
+   pre.dos
+   {
+	color: white;
+        background-color: #000000
+    }
+
+	pre.equation
+	{
+		background-color: skyblue
+	}
+//-->
+
+  </style>
+</head>
+
+<h3 class="center">How to keygen Waganono's D-Racinez-Moi</h3>
+
+<!-- CONTENT -->
+<DIV class="x">
+<h3>Intro</h3>
+<p>This is a very involved crackme. It can be divided into two parts: 1) A TLS (thread local storage) startup routine with a slew of anti-debugging tricks and 2) A key-based protection scheme that relies on modular arithmetic, implemented using OpenSSL libraries.</p>
+
+<p>I used IDA for static analysis, msieve to factor a large number, windbg to debug, along with wdbgtoolz extension and extension that can read "BIGNUM" data structures from OpenSSL, and OpenSSL lib itself to code the math in the keygen.</p>
+
+<h3>The TLS Protections</h3>
+
+<p>Load up the crackme in IDA and hit CTRL+E to find entry points. Go to the TLS entry point.</p>
+
+<p>You'll see obfuscated calls to GetModuleHandle/GetProcAddress/GetTickCount.</p>
+
+<p>The code also uses "push address of a few instructions ahead, return" to obfuscate execution flow. It confuses IDA sometimes.</p>
+
+<p>The GetTickCount call is used to build complicated tables and do complicated logic. Instead of figuring out what it's doing, let's try to be clever/lazy. I "install" custom GetTickCount to bypass all this. Here's how:</p>
+
+<p>Find empty spot in EXE. The .woka section has many zero's at the end and has Execute/Read/Write privileges. I chose address 402F00.</p>
+
+<p>Now make the fake GetTickCount, here is program that demonstrates:</p>
+
+<pre class=code>
+#include &lt;stdio.h&gt;
+#include &lt;windows.h&gt;
+
+int __declspec(naked) GetTickCount2()
+{
+    __asm
+    {
+        push    esi
+        call    delta
+ delta: pop     esi
+        add     esi, 0x0B
+        mov     eax, [esi]
+        inc     eax
+        mov     [esi], eax
+        pop     esi
+        ret
+  data: __emit 0
+        __emit 0
+        __emit 0
+        __emit 0
+
+    }
+}
+
+int main(int argc, char * argv)
+{
+    int i;
+    unsigned long dwRet;
+
+    VirtualProtect(0x00401020, 20, 0x40, &dwRet); // change this addr maybe!
+
+    for(i=0; i&lt;10; ++i)
+        printf("%d\n", GetTickCount2());
+}
+</pre>
+
+<p>You'll see it works, returning 1, 2, ... </p>
+
+<p>GetTickCount2 assembles to:</p>
+
+<pre class=code>
+00401020 56              push    esi
+00401021 e800000000      call    test!GetTickCount2+0x6 (00401026)
+00401026 5e              pop     esi
+00401027 83c60b          add     esi,0Bh
+0040102a 8b06            mov     eax,dword ptr [esi]
+0040102c 40              inc     eax
+0040102d 8906            mov     dword ptr [esi],eax
+0040102f 5e              pop     esi
+00401030 c3              ret
+</pre>
+
+<p>402F00 thus gets:</p>
+
+<p>56 e8 00 00 00 00 5e 83 c6 0b 8b 06 40 89 06 5e c3 00 00 00 00</p>
+
+<p>Here is where GetTickCount is found and saved by crackme here:</p>
+
+<pre class=code>
+.woka:0040144B A3 2D 10 40 00                    mov     ds:pfnGetTickCount, eax
+</pre>
+
+<p>I patch a little above to instead save the address of our custom GetTickCount2:</p>
+
+<pre class=code>
+0040143d b8002f4000      mov     eax,offset image00100000+0x302f00 (00402f00)
+</pre>
+
+<p>Of course this can be done in this process's memory image of kernel32.dll, but I highly prefer to make these permanent modifications in the EXE so that I can come back another day and immediately debug deeper into the crackme without having to recall the collection of in-memory patches I have to do.</p>
+
+<p>Ok, there are many other little tricks in part1, here they are with solutions:</p>
+
+<ul>
+
+<li>single step function at 004012FF - patch with C3 (ret)</li>
+
+<li>patch of DbgUiRemoteBreakin with C3 (ret) at 00401752 - NOP it out</li>
+
+<li>find PEB via TEB and look for IsDebuggerPresent at 0040160E - patch jump</li>
+
+<li>find Globalflags at 0040161d - patch</li>
+
+<li>modifies normal entry point at 00107E7 - either patch this, or just be sure to breakpoint after this mod, else your debugger's 0xCC will get smashed</li>
+
+</ul>
+
+<p>All throughout you'll see that he saves API's xor'd, and uses a pass-thru function to call them, which de-xor's the address before the call.</p>
+
+<p>At 004016a7 he writes 0x88, replacing the 0xC3 (ret).</p>
+
+<p>At 004016B8 he xor's with 0xDD, resulting in 0x55 (push ebp).</p>
+
+<p>These are not major changes, they just kind of "ungate" the function. I won't bother patching. Notice this will prevent software breakpoint CC at entrypoint. This next one is scary though:</p>
+
+<p>At 004016dc he writes 0x48 to 107370, replacing 0x98. This is data.</p>
+
+<p>It could be VERY long fucking crackme if we patched out the TLS call, missing this modification, and dealing later on with serial verification routine that used impossible numbers. For this fear, patch out this mod, making it permanent (so better analysis through deadlisting with IDA) but let's keep the TLS around.</p>
+
+<p>Ok, run the exe. You should be able to start with debugger break at entrypoint (107e70)+1.</p>
+
+<p>You'll notice access violations in TLS area. The TLS area gets called on all thread creates (it seems even for those break-in threads my debugger makes). It is trying to LoadLibrary()/GetProcAddress() on function names/addresses that are already decrypted. Let crackme should handle the first chance exception.<p>
+
+<h3>Recognising OpenSSL</h3>
+
+<p>Alright, so you're running the crackme under a debugger now. Typical dialog UI:</p>
+
+<ul>
+<li>At 0107EBA he creates dialog</li>
+<li>At 0108001 is dialog proc (use winuser.h to comment the heck out of this)</li>
+<li>At 01084F4 is goodboy message</li>
+<li>At 01084D8 is call to 107bd4 whose return value decides if goodboy or badboy</li>
+<li>At 0107bd4 is "verifyserial" function, I will use this name from now, onward</li>
+</ul>
+
+<p>Let's check something out... In verifyserial, 107Be8 calls 107290 which calls 10eb60:</p>
+
+<pre class=code>
+010EB60 68 D8 00 00 00                    push    0D8h
+010EB65 68 CC 13 10 00                    push    offset a_CryptoBnBn_ct ;  ".\\crypto\\bn\\bn_ctx.c"
+010EB6A 6A 2C                             push    2Ch
+</pre>
+
+<p>What is this? Google. He has compiled against OpenSSL 0.9.8</p>
+
+<p>I downloaded and compiled Openssl 0.9.8 and tried using FLAIR to make some FLIRT signatures:</p>
+
+<pre class=dos>
+pcf bn_add.obj bn_add.pat
+pcf bn_asm.obj bn_asm.pat
+pcf bn_blind.obj bn_blind.pat
+pcf bn_ctx.obj bn_ctx.pat
+pcf bn_depr.obj bn_depr.pat
+pcf bn_div.obj bn_div.pat
+pcf bn_err.obj bn_err.pat
+pcf bn_exp.obj bn_exp.pat
+pcf bn_exp2.obj bn_exp2.pat
+pcf bn_gcd.obj bn_gcd.pat
+pcf bn_gf2m.obj bn_gf2m.pat
+pcf bn_kron.obj bn_kron.pat
+pcf bn_lib.obj bn_lib.pat
+pcf bn_mod.obj bn_mod.pat
+pcf bn_mont.obj bn_mont.pat
+pcf bn_mpi.obj bn_mpi.pat
+pcf bn_mul.obj bn_mul.pat
+pcf bn_nist.obj bn_nist.pat
+pcf bn_prime.obj bn_prime.pat
+pcf bn_print.obj bn_print.pat
+pcf bn_rand.obj bn_rand.pat
+pcf bn_recp.obj bn_recp.pat
+pcf bn_shift.obj bn_shift.pat
+pcf bn_sqr.obj bn_sqr.pat
+pcf bn_sqrt.obj bn_sqrt.pat
+pcf bn_word.obj bn_word.pat
+sigmake *.pat bignum.sig
+</pre>
+
+<pre>then dropped bignum.sig in \idadir\sig</pre>
+
+<p>My IDA recognises only 4 functions, very disappointing... (if you can help me with this, please contact me). Do the signatures only work if the EXACT same compiler is used (same version) along with EXACT same flags (optimization, intrinsics, etc.) ?</p>
+
+<p>Instead I just looked in the OpenSSL source files \openssl\crypto\bn and tried to make sense of stuff</p>
+
+<p>Has waganono given us an unrealistic clue by including this reference to the source file? No, look in \openssl\crypto\bn\bn_ctx.c</p>
+
+<pre class=code>
+BN_CTX *BN_CTX_new(void)
+{
+  BN_CTX *ret = OPENSSL_malloc(sizeof(BN_CTX));
+  if(!ret)
+  {
+    BNerr(BN_F_BN_CTX_NEW,ERR_R_MALLOC_FAILURE);
+    return NULL;
+  }
+</pre>
+
+<p>Upon error, he reports BN_F_BN_CTX_NEW, which is the filename. These string references exist for error tracing purposes.</p>
+
+<p>You'll notice that the string is referenced twice, that's because look how OPENSSL_malloc() is defined in \openssl\crypto\crypto.h:</p>
+
+<pre class=code>
+#define OPENSSL_malloc(num)    CRYPTO_malloc((int)num,__FILE__,__LINE__)
+</pre>
+
+<p>Thus:</p>
+
+<ul>
+<li>At 0112C20 is OPENSSL_malloc</li>
+<li>At 010EB60 is BN_CTX_new</li>
+<li>At 010E250 is BN_new</li>
+</ul>
+
+<p>For any function that calls BNerr or OPENSSL_malloc it is easy to infer what function it is. Here is an example:</p>
+
+<pre class=code>
+.text:0010F55F 68 FB 00 00 00                    push    0FBh                      ; line number
+.text:0010F564 68 FC 13 10 00                    push    offset a_CryptoBnBn_ex    ; ".\\crypto\\bn\\bn_exp.c"
+.text:0010F569 6A 42                             push    42h                       ; error code
+.text:0010F56B 6A 7D                             push    7Dh                       ; function id BN_F_BN_MOD_EXP_RECP
+.text:0010F56D 6A 03                             push    3                         ; lib id ERR_LIB_BN
+.text:0010F56F E8 6C 30 00 00                    call    BNerr
+</pre>
+
+<p>But you must use some major fucking logic to rename the rest. Especially when macro expansion is considered - it is very difficult to tell which functions are which.</p>
+
+<p>You'll need to understand BIGNUM and BIGNUMCTX</p>
+
+<p>BIGNUM is typedef'd to bignum_st (standard?) is like this:</p>
+
+<pre>
+(4 bytes) BN_ULONG * // points to array of unsigned long
+(4 bytes) int top    // index of last used BN_ULONG+1
+(4 bytes) int dmax   // size of BN_ULONG array
+(4 bytes) int neg    // 0 or 1, indicating negativity
+(4 bytes) int flags
+</pre>
+
+<p>bignum_ctx holds a group of bignums to avoid overhead of alloc/free calls when passing several bignums around in functions...</p>
+
+<p>bignum_ctx looks like:</p>
+
+<pre>
+bignum_pool
+  (4) BN_POOL_ITEM * head
+  (4) BN_POOL_ITEM * current
+  (4) BN_POOL_ITEM * tail
+bignum_ctx_stack
+  (4) unsigned int * indices
+  (4) unsigned int depth
+  (4) unsigned int size
+(4) unsigned int used // number bignums currently assigned
+(4) int err_stack     // depth of stack overflow
+(4) int too_many     
+</pre>
+
+<p>where BN_POOL_ITEM looks like this:</p>
+
+<pre>
+  (16 bytes) BIGNUM0
+  (16 bytes) BIGNUM1
+  ...
+  (16 bytes) BIGNUM15
+  ( 4 bytes) BN_POOL_ITEM * prev
+  ( 4 bytes) BN_POOL_ITEM * next
+</pre>
+
+<p>It's very time consuming to look this up manually everytime you want to peer inside a bignum. If your debugger supports such a facility, make a shortcut for displaying this structure, as you will be doing it alot. (For windbg I made small extension). In many cases, try to infer what a call does that takes BN arguments by looking at the arguments before and after the call.</p>
+
+<h3>Overall key verification structure and transformations on prefix and username strings</h3>
+
+<p>Ok, I'm not going to paste gobs of disassembly here. Use your OpenSSL knowledge to examine the verifyserial function.</p>
+
+<p>The serial has the following form:</p>
+
+<p>&lt;PREFIX&gt;&lt;SEPARATOR&gt;&lt;ULONG&gt; , &lt;HEX1&gt; , &lt;HEX2&gt;</p>
+
+<p>These are arbitrary names I have given the parts.</p>
+
+<ul>
+<li>PREFIX is an alphanumeric string</li>
+<li>SEPARATOR is either the character '@' or '#' - the '@' makes the ULONG negative, the # makes it positive</li>
+<li>ULONG is a numeric string</li>
+<li>HEX1 and HEX2 are strings in the regular language [A-Z0-9]</li>
+</ul>
+
+<p>This is a picture of the overal structure of the serial verification:</p>
+
+<img src=diagram.gif>
+
+<p>Crazy huh?</p>
+
+<p>Let's start with the simplest requirement. The hex1 and hex2 must multiply to const1. Run msieve on const1 to factor it. You'll see that it factors to only two prime numbers, so hex1 and hex2 are fixed!</p>
+
+<p>Since hex1 and hex2 are fixed, and the username must be freely choosable, the transform that they go through may simply be ripped from the crackme. It is difficult to do though - since some of the functions rely on bignum's being initialized at TLS time. Here is a diagram of this transform:</p>
+
+<img src=diagram2.gif>
+
+<p>The "funky GCD" is a function that seems to guarantee that the output will be a quadratic residue of const1. More on this later. If you're interested in the details, I re-implemented this transform as <b>tranform_username()</b> in <b>transforms.cpp</b>. Again, because of the conditions on the inputs, this function can be thought of as a black box and stolen from the crackme itself.</p>
+
+<p>The transform that the prefix goes through is very very freaking nasty (if you can come up with its inverse, then you are a human computer!). This is roughly the equivalent C code:</p>
+
+<pre class=code>
+void transform_prefix0(PCHAR prefix, PULONG area)
+{
+    UCHAR lookup_shl[] =        {0x20, 0x1D, 0x1F, 0x1C, 0x1E};
+    UCHAR lookup_subfrom[] =    {0x1B, 0x18, 0x1A, 0x17, 0x19};
+    UCHAR lookup_shr[] =        {0x03, 0x01, 0x04, 0x02, 0x20};
+    UCHAR lookup_passlen[] =    {0x06, 0x05, 0x06, 0x05, 0x06};
+    UCHAR lookup_and[] =        {0x00, 0x07, 0x01, 0x0F, 0x03};
+    ULONG i=0;
+    ULONG mini_i=0;
+    ULONG accum_or=0;
+    ULONG loopvar=0;
+
+    loop_restart:
+
+    if(prefix[i]==0)
+        goto zero_dword_area_quit;
+
+    restart:
+
+    for(loopvar=0; ; loopvar++)
+    {
+        if(loopvar==5)
+            goto restart;
+
+        accum_or=0;
+        mini_i=0;
+
+        if(loopvar!=0)
+        {
+            CHAR c = prefix[i-1];
+            accum_or = index_in_wagalphabet(c);
+            accum_or = accum_or & lookup_and[loopvar];
+            accum_or = accum_or << lookup_shl[loopvar];
+        }
+        
+        while(mini_i != lookup_passlen[loopvar])
+        {
+            if(prefix[i+mini_i]==0)
+                break;
+
+            CHAR c = prefix[i+mini_i];
+            ULONG t = index_in_wagalphabet(c);
+
+            ULONG shl = lookup_subfrom[loopvar] - 5*mini_i;
+            shl = shl & 0xFF;
+            ULONG orval = t << shl;
+            accum_or = accum_or | orval;
+
+            mini_i++;
+        }
+
+        if((loopvar != 4) &&
+            (mini_i == lookup_passlen[loopvar]))
+        {
+            CHAR c = prefix[i+mini_i];
+            ULONG t = index_in_wagalphabet(c);
+            ULONG shr = lookup_shr[loopvar];
+            t = t >> shr;
+            accum_or |= t;
+        }
+
+        __asm
+        {
+            push eax;
+            mov eax, [accum_or];
+            bswap eax;
+            mov [accum_or], eax;
+            pop eax;
+        }
+
+        *area = accum_or;
+
+        area++;
+
+        i = i + lookup_passlen[loopvar] + 1;
+
+        if(mini_i != lookup_passlen[loopvar])
+            break;
+    }
+
+    zero_dword_area_quit:
+    *area=0;
+}
+</pre>
+
+<p>We will need to answer the question "for what input is this the output?". What will we do?<p>
+
+<p>Again, we must be clever and lazy. Watch the memory region this guy writes to as you feed it different prefix strings. Start with empty string. Add one or two characters.</p>
+
+<p>The characters in the prefix are limited in the output byte they affect. So we can make a brute forcer that kind of adapts the input until the transform converges on the output we want. It operates like this:</p>
+
+<ol>
+<li>set input to empty string
+<li>does transform(input) == target? if so, return input
+<li>set temp=input
+<li>for every single character and character pair in allowed alphabet (call this suffix)
+<li>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;temp = temp (append) suffix
+<li>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;record if temp had the smallest abs(transform(temp)-target)
+<li>input = temp 
+<li>goto 2
+</ol>
+
+<p>There are some hiccups though. You'll notice that the valid characters are limited. I put the valid characters in an array called wagalphabet. You'll also see that some characters are specific length boundaries can completely change the output, but adding another character returns it to where it was headed before.</p>
+
+<p>It is breakable though. For the exact details, see <b>derive_prefix_for_hash()</b> in <b>hash_breaker.cpp</b>.</p>
+
+<h3>Quadratic residues</h3>
+
+<p>First, be warned, I have little math background and some stuff here may be dead wrong. But I spent alot of time on wikipedia and experimenting and the below understanding I acquired was enough to get by the crackme.</p>
+
+<p>Look at the key verification structure diagram. The prefix string must transform to a number that, when added to const2, is actually two numbers divided by ulong, and those two numbers must, when squared, leave a remainder of what the username was transformed to when divided by const1. Got it?</p>
+
+<p>We will simply work backwards. We will run the username transformation and call this y. Then we want to find a number x that satisfies:</p>
+
+<pre class=equation>
+equation1: 
+    x^2 = y (mod const1)
+</pre>
+
+<p>If we can find one answer, we can find two, and concatenate them. Further, we can subtract const2 to find out what the transform of the prefix is. Finally we can find what prefix is required. The hard part is solving this equation.</p>
+
+<p>So y is called a quadratic residue. Quadratic because x is squared (2nd order), and residue because it's the remainder after division of const1. Let's write it more generally for modulus m:</p>
+
+<pre class=equation>
+equation2: 
+    x^2 = y (mod m)
+</pre>
+
+<p>I think of it like this. In the normal "world" if integers, it's like one dimensional - a single number line extending from way back in the negatives to way forward in the positives. Under congruence mod M, it's like a bizarro number "world" where the number line instead is clipped at m-1 and repeats, looking like ..., 0, 1, 2, ... , (m-1), 0, 1, 2, ...</p>
+
+<p>equation 2 is asking "in the world mod m", what number on the bizarro number line, squared, ends up at y? I like to think of x as a "square root" of y (mod m)<p>
+
+<p>y is called a quadratic residue when an x exists satisfying equation 2. We know that the set of all residues (quadratic or not) is {0, 1, 2, ... , y}, so how can we know which ones are quadratic? We can at least number them:</p>
+
+<pre class=equation>
+fact1: 
+    for x^2=y(mod m) there are (m-1)/2 quadratic residues y, and (m-1)/2 non-quadratic residues y when m is prime
+</pre>
+
+<p>Let's do a quick example. Suppose m=7. We'd expect 3 quadratic and 3 non-quadratic residues. We know that all possible residues are {1, 2, 3, 4, 5, 6}. Zero is traditionally discluded since m^2%m is of course 0. Ok is 1 a quadratic residue? Yes, because 6^2%7=1. What about 2? Yes, because 3^2%7=2. What about 3? No. And 4? Yes, because 5^2%7=4. What about 5? No. Lastly 6? No. So the quadratic residues are {1, 2, 4} and the non-quadratic residues are {3, 5, 6}. The count is correct.</p>
+
+<p>Check out how we can test if a given y is a quadratic residue of m (and therefore if the equation is solveable for x):</p>
+
+<pre class=equation>
+equation3:
+    y^((m-1)/2)=1(mod m) when y and m are coprime and y is a quadratic residue
+</pre>
+
+<p>That's called Euler's criterion.</p>
+
+<p>Here's one other important fact we'll use:</p>
+
+<pre class=equation>
+fact2:
+    if x^2 = y(mod m) has solution x1, then x1+m, x1+2m, x1+3m, ... are solutions
+</pre>
+
+<p>Put differently, the solutions x are given by x = x1(mod m). IF WE CAN FIND A SINGLE SOLUTION X1, THEN WE CAN FIND ANOTHER SOLUTION BY FINDING X'S CONGRUENT TO X1 MOD M.<p>
+
+<p>Of course the additional valid x's don't exist in our congruent mod m "world", but we will use this to cheat the second solution. To convince yourself of this fact, return to the example where m=7. Let y=2. We know that x=3 is a solution because 3^2%7=2. By fact2, 3+7 should also be a solution, and indeed 10^2%7=2 since 7 divides 98.</p>
+
+<p>Another useful fact:</p>
+
+<pre class=equation>
+fact3: 
+    if x=y(mod m) and x=y(mod n) then x=y(mod m*n)
+</pre>
+
+<p>Ok, so back to solving this thing. There is a special case discovered by Lagrange.</p>
+
+<pre class=equation>
+fact4:
+    when m%4=3, x=y^((m+1)/4)
+</pre>
+
+<p>It's a dream that we can automatically arrive at solutions like that, but does the condition hold for m=const1 ? Nope. What to do?</p>
+
+<p>const1 is actually a composite number. We can factor it and solve the above equation, then combine the solutions.</p>
+
+<p>I read somewhere that when m is a composite number, finding x is equivalently hard to factoring m. Luckily we have msieve to do the work for us, and fact4 applies to the two factors.</p>
+
+<p>So factor const1 into factor1 and factor2. We're now solving these two dudes:</p>
+
+<pre class=math>
+x^2 = username_transform (mod factor1)
+x^2 = username_transform (mod factor2)
+</pre>
+
+<p>We use fact4 to immediately get answers x1 and x2. So we now have:</p> 
+
+<pre class=math>
+x1^2 = username_transform (mod factor1)
+x2^2 = username_transform (mod factor2)
+</pre>
+
+<p>We are SO CLOSE to being able to use fact3 to combine these two solutions, but x1 != x2. We need to find a single value, call it x3, that simultaneously solves both equations. We can use fact2 to write the following two equations for this mystical x3.</p>
+
+<pre class=math>
+x3 = x1(mod factor1)
+x3 = x2(mod factor2)
+</pre>
+
+<p>Remember what fact2 said, that if x1 is a solution, then x1+factor1, x1+2*factor1, x1+3*factor1, ... are solutions. So solutions are given by numbers that are congruent to x1. That's exactly what the first of the two equations is searching for. Identical reasoning arrives at the second equation for factor2.</p>
+
+<p>Can this x3 be found? Yes, the Chinese remainder theorem guarantees that such systems of equations are solvable when the modulii (factor1 and factor2 in this case) are all coprime. Both of these are prime, so that's it. Use the Chinese remainder theorem to find x3. See <b>chinese_remainder_theorem()</b> in <b>chinese_remainder_theorem.cpp</b></p>
+
+<p>Now we have:</p>
+
+<pre class=math>
+x3^2 = username_transform (mod factor1)
+x3^2 = username_transform (mod factor2)
+</pre>
+
+<p>And of course can now use fact3 to combine them:
+
+<pre class=math>
+x3^2 = username_transform (mod factor1*factor2)
+</pre>
+
+<p>which of course equals:</p>
+
+<pre class=math>
+x3^2 = username_transform (const1)
+</pre>
+
+<p>Ok, like I said, work backwards. We need two different solutions concatenated. By fact2, just add const1 to x3 to get a second cheap solution. Make the ulong field in the serial point to the index where the solutions are joined. Subtract const2. Then find which prefix transforms to this number.</p>
+
+<h3>Conclusion</h3>
+
+<p>This crackme taught me alot about RE'ing programs that use static-linked libraries. (Had it been a dynamic lib, we could have had export names or ordinals from the DLL). I blew alot of time manually recognising functions in OpenSSL. I wish I was able to get FLIRT/FLAIR to work right. If anyone can help me with this, please contact me. Perhaps it'd be useful to have a website with IDA signatures for most popular math/crypto libraries.</p>
+
+<p>The source code is messy as heck, and doesn't free alot of stuff. But it works, and I'm tired.</p>
+
+<p>Example pairs:</p>
+
+<p>(a bug in the crackme will cause it to hang if you paste only partial amounts of the below serials - paste them at one line (I use \ to indicate "continued on next line"))
+
+<pre class=dos>
+**********************************************************
+  USER:
+    Waganono
+SERIAL:
+    2SWBDOZHBQ9HPCS39ETAKS-YZ8Q8UCTAQL-5ZIUOZ19NYNHRB1WBKCAPV2NII877#78 , 09DD38 \
+A40501B36F0328161109AFAEE1EC2F5BE3 , 0A0CCDFAF6246EE90BA4E2CB422528A3EA8778AB
+**********************************************************
+</pre>
+
+<pre class=dos>
+**********************************************************
+  USER:
+    asdf
+SERIAL:
+    2TOJYLH4-VJBLJ--LHORNRKHEQJSZS2IJCJSIW9TK5H5DZOZIIVWE1YP5ESR8W3ICJST132OYJB3 \
+-C43MY5CI-BALBDQK71WQAU--NCBP2K7YWV78IYSIU192KZLV@78 , 09DD38A40501B36F032816110 \
+9AFAEE1EC2F5BE3 , 0A0CCDFAF6246EE90BA4E2CB422528A3EA8778AB
+**********************************************************
+</pre>
+
+</DIV>
+
+April 2, 2008 andrewl
+
+</html>
+

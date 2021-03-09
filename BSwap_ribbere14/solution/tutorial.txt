@@ -1,0 +1,196 @@
+Keygen tutorial by andrewl
+
+Target: "Ribbere 1.4" by BSWAP
+ Tools: IDA, WinDBG
+
+[--------------------------------------------------------------------------]
+  CONVENTIONS
+[--------------------------------------------------------------------------]
+
+Eight digit numbers are base 16 and usually refer to addresses, eg: 004096C8
+
+Numbers ending in 'h' or prefixed with "0x" are base 16, eg: DEADh or 0xDEAD
+
+Numbers ending in 'd' are base 10, eg: CAFEd
+
+All other numbers are assumed base 10.
+
+[--------------------------------------------------------------------------]
+  SOLUTION
+[--------------------------------------------------------------------------]
+
+Set BP on kernel32!GetDlgItemTextA(). We find it called here:
+
+0040148C    push    1Eh             
+0040148E    push    offset dword_0040332C    <-- input stored here
+00401493    push    0C9h           
+00401498    push    hDlg           
+0040149E    call    GetDlgItemTextA
+
+EAX (the return value from GetDlgItemTextA) is then read to ensure it is  at
+least  1  character  long.   If  it  is,  the  following  code  is  reached:
+
+004014FE    jmp     short loc_401502
+00401500    adc     al, [eax]
+00401502    push    eax
+00401503    jmp     short loc_401507
+00401505    adc     eax, [eax]
+00401507    call    sub_40195A
+0040150C    jmp     short loc_401510
+0040150E    and     al, [eax]
+00401510    mov     edx, 1
+00401515    jmp     short loc_401519
+00401517    db 52h
+00401518    db 0
+00401519    push    edx
+0040151A    jmp     short loc_40151E
+0040151C    db 52h, 0
+0040151E    pop     edx
+0040151F    jmp     short loc_401523
+00401521    db 52h, 0
+00401523    mov     eax, dword_40334B[edx]
+00401529    jmp     short loc_40152D
+0040152B    db 52h
+0040152C    db 0
+0040152D    add     edx, 4
+00401530    jmp     short loc_401534
+00401532    dw 52h
+00401534    mov     ebx, dword_40334B[edx]
+0040153A    jmp     short loc_40153F
+0040153C    push    edx
+0040153D    add     [eax], eax
+0040153F    sub     eax, ebx
+00401541    jmp     short loc_401545
+00401543    db 52h
+00401544    db 0
+00401545    or      eax, eax
+00401547    jnz     short loc_401598
+00401549    jmp     short loc_40154D
+
+As you can see, it is somewhat obfuscated, with jumps going  over  the  junk
+bytes  and  instructions.    Here   it   is   with   obfuscations   removed:
+
+00401502    push    eax
+00401507    call    sub_40195A
+00401510    mov     edx, 1
+00401523    mov     eax, dword_40334B[edx]
+0040152D    add     edx, 4
+00401534    mov     ebx, dword_40334B[edx]
+0040153F    sub     eax, ebx
+00401545    or      eax, eax    
+00401547    jnz     short loc_401598         <-- suspicious!
+00401549    jmp     short loc_40154D
+
+Step down to 00401547. Use your debugger to NOT take this branch and  you'll
+see that the program is registered.
+
+For this to be the case without our intervention, EBX and EAX must be equal.
+
+Which means the dword at 0040334C and 00403350 must  be  equal.   I  have  a
+feeling that sub_40195A is what writes these two values.
+
+0040195A    push    ebp
+0040195B    mov     ebp, esp
+0040195D    mov     esi, offset dword_40332C <-- input (serial)
+00401962    mov     edi, offset dword_40334B <-- output
+00401967    mov     ecx, 10h
+0040196C    movzx   eax, byte ptr [esi]      
+0040196F    push    ecx
+00401970    push    eax
+00401971    call    sub_40197E		     <-- 
+00401976    mov     [edi], eax		     <-- output saved
+00401978    inc     edi			     <-- output pointer higher
+00401979    inc     esi			     <-- input pointer higher
+0040197A    loop    loc_40196C
+0040197C    leave
+0040197D    retn
+
+It considers the input buffer (0040332C) and the output buffer (0040334B) as
+16-bytes regardless of the length of the serial. It then scans left to right
+over the serial buffer, writing one value at a time to  the  output  buffer.
+Watch both buffers while single stepping to get a feel for how it  executes.
+Here are some trial inputs.
+
+INPUT        OUTPUT
+AAAAAAAAAAAA 0040334b  51 50 4f 4e 4d 4c 4b 4a 49 48 47 46 
+AAAAAAAABBBB 0040334b  51 50 4f 4e 4d 4c 4b 4a 4a 49 48 47
+ABCDEFGHIJKL 0040334b  51 51 51 51 51 51 51 51 51 51 51 51
+
+Since A has ascii value 0x41, it is clearly doing character+0x10 - i
+
+Let's represent the serial as C0 thru C11 (12 total)
+
+c1..c4 are responsible for the DWORD at 0040334C 
+c5..c8 are responsible for the DWORD at 00403350 
+
+For c1..c4 needs to equal c5..8 then
+
+c1 needs to be c5-4
+c2 needs to be c6-4
+c3 needs to be c7-4
+c4 needs to be c8-4
+
+One of the trials inputs above "ABCDEFGHIJKL" already fits this.  Since  A's
+ascii value is four less than E, and so on.  It makes both dwords  equal  to
+0x51515151.
+
+Here are some others:
+
+XAAAAEEEEXXX
+XBBBBFFFFXXX
+XCCCCGGGGXXX
+X00004444XXX
+
+Et cetera.
+
+[--------------------------------------------------------------------------]
+  HOW IS GOOD BOY PRODUCED?
+[--------------------------------------------------------------------------]
+
+You may wonder why the "(Registered)" string at 004032F1 is never referenced
+in the IDA listing. Here is the good boy code:
+
+0040157D    lea     eax, aUnregistered ; "(Unregistered)"
+00401583    add     eax, 0Fh				<-- skip to good msg
+00401586    push    eax     
+00401587    push    0       
+00401589    push    0Ch     
+0040158B    push    0CAh     
+00401590    push    [ebp+hDlg] 
+00401593    call    SendDlgItemMessageA
+
+We would thus expect these two strings to be 0x0F bytes apart:
+
+004032E2 aUnregistered   db '(Unregistered)',0  
+004032F1 aRegistered     db '(Registered)',0
+
+[--------------------------------------------------------------------------]
+  KEYGEN STRATEGY
+[--------------------------------------------------------------------------]
+
+Just generate C0..C11 randomly and set:
+
+(c5, c6, c7, c8) = (c1+4, c2+4, c3+4, c4+4)
+
+Here is some pseudocode:
+
+char buff[12];
+FillWithRandomChars(buff);
+*(unsigned long *)(buff+5) = *(unsigned long *)(buff+1) + 0x04040404;
+puts(buff);
+
+Check keygen.cpp for full details.
+
+
+
+
+
+
+
+
+
+
+
+
+
+

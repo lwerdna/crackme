@@ -1,0 +1,16 @@
+#include <windows.h>
+#include "myresource.h"
+
+ID_DIALOG DIALOG 256, 256, 128, 40
+CAPTION "ScrewMe #2 Keygen by andrewl"
+STYLE WS_CAPTION | WS_POPUPWINDOW
+BEGIN
+    RTEXT           "&Name:",    ID_LTEXT1,         002, 002, 022, 012
+    RTEXT           "&Serial:",  ID_LTEXT2,         002, 014, 022, 012
+    EDITTEXT                    ID_EDIT1,          026, 002, 100, 010
+    EDITTEXT                    ID_EDIT2,          026, 014, 100, 010
+    PUSHBUTTON      "&Generate Key File",  ID_BUTTON1,   002, 026, 124, 012
+END
+
+
+

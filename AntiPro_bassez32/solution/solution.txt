@@ -1,0 +1,214 @@
+Solution to AntiPro's "Bassez32" by andrewl
+
+[----------------------------------------------------------------------------------]
+ GETTING STARTED
+[----------------------------------------------------------------------------------]
+
+The entered name is used to generate a 4-byte value I label "magic" here:
+
+    .text:00401129     mov [esp+10Ch+magic], 0                 <- initially 0
+    .
+    .text:00401136     xor eax, eax
+    .text:00401138     movzx esi, cl                           <- esi = loop var
+    .text:0040113B     jmp short calculate_magic
+    .
+    .text:00401140 calculate_magic:                 
+    .text:00401140     mov dl, [esp+eax+110h+serial]
+    .text:00401144     mov ecx, eax
+    .text:00401146     shr ecx, 1
+    .text:00401148     and ecx, 3
+    .text:0040114B     xor byte ptr [esp+ecx+110h+magic], dl
+    .text:0040114F     lea ecx, [esp+ecx+110h+magic]
+    .text:00401153     inc eax
+    .text:00401154     sub esi, 1
+    .text:00401157     jnz short calculate_magic
+
+Each of the four bytes comprising magic is, in turn, xor'd with pairs of characters
+from the serial number. After the fourth byte, the first byte is brought around
+again. The magic value is used an as argument here:
+
+    .text:0040115A     mov eax, [esp+10Ch+magic]
+    .text:0040115E     push eax
+    .text:0040115F     call use_magic                          <- used
+    .
+    .text:00401169     cmp eax, 0DEADBEEFh
+    .text:0040116E     jnz short badboy
+    .
+    .text:00401170 goodboy:
+    .text:00401170     push offset aSuccess
+    .text:00401175     push offset aCongratulation
+    .text:0040117A     push edi                              
+    .text:0040117B     call ds:MessageBoxA
+
+Obviously use_magic() must return 0xDEADBEEF. So we are left to analyze this
+function:
+
+[----------------------------------------------------------------------------------]
+ MAIN FUNCTION
+[----------------------------------------------------------------------------------]
+
+Probably compiled with /GS enabled:
+
+    .text:00401000     sub esp, 0Ch
+    .text:00401003     mov eax, security_cookie
+    .text:00401008     xor eax, esp
+    .text:0040100A     mov [esp+0Ch+esp_check], eax            
+
+Magic value 0x03070501 (for input "DEADBEEF") is placed alongside the constant
+0xBA55E732 and looks like this in memory on my machine:
+
+0012fa1c: [32 e7 55 ba] [01 05 07 03]
+
+    .text:0040100E     mov eax, [esp+0Ch+magic]
+    .text:00401012     mov [esp+0Ch+var_8], eax
+    .text:00401016     mov [esp+0Ch+return_value], 0BA55E732h  <- "Bassez32" ?
+
+Now the neighboring dwords are processed:
+
+    .text:0040101D     mov dl, 4                               <- 4 passes
+    .text:0040101F     lea eax, [esp+0Ch+return_value+3]
+    .text:00401023     push esi
+    .text:00401024
+    .text:00401024 loc_401024:                                 
+    .text:00401024     movzx ecx, byte ptr [eax+4]
+    .text:00401028     mov cl, ds:crc_index[ecx]
+    .text:0040102E     xor [eax], cl
+    .text:00401030     movzx esi, cl
+    .text:00401033     mov esi, ds:crc_table[esi*4]
+    .text:0040103A     not esi
+    .text:0040103C     xor [eax+1], esi                        
+    .text:0040103C                                             
+    .text:0040103F     dec dl
+    .text:00401041     dec eax
+    .text:00401042     test dl, dl
+    .text:00401044     ja  short loc_401024                    
+
+I knew this was CRC table because if you look at the dwords at crc_table (address
+00409298) you see:
+
+00409298  ffffffff 88f8cf69 11f19ed3 66f6ae45     
+
+But they are complemented at 40103A before use:
+
+0x00000000, 0x77073096, 0xEE0E612C, 0x990951BA
+
+Google for that and you'll get a ton of CRC32 hits.
+
+Using the "DEADBEEF" example input, process will be explained by example.  This
+quadword is processed in 4 passes:
+
+Starting:
+
+    0012fa1c 32 e7 55 ba 01 05 07 03
+                      |  |  |  |  |
+                      |  |  |  |  +-- indexes table crc_index
+                      |  |  |  |  |
+                      |  +--+--+--+-- is xor'ed with crc_table[crc_index[03]]
+                      |
+                      +-------------- is xor'd with crc_index[03]
+
+Pass 1 done:
+
+    0012fa1c 32 e7 55 38 0d e7 b1 00
+                   |  |  |  |  |
+                   |  |  |  |  +----- indexes table crc_index
+                   |  |  |  |  |
+                   |  +--+--+--+----- is xor'ed with crc_table[crc_index[B1]]
+                   |
+                   +----------------- is xor'd with crc_index[B1]
+
+Pass 2 done:
+
+    0012fa1c 32 e7 6e 1c e4 ec 00 00
+                |  |  |  |  |
+                |  |  |  |  +-------- indexes table crc_index
+                |  |  |  |  |
+                |  +--+--+--+-------- is xor'ed with crc_table[crc_index[EC]]
+                |
+                +-------------------- is xor'd with crc_index[EC]
+
+Pass 3 done:
+
+    0012fa1c 32 26 48 ee 87 00 00 00
+             |  |  |  |  |
+             |  |  |  |  +----------- indexes table crc_index
+             |  |  |  |  |
+             |  +--+--+--+----------- is xor'ed with crc_table[crc_index[87]]
+             |
+             +----------------------- is xor'd with crc_index[87]
+
+Pass 4 done:
+
+    0012fa1c a3 f4 eb e6 00 00 00 00
+             |  |  |  |
+             +--+--+--+-------------- return value 0xE6EBF4A3
+
+[----------------------------------------------------------------------------------]
+ INVERTING IT
+[----------------------------------------------------------------------------------]
+
+Obviously we want this to be 0xDEADBEEF instead, so simply revert the process
+solving for an end state of:
+
+0012fa1c be ef ad de 00 00 00 00
+
+And arrive at 0x21E9BA8F. See crc_reverse() in keygen.cpp for details.
+
+Producing valid keys is producing strings of length [8,255] that produce magic
+values of 0x21E9BA8F. We'll not lose our time and just concentrate on length 8.  One
+problem you may notice is that some of the bytes that we must get by xor'ing ascii
+characters have the MSB set. We will need characters past the normal 128 ascii
+limit. This is poor crackme programming in my opinion because of this strange
+behavior which may vary based on the language of windows:
+
+    Char  Extended ansii code  Hex value after GetDlgItemTextA 
+    Ç     80                   C7
+    ü     81                   FC
+    é     82                   E9                 
+    â     83                   E2
+    ä     84                   E4
+    à     85                   D0
+    å     86                   E5
+    ç     87                   E7
+    ê     88                   EA
+    ë     89                   EB
+    è     8A                   E8
+    ï     8B                   EF
+    î     8C                   EE
+    ì     8D                   EC
+    Ä     8E                   C4
+    Å     8F                   C5
+    ...
+
+Anyways, this is getting annoying. A mapping between these values will have to be
+implemented. See keygen.cpp.
+
+[----------------------------------------------------------------------------------]
+ CONCLUSION
+[----------------------------------------------------------------------------------]
+
+Here are some sample keys:
+
+ÅJêPÇ.De
+åjìVÄ-yX
+äkìVÇ.Wv
+üsîTÅ,Jk
+
+Hello to artif, _y_, xor-, and others from #cracking4newbies!
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

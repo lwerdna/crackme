@@ -1,0 +1,1079 @@
+00407000: [10] VM_mem[9] = EBP-0x54
+00407016: [11] *VM_mem[9] = 0x0
+0040702E: [0A] mov byte [ebp-0xd], 0x0
+00407041: [10] VM_mem[9] = EBP-0x94
+00407057: [11] *VM_mem[9] = 0x0
+0040706F: [10] VM_mem[9] = EBP-0xC
+00407085: [11] *VM_mem[9] = 0x0
+0040709D: [10] VM_mem[9] = EBP-0x5C
+004070B3: [11] *VM_mem[9] = 0x4F620AEC
+004070CB: [10] VM_mem[9] = EBP-0x58
+004070E1: [11] *VM_mem[9] = 0x0
+004070F9: [10] VM_mem[9] = EBP-0x1C
+0040710F: [11] *VM_mem[9] = 0x0
+00407127: [10] VM_mem[9] = EBP-0x8
+0040713D: [11] *VM_mem[9] = 0x0
+
+00407155: [10] VM_mem[9] = EBP+0x8          ; EBP+0x08 is username
+0040716B: [12] EAX = *VM_mem[9]             
+00407183: [0A] push eax
+00407193: [01] call kernel32!strlenA        ; strlen username (result into EAX)
+004071AA: [0C] 
+004071BA: [0C] 
+004071CA: [10] VM_mem[9] = EBP-0x14
+004071E0: [11] *VM_mem[9] = EAX             ; EBP-0x14 = strlen(username)
+
+004071F8: [10] VM_mem[9] = EBP+0xC          ; EBP+0x0C is key
+0040720E: [12] ECX = *VM_mem[9]
+00407226: [0A] push ecx
+00407236: [01] call kernel32!strlenA        ; strlen license key (result into EAX)
+0040724D: [0C] 
+0040725D: [0C] 
+0040726D: [10] VM_mem[9] = EBP-0x4
+00407283: [11] *VM_mem[9] = EAX             ; EBP-0x04 = strlen(license key)
+
+0040729B: [0A] cmp dword [ebp-0x14], 0x0    ; strlen username
+004072AE: [02] jnz 0x4073CB                 ; if it's not zero, goto 4073CB
+
+004072C7: [03] push 0x0
+004072DB: [04] sub esp, 0x4
+004072EF: [06] mov dword [esp], 0x0
+00407304: [0D] [esp] = deobfuscate_string([esp])
+0040731F: [03] push 0x9E2548B
+00407333: [0D] [esp] = deobfuscate_string([esp])
+00407354: [12] EDX = 0x00405378
+0040736C: [0A] push edx
+0040737C: [01] call user32!MessageBoxA
+00407393: [0C] 
+004073A3: [0C] 
+004073B3: [07] jmp 0xQUIT
+
+; here, strlen(username) is not zero!
+
+; loop pre steps
+004073CB: [10] VM_mem[9] = EBP-0x98         ; EBP-0x98 = 0 (loop variable???)
+004073E1: [11] *VM_mem[9] = 0x0
+004073F9: [07] jmp 0x40747F
+
+; loop post steps
+00407411: [10] VM_mem[9] = EBP-0x98         ; loopvar++
+00407427: [12] EAX = *VM_mem[9]
+0040743F: [0A] add eax, 0x1
+00407451: [10] VM_mem[9] = EBP-0x98
+00407467: [11] *VM_mem[9] = EAX
+0040747F: [10] VM_mem[9] = EBP-0x98
+
+; loop body
+00407495: [12] ECX = *VM_mem[9]
+004074AD: [0A] cmp ecx, [ebp-0x14]          ; compare loop variable? to strlen(username)
+004074BF: [02] jg 0x407585
+
+004074D8: [10] VM_mem[9] = EBP+0x8      
+004074EE: [12] EDX = *VM_mem[9]             ; EDX now points to username
+00407506: [0A] add edx, [ebp+0xffffff68]    ; EDX now pointers to username[loopvar]
+
+0040751B: [0A] movsx eax, byte [edx]        ; get username character
+
+0040752D: [0A] add eax, [ebp-0x54]          ; EBP-0x54 keeps sum of all username characters!
+0040753F: [10] VM_mem[9] = EBP-0x54
+00407555: [11] *VM_mem[9] = EAX             ;
+
+0040756D: [07] jmp 0x407411
+
+; loop var is greater than length of username
+00407585: [10] VM_mem[9] = EBP-0x28
+0040759B: [11] *VM_mem[9] = 0x64
+004075B3: [0A] lea ecx, [ebp-0x28]          ; EBP-0x28 // size
+004075C5: [0A] push ecx
+004075D5: [0A] lea edx, [ebp+0xffffff70]    ; EBP-0x90 // lpBuffer
+004075EA: [0A] push edx
+004075FA: [01] call kernel32!GetComputerNameA
+
+00407611: [0C] 
+00407621: [0C] 
+
+; loop pre steps
+00407631: [10] VM_mem[9] = EBP-0x9C         ; EBP-0x9C is loop variable, starting at 0
+00407647: [11] *VM_mem[9] = 0x0
+0040765F: [07] jmp 0x4076E5
+
+; loop post steps
+00407677: [10] VM_mem[9] = EBP-0x9C         ; loop variable ++
+0040768D: [12] EAX = *VM_mem[9]
+004076A5: [0A] add eax, 0x1
+004076B7: [10] VM_mem[9] = EBP-0x9C
+004076CD: [11] *VM_mem[9] = EAX
+
+; loop body
+004076E5: [10] VM_mem[9] = EBP-0x9C         ; 
+004076FB: [12] ECX = *VM_mem[9]
+00407713: [0A] cmp ecx, [ebp-0x28]          ;
+00407725: [02] jnc 0x407838                 ; jump if loopvar > 0x64
+
+0040773E: [10] VM_mem[9] = EBP-0x9C
+00407754: [12] EDX = *VM_mem[9]             ; EDX == loopvar
+0040776C: [0A] movsx eax, byte [ebp+edx+0xffffff70] ; EBP-0x90 + loopvar ( computername[loopvar])
+
+00407783: [10] VM_mem[9] = EBP-0x9C
+00407799: [13] xor [EAX], *VM_Mem[0x9]       ; computername[loopvar] |= loopvar
+
+004077B1: [10] VM_mem[9] = EBP-0x58         ; EBP-0x58 accumulates the OR's ?
+004077C7: [13] xor [EAX], *VM_Mem[0x9]
+004077DF: [10] VM_mem[9] = EBP-0x58
+004077F5: [11] *VM_mem[9] = EAX
+0040780D: [0A] rol dword [ebp-0x58], 0x3    ; EBP-0x58 (0x0012fadc) = mash of username
+
+00407820: [07] jmp 0x407677                 ; continue
+
+; loop pre steps
+00407838: [10] VM_mem[9] = EBP-0xA0         ; loop var = 0
+0040784E: [11] *VM_mem[9] = 0x0
+00407866: [07] jmp 0x4078EC
+
+; loop post steps
+00KEY_LOOP_POST: [10] VM_mem[9] = EBP-0xA0         ; loop var ++
+00407894: [12] ECX = *VM_mem[9]
+004078AC: [0A] add ecx, 0x1
+004078BE: [10] VM_mem[9] = EBP-0xA0
+004078D4: [11] *VM_mem[9] = ECX
+
+; loop body
+004078EC: [10] VM_mem[9] = EBP-0xA0         ; EDX
+00407902: [12] EDX = *VM_mem[9]
+0040791A: [0A] cmp edx, [ebp-0x4]           ; if(loopvar > strlen license key) go quit
+0040792C: [02] jg 0x408646
+
+00407945: [10] VM_mem[9] = EBP+0xC          ; pointer to key
+0040795B: [12] EAX = *VM_mem[9]
+00407973: [0A] add eax, [ebp+0xffffff60]    ; EBP-A0 (loopvar)
+00407988: [0A] movsx ecx, byte [eax]        ; ECX = key[loopvar]
+
+0040799A: [0A] cmp ecx, 0x2d
+004079AC: [02] jnz 0xNOT_A_DASH
+
+// this inner loop copies all characters up to, and not including, the dash
+// character to the same buffer EBP-0x90 used in GetComputerName - on my 
+// machine this buffer can be observed being built at 0x12faa4
+
+; inner loop pre
+004079C5: [10] VM_mem[9] = EBP-0xA4         ; EBP-A4 = 0 (inner loop variable?)
+004079DB: [11] *VM_mem[9] = 0x0
+004079F3: [07] jmp 0x407A79
+
+; inner loop post
+00407A0B: [10] VM_mem[9] = EBP-0xA4         ; inner loop variable ++
+00407A21: [12] EDX = *VM_mem[9]
+00407A39: [0A] add edx, 0x1
+00407A4B: [10] VM_mem[9] = EBP-0xA4
+00407A61: [11] *VM_mem[9] = EDX
+
+; inner loop body
+00407A79: [10] VM_mem[9] = EBP-0xA4         ; outer loop var
+00407A8F: [12] EAX = *VM_mem[9]
+00407AA7: [0A] cmp eax, [ebp+0xffffff60]    ; compare to [EBP-A4]
+00407ABC: [02] jg 0x407BCA
+
+00407AD5: [10] VM_mem[9] = EBP+0xC          ; pointer to key
+00407AEB: [12] ECX = *VM_mem[9] 
+00407B03: [0A] add ecx, [ebp+0xffffff5c]    ; ECX = pointer to key [inner loop var]
+
+00407B18: [10] VM_mem[9] = EBP-0xA4
+00407B2E: [12] EDX = *VM_mem[9]             ; EDX = inner loop var
+
+00407B46: [0A] mov al, [ecx]                ; gets key variable
+00407B57: [0A] mov [ebp+edx+0xffffff70], al ; EBP-0x90 (buffer from getcomputername @0012faa4) [inner loop var] = key character
+
+00407B6D: [10] VM_mem[9] = EBP-0xA4
+00407B83: [12] ECX = *VM_mem[9] 
+00407B9B: [0A] mov byte [ebp+ecx+0xffffff71], 0x0 ; EBP-0x8F [inner loop var] = 0
+00407BB2: [07] jmp 0x407A0B
+
+00407BCA: [0A] lea edx, [ebp+0xffffff70]    ; EBP-0x90
+00407BDF: [0A] push edx                     ; push it
+00407BEF: [00]                              ; call ntdll!atoi
+00407C0A: [0C] 
+00407C1A: [0C] 
+00407C2A: [04] add esp, 0x4
+00407C3E: [0A] cmp eax, [ebp-0x54]          ; is it equal to sum of username characters?
+00407C50: [02] jz 0x407C81
+00407C69: [07] jmp 0x__BADBOY__
+
+// so at this point, the serial is of form XXXX-???... and the atoi(XXXX) must equal the sum
+// of the serial name characters
+//
+
+; loop setup
+00407C81: [10] VM_mem[9] = EBP-0xA8         ; loop var
+00407C97: [11] *VM_mem[9] = 0x0
+00407CAF: [07] jmp 0x407D35
+
+; loop post steps
+00407CC7: [10] VM_mem[9] = EBP-0xA8
+00407CDD: [12] EAX = *VM_mem[9]
+00407CF5: [0A] add eax, 0x1
+00407D07: [10] VM_mem[9] = EBP-0xA8
+00407D1D: [11] *VM_mem[9] = EAX
+
+00407D35: [0A] cmp dword [ebp+0xffffff58], 0x8  ; EBP-0xA8  ; if (loopvar > 0x08) break
+00407D4B: [02] jg 0x407E89
+
+00407D64: [10] VM_mem[9] = EBP-0xA8
+00407D7A: [12] ECX = *VM_mem[9]
+00407D92: [0A] add ecx, [ebp+0xffffff60]        ; EBP-0xA0 ; ECX = outer loop var + inner loop var
+
+00407DA7: [10] VM_mem[9] = EBP-0xA8
+00407DBD: [12] EDX = *VM_mem[9]                 ; EDX = inner loop var
+
+00407DD5: [10] VM_mem[9] = EBP+0xC
+00407DEB: [12] EAX = *VM_mem[9]
+00407E03: [0A] mov cl, [eax+ecx+0x1]
+00407E16: [0A] mov [ebp+edx+0xffffff70], cl
+00407E2C: [10] VM_mem[9] = EBP-0xA8
+00407E42: [12] EDX = *VM_mem[9]
+00407E5A: [0A] mov byte [ebp+edx+0xffffff71], 0x0
+00407E71: [07] jmp 0x407CC7
+
+00407E89: [0A] lea eax, [ebp+0xffffff70]
+00407E9E: [0A] push eax
+00407EAE: [00]                                  ; call hexToInt  (return 0xFFFFFFFF -1 on failure)
+00407EC9: [0C] 
+00407ED9: [0C] 
+00407EE9: [04] add esp, 0x4
+00407EFD: [10] VM_mem[9] = EBP-0x1C
+00407F13: [11] *VM_mem[9] = EAX
+00407F2B: [0A] cmp dword [ebp-0x1c], 0xff       ; did it fail?
+00407F3E: [02] jnz 0x407F6F                     ; EBP-0x1C holds the hex number from <decimal>-<hex>
+
+00407F57: [07] jmp 0x__BADBOY__
+
+// so at this point, we have XXXX-YYYYYYYY where YYYYYYYY is 8 hex chars long
+//
+//
+00407F6F: [10] VM_mem[9] = EBP-0xAC
+00407F85: [11] *VM_mem[9] = 0x0
+00407F9D: [07] jmp 0x408023
+
+00407FB5: [10] VM_mem[9] = EBP-0xAC
+00407FCB: [12] ECX = *VM_mem[9]
+00407FE3: [0A] add ecx, 0x1
+00407FF5: [10] VM_mem[9] = EBP-0xAC
+0040800B: [11] *VM_mem[9] = ECX
+
+00408023: [0A] cmp dword [ebp+0xffffff54], 0x8
+00408039: [02] jg 0x408177
+
+00408052: [10] VM_mem[9] = EBP-0xAC
+00408068: [12] EDX = *VM_mem[9]
+00408080: [0A] add edx, [ebp+0xffffff60]
+00408095: [10] VM_mem[9] = EBP-0xAC
+004080AB: [12] EAX = *VM_mem[9]
+004080C3: [10] VM_mem[9] = EBP+0xC
+004080D9: [12] ECX = *VM_mem[9]
+004080F1: [0A] mov dl, [ecx+edx+0x11]
+00408104: [0A] mov [ebp+eax+0xffffff70], dl
+0040811A: [10] VM_mem[9] = EBP-0xAC
+00408130: [12] EAX = *VM_mem[9]
+00408148: [0A] mov byte [ebp+eax+0xffffff71], 0x0
+0040815F: [07] jmp 0x407FB5
+
+00408177: [0A] lea ecx, [ebp+0xffffff70]        ; EBP-0x90 (the buffer again)
+0040818C: [0A] push ecx
+0040819C: [00] 
+004081B7: [0C] 
+004081C7: [0C] 
+004081D7: [04] add esp, 0x4
+
+004081EB: [10] VM_mem[9] = EBP-0x8              ; EBP-0x8 is the dword2 in serial <decimal>-<dword0><dword1><dword2>
+00408201: [11] *VM_mem[9] = EAX
+00408219: [0A] cmp dword [ebp-0x8], 0xff
+0040822C: [02] jnz 0x40825D
+00408245: [07] jmp 0x__BADBOY__
+
+0040825D: [10] VM_mem[9] = EBP-0xB0
+00408273: [11] *VM_mem[9] = 0x0
+0040828B: [07] jmp 0x408311
+004082A3: [10] VM_mem[9] = EBP-0xB0
+004082B9: [12] EDX = *VM_mem[9]
+004082D1: [0A] add edx, 0x1
+004082E3: [10] VM_mem[9] = EBP-0xB0
+004082F9: [11] *VM_mem[9] = EDX
+00408311: [0A] cmp dword [ebp+0xffffff50], 0x8
+00408327: [02] jg 0x408465
+00408340: [10] VM_mem[9] = EBP-0xB0
+00408356: [12] EAX = *VM_mem[9]
+0040836E: [0A] add eax, [ebp+0xffffff60]
+00408383: [10] VM_mem[9] = EBP-0xB0
+00408399: [12] ECX = *VM_mem[9]
+004083B1: [10] VM_mem[9] = EBP+0xC
+004083C7: [12] EDX = *VM_mem[9]
+004083DF: [0A] mov al, [edx+eax+0x9]
+004083F2: [0A] mov [ebp+ecx+0xffffff70], al
+00408408: [10] VM_mem[9] = EBP-0xB0
+0040841E: [12] ECX = *VM_mem[9]
+00408436: [0A] mov byte [ebp+ecx+0xffffff71], 0x0
+0040844D: [07] jmp 0x4082A3
+00408465: [0A] lea edx, [ebp+0xffffff70]
+0040847A: [0A] push edx
+0040848A: [00] 
+004084A5: [0C] 
+004084B5: [0C] 
+004084C5: [04] add esp, 0x4
+004084D9: [10] VM_mem[9] = EBP-0x94                 ; EBP-0x94 is the dword1 in <decimal>-<dword0><dword1>...
+004084EF: [11] *VM_mem[9] = EAX
+00408507: [0A] cmp dword [ebp+0xffffff6c], 0xff
+0040851D: [02] jnz 0x40854E
+00408536: [07] jmp 0x__BADBOY__
+
+0040854E: [10] VM_mem[9] = EBP-0xB0
+00408564: [12] EAX = *VM_mem[9]
+0040857C: [0A] add eax, [ebp+0xffffff60]
+
+00408591: [10] VM_mem[9] = EBP+0xC
+004085A7: [12] ECX = *VM_mem[9]
+004085BF: [0A] movsx edx, byte [ecx+eax+0x11]
+
+004085D3: [0A] cmp edx, 0x2d
+004085E5: [02] jz 0x408616
+004085FE: [07] jmp 0x__BADBOY__
+00408616: [07] jmp 0x40865E
+
+00NOT_A_DASH: [07] jmp 0xKEY_LOOP_POST
+
+00408646: [07] jmp 0x__BADBOY__
+
+// at this point we know the serial looks at least like <decimal>-<8 digit hex><8 digit hex><8 digit hex>-
+//
+0040865E: [10] VM_mem[9] = EBP+0x8          ; dword 2 from serial???
+00408674: [12] EAX = *VM_mem[9]             ; this is username actually
+0040868C: [0A] push eax
+0040869C: [0A] lea ecx, [ebp+0xffffff70]    ; EBP-90 (the buffer)
+004086B1: [0A] push ecx
+004086C1: [00]                              ; strcpy
+004086DC: [0C] 
+004086EC: [0C] 
+004086FC: [04] add esp, 0x8
+
+00408710: [0A] cmp dword [ebp-0x14], 0xa    ; 
+00408723: [02] jg 0x408890                  ; strlen(username) > 10d
+
+0040873C: [10] VM_mem[9] = EBP+0x8
+00408752: [12] EDX = *VM_mem[9]             ; EDX = username
+0040876A: [0A] push edx
+0040877A: [0A] lea eax, [ebp+0xffffff70]
+0040878F: [0A] push eax
+0040879F: [00]                              ; call strcat
+004087BA: [0C] 
+004087CA: [0C] 
+004087DA: [04] add esp, 0x8
+004087EE: [0A] lea ecx, [ebp+0xffffff70]
+00408803: [0A] push ecx
+00408813: [00] 
+0040882E: [0C] 
+0040883E: [0C] 
+0040884E: [04] add esp, 0x4
+00408862: [10] VM_mem[9] = EBP-0x14         ; new strlen assigned
+00408878: [11] *VM_mem[9] = EAX
+
+00408890: [10] VM_mem[9] = EBP-0x58
+004088A6: [12] EDX = *VM_mem[9]             ; EBP-0x58 == EDX == 0x8c6b966c 
+004088BE: [10] VM_mem[9] = EBP-0xBC
+004088D4: [11] *VM_mem[9] = EDX             ; EBP-0xBC == 0x8c6b966c
+004088EC: [10] VM_mem[9] = EBP-0x1C
+00408902: [12] EAX = *VM_mem[9]             ; EBP-0xC0 == gets dword0
+0040891A: [10] VM_mem[9] = EBP-0xC0
+00408930: [11] *VM_mem[9] = EAX
+
+00408948: [0A] push eax
+00408958: [10] VM_mem[9] = EBP-0xBC
+0040896E: [12] EAX = *VM_mem[9]
+00408986: [17] 
+00408998: [19] 
+004089A8: [14] 
+004089B9: [18] 
+004089CD: [18] 
+004089E1: [18] 
+004089F5: [18] 
+00408A09: [15] 
+00408A1A: [17] 
+00408A2C: [10] VM_mem[9] = EBP-0xBC
+00408A42: [11] *VM_mem[9] = EAX
+00408A5A: [0A] pop eax
+00408A6A: [10] VM_mem[9] = EBP-0xBC
+00408A80: [12] ECX = *VM_mem[9]
+00408A98: [0A] and ecx, 0xff
+00408AAD: [10] VM_mem[9] = EBP-0xC0
+00408AC3: [13] xor [ECX], *VM_Mem[0x9]
+00408ADB: [10] VM_mem[9] = EBP-0xC0
+00408AF1: [11] *VM_mem[9] = ECX
+00408B09: [10] VM_mem[9] = EBP-0xBC
+00408B1F: [12] EDX = *VM_mem[9]
+00408B37: [0A] and edx, 0xff00
+00408B4C: [10] VM_mem[9] = EBP-0xC0
+00408B62: [13] xor [EDX], *VM_Mem[0x9]
+00408B7A: [10] VM_mem[9] = EBP-0xC0
+00408B90: [11] *VM_mem[9] = EDX
+00408BA8: [10] VM_mem[9] = EBP-0xBC
+00408BBE: [12] EAX = *VM_mem[9]
+00408BD6: [0A] and eax, 0xff0000
+00408BEA: [10] VM_mem[9] = EBP-0xC0
+00408C00: [13] xor [EAX], *VM_Mem[0x9]
+00408C18: [10] VM_mem[9] = EBP-0xC0
+00408C2E: [11] *VM_mem[9] = EAX
+00408C46: [10] VM_mem[9] = EBP-0xBC
+00408C5C: [12] ECX = *VM_mem[9]
+00408C74: [0A] and ecx, 0xff000000
+00408C89: [10] VM_mem[9] = EBP-0xC0
+00408C9F: [13] xor [ECX], *VM_Mem[0x9]
+00408CB7: [10] VM_mem[9] = EBP-0xC0
+00408CCD: [11] *VM_mem[9] = ECX
+00408CE5: [0A] push eax
+00408CF5: [10] VM_mem[9] = EBP-0xBC
+00408D0B: [12] EAX = *VM_mem[9]
+00408D23: [17] 
+00408D35: [19] 
+00408D45: [14] 
+00408D56: [18] 
+00408D6A: [18] 
+00408D7E: [18] 
+00408D92: [18] 
+00408DA6: [15] 
+00408DB7: [17] 
+00408DC9: [10] VM_mem[9] = EBP-0xBC
+00408DDF: [11] *VM_mem[9] = EAX
+00408DF7: [0A] pop eax
+00408E07: [10] VM_mem[9] = EBP-0xBC
+00408E1D: [12] EDX = *VM_mem[9]
+00408E35: [0A] and edx, 0xff
+00408E4A: [10] VM_mem[9] = EBP-0xC0
+00408E60: [13] xor [EDX], *VM_Mem[0x9]
+00408E78: [10] VM_mem[9] = EBP-0xC0
+00408E8E: [11] *VM_mem[9] = EDX
+00408EA6: [10] VM_mem[9] = EBP-0xBC
+00408EBC: [12] EAX = *VM_mem[9]
+00408ED4: [0A] and eax, 0xff00
+00408EE8: [10] VM_mem[9] = EBP-0xC0
+00408EFE: [13] xor [EAX], *VM_Mem[0x9]
+00408F16: [10] VM_mem[9] = EBP-0xC0
+00408F2C: [11] *VM_mem[9] = EAX
+00408F44: [10] VM_mem[9] = EBP-0xBC
+00408F5A: [12] ECX = *VM_mem[9]
+00408F72: [0A] and ecx, 0xff0000
+00408F87: [10] VM_mem[9] = EBP-0xC0
+00408F9D: [13] xor [ECX], *VM_Mem[0x9]
+00408FB5: [10] VM_mem[9] = EBP-0xC0
+00408FCB: [11] *VM_mem[9] = ECX
+00408FE3: [10] VM_mem[9] = EBP-0xBC
+00408FF9: [12] EDX = *VM_mem[9]
+00409011: [0A] and edx, 0xff000000
+00409026: [10] VM_mem[9] = EBP-0xC0
+0040903C: [13] xor [EDX], *VM_Mem[0x9]
+00409054: [10] VM_mem[9] = EBP-0xC0
+0040906A: [11] *VM_mem[9] = EDX
+00409082: [10] VM_mem[9] = EBP-0xC0
+00409098: [12] EAX = *VM_mem[9]
+004090B0: [10] VM_mem[9] = EBP-0x1C
+004090C6: [11] *VM_mem[9] = EAX
+004090DE: [10] VM_mem[9] = EBP-0x58
+004090F4: [12] ECX = *VM_mem[9]
+0040910C: [10] VM_mem[9] = EBP-0xC8
+00409122: [11] *VM_mem[9] = ECX
+0040913A: [10] VM_mem[9] = EBP-0x8
+00409150: [12] EDX = *VM_mem[9]
+00409168: [10] VM_mem[9] = EBP-0xCC
+0040917E: [11] *VM_mem[9] = EDX
+00409196: [0A] push eax
+004091A6: [10] VM_mem[9] = EBP-0xC8
+004091BC: [12] EAX = *VM_mem[9]
+004091D4: [17] 
+004091E6: [19] 
+004091F6: [14] 
+00409207: [18] 
+0040921B: [18] 
+0040922F: [18] 
+00409243: [18] 
+00409257: [15] 
+00409268: [17] 
+0040927A: [10] VM_mem[9] = EBP-0xC8
+00409290: [11] *VM_mem[9] = EAX
+004092A8: [0A] pop eax
+004092B8: [10] VM_mem[9] = EBP-0xC8
+004092CE: [12] EAX = *VM_mem[9]
+004092E6: [0A] and eax, 0xff
+004092FA: [10] VM_mem[9] = EBP-0xCC
+00409310: [13] xor [EAX], *VM_Mem[0x9]
+00409328: [10] VM_mem[9] = EBP-0xCC
+0040933E: [11] *VM_mem[9] = EAX
+00409356: [10] VM_mem[9] = EBP-0xC8
+0040936C: [12] ECX = *VM_mem[9]
+00409384: [0A] and ecx, 0xff00
+00409399: [10] VM_mem[9] = EBP-0xCC
+004093AF: [13] xor [ECX], *VM_Mem[0x9]
+004093C7: [10] VM_mem[9] = EBP-0xCC
+004093DD: [11] *VM_mem[9] = ECX
+004093F5: [10] VM_mem[9] = EBP-0xC8
+0040940B: [12] EDX = *VM_mem[9]
+00409423: [0A] and edx, 0xff0000
+00409438: [10] VM_mem[9] = EBP-0xCC
+0040944E: [13] xor [EDX], *VM_Mem[0x9]
+00409466: [10] VM_mem[9] = EBP-0xCC
+0040947C: [11] *VM_mem[9] = EDX
+00409494: [10] VM_mem[9] = EBP-0xC8
+004094AA: [12] EAX = *VM_mem[9]
+004094C2: [0A] and eax, 0xff000000
+004094D6: [10] VM_mem[9] = EBP-0xCC
+004094EC: [13] xor [EAX], *VM_Mem[0x9]
+00409504: [10] VM_mem[9] = EBP-0xCC
+0040951A: [11] *VM_mem[9] = EAX
+00409532: [0A] push eax
+00409542: [10] VM_mem[9] = EBP-0xC8
+00409558: [12] EAX = *VM_mem[9]
+00409570: [17] 
+00409582: [19] 
+00409592: [14] 
+004095A3: [18] 
+004095B7: [18] 
+004095CB: [18] 
+004095DF: [18] 
+004095F3: [15] 
+00409604: [17] 
+00409616: [10] VM_mem[9] = EBP-0xC8
+0040962C: [11] *VM_mem[9] = EAX
+00409644: [0A] pop eax
+00409654: [10] VM_mem[9] = EBP-0xC8
+0040966A: [12] ECX = *VM_mem[9]
+00409682: [0A] and ecx, 0xff
+00409697: [10] VM_mem[9] = EBP-0xCC
+004096AD: [13] xor [ECX], *VM_Mem[0x9]
+004096C5: [10] VM_mem[9] = EBP-0xCC
+004096DB: [11] *VM_mem[9] = ECX
+004096F3: [10] VM_mem[9] = EBP-0xC8
+00409709: [12] EDX = *VM_mem[9]
+00409721: [0A] and edx, 0xff00
+00409736: [10] VM_mem[9] = EBP-0xCC
+0040974C: [13] xor [EDX], *VM_Mem[0x9]
+00409764: [10] VM_mem[9] = EBP-0xCC
+0040977A: [11] *VM_mem[9] = EDX
+00409792: [10] VM_mem[9] = EBP-0xC8
+004097A8: [12] EAX = *VM_mem[9]
+004097C0: [0A] and eax, 0xff0000
+004097D4: [10] VM_mem[9] = EBP-0xCC
+004097EA: [13] xor [EAX], *VM_Mem[0x9]
+00409802: [10] VM_mem[9] = EBP-0xCC
+00409818: [11] *VM_mem[9] = EAX
+00409830: [10] VM_mem[9] = EBP-0xC8
+00409846: [12] ECX = *VM_mem[9]
+0040985E: [0A] and ecx, 0xff000000
+00409873: [10] VM_mem[9] = EBP-0xCC
+00409889: [13] xor [ECX], *VM_Mem[0x9]
+004098A1: [10] VM_mem[9] = EBP-0xCC
+004098B7: [11] *VM_mem[9] = ECX
+004098CF: [10] VM_mem[9] = EBP-0xCC
+004098E5: [12] EDX = *VM_mem[9]
+004098FD: [10] VM_mem[9] = EBP-0x8
+00409913: [11] *VM_mem[9] = EDX
+0040992B: [10] VM_mem[9] = EBP-0x8
+00409941: [12] EAX = *VM_mem[9]
+00409959: [10] VM_mem[9] = EBP-0xD4
+0040996F: [11] *VM_mem[9] = EAX
+00409987: [10] VM_mem[9] = EBP-0x94
+0040999D: [12] ECX = *VM_mem[9]
+004099B5: [10] VM_mem[9] = EBP-0xD8
+004099CB: [11] *VM_mem[9] = ECX
+004099E3: [0A] push eax
+004099F3: [10] VM_mem[9] = EBP-0xD4
+00409A09: [12] EAX = *VM_mem[9]
+00409A21: [17] 
+00409A33: [19] 
+00409A43: [14] 
+00409A54: [18] 
+00409A68: [18] 
+00409A7C: [18] 
+00409A90: [18] 
+00409AA4: [15] 
+00409AB5: [17] 
+00409AC7: [10] VM_mem[9] = EBP-0xD4
+00409ADD: [11] *VM_mem[9] = EAX
+00409AF5: [0A] pop eax
+00409B05: [10] VM_mem[9] = EBP-0xD4
+00409B1B: [12] EDX = *VM_mem[9]
+00409B33: [0A] and edx, 0xff
+00409B48: [10] VM_mem[9] = EBP-0xD8
+00409B5E: [13] xor [EDX], *VM_Mem[0x9]
+00409B76: [10] VM_mem[9] = EBP-0xD8
+00409B8C: [11] *VM_mem[9] = EDX
+00409BA4: [10] VM_mem[9] = EBP-0xD4
+00409BBA: [12] EAX = *VM_mem[9]
+00409BD2: [0A] and eax, 0xff00
+00409BE6: [10] VM_mem[9] = EBP-0xD8
+00409BFC: [13] xor [EAX], *VM_Mem[0x9]
+00409C14: [10] VM_mem[9] = EBP-0xD8
+00409C2A: [11] *VM_mem[9] = EAX
+00409C42: [10] VM_mem[9] = EBP-0xD4
+00409C58: [12] ECX = *VM_mem[9]
+00409C70: [0A] and ecx, 0xff0000
+00409C85: [10] VM_mem[9] = EBP-0xD8
+00409C9B: [13] xor [ECX], *VM_Mem[0x9]
+00409CB3: [10] VM_mem[9] = EBP-0xD8
+00409CC9: [11] *VM_mem[9] = ECX
+00409CE1: [10] VM_mem[9] = EBP-0xD4
+00409CF7: [12] EDX = *VM_mem[9]
+00409D0F: [0A] and edx, 0xff000000
+00409D24: [10] VM_mem[9] = EBP-0xD8
+00409D3A: [13] xor [EDX], *VM_Mem[0x9]
+00409D52: [10] VM_mem[9] = EBP-0xD8
+00409D68: [11] *VM_mem[9] = EDX
+00409D80: [0A] push eax
+00409D90: [10] VM_mem[9] = EBP-0xD4
+00409DA6: [12] EAX = *VM_mem[9]
+00409DBE: [17] 
+00409DD0: [19] 
+00409DE0: [14] 
+00409DF1: [18] 
+00409E05: [18] 
+00409E19: [18] 
+00409E2D: [18] 
+00409E41: [15] 
+00409E52: [17] 
+00409E64: [10] VM_mem[9] = EBP-0xD4
+00409E7A: [11] *VM_mem[9] = EAX
+00409E92: [0A] pop eax
+00409EA2: [10] VM_mem[9] = EBP-0xD4
+00409EB8: [12] EAX = *VM_mem[9]
+00409ED0: [0A] and eax, 0xff
+00409EE4: [10] VM_mem[9] = EBP-0xD8
+00409EFA: [13] xor [EAX], *VM_Mem[0x9]
+00409F12: [10] VM_mem[9] = EBP-0xD8
+00409F28: [11] *VM_mem[9] = EAX
+00409F40: [10] VM_mem[9] = EBP-0xD4
+00409F56: [12] ECX = *VM_mem[9]
+00409F6E: [0A] and ecx, 0xff00
+00409F83: [10] VM_mem[9] = EBP-0xD8
+00409F99: [13] xor [ECX], *VM_Mem[0x9]
+00409FB1: [10] VM_mem[9] = EBP-0xD8
+00409FC7: [11] *VM_mem[9] = ECX
+00409FDF: [10] VM_mem[9] = EBP-0xD4
+00409FF5: [12] EDX = *VM_mem[9]
+0040A00D: [0A] and edx, 0xff0000
+0040A022: [10] VM_mem[9] = EBP-0xD8
+0040A038: [13] xor [EDX], *VM_Mem[0x9]
+0040A050: [10] VM_mem[9] = EBP-0xD8
+0040A066: [11] *VM_mem[9] = EDX
+0040A07E: [10] VM_mem[9] = EBP-0xD4
+0040A094: [12] EAX = *VM_mem[9]
+0040A0AC: [0A] and eax, 0xff000000
+0040A0C0: [10] VM_mem[9] = EBP-0xD8
+0040A0D6: [13] xor [EAX], *VM_Mem[0x9]
+0040A0EE: [10] VM_mem[9] = EBP-0xD8
+0040A104: [11] *VM_mem[9] = EAX
+0040A11C: [10] VM_mem[9] = EBP-0xD8
+0040A132: [12] ECX = *VM_mem[9]
+0040A14A: [10] VM_mem[9] = EBP-0x94
+0040A160: [11] *VM_mem[9] = ECX
+0040A178: [10] VM_mem[9] = EBP-0x1C
+0040A18E: [12] EDX = *VM_mem[9]
+0040A1A6: [10] VM_mem[9] = EBP-0xE0
+0040A1BC: [11] *VM_mem[9] = EDX
+0040A1D4: [10] VM_mem[9] = EBP-0x94
+0040A1EA: [12] EAX = *VM_mem[9]
+0040A202: [10] VM_mem[9] = EBP-0xE4
+0040A218: [11] *VM_mem[9] = EAX
+0040A230: [0A] push eax
+0040A240: [10] VM_mem[9] = EBP-0xE0
+0040A256: [12] EAX = *VM_mem[9]
+0040A26E: [17] 
+0040A280: [19] 
+0040A290: [14] 
+0040A2A1: [18] 
+0040A2B5: [18] 
+0040A2C9: [18] 
+0040A2DD: [18] 
+0040A2F1: [15] 
+0040A302: [17] 
+0040A314: [10] VM_mem[9] = EBP-0xE0
+0040A32A: [11] *VM_mem[9] = EAX
+0040A342: [0A] pop eax
+0040A352: [10] VM_mem[9] = EBP-0xE0
+0040A368: [12] ECX = *VM_mem[9]
+0040A380: [0A] and ecx, 0xff
+0040A395: [10] VM_mem[9] = EBP-0xE4
+0040A3AB: [13] xor [ECX], *VM_Mem[0x9]
+0040A3C3: [10] VM_mem[9] = EBP-0xE4
+0040A3D9: [11] *VM_mem[9] = ECX
+0040A3F1: [10] VM_mem[9] = EBP-0xE0
+0040A407: [12] EDX = *VM_mem[9]
+0040A41F: [0A] and edx, 0xff00
+0040A434: [10] VM_mem[9] = EBP-0xE4
+0040A44A: [13] xor [EDX], *VM_Mem[0x9]
+0040A462: [10] VM_mem[9] = EBP-0xE4
+0040A478: [11] *VM_mem[9] = EDX
+0040A490: [10] VM_mem[9] = EBP-0xE0
+0040A4A6: [12] EAX = *VM_mem[9]
+0040A4BE: [0A] and eax, 0xff0000
+0040A4D2: [10] VM_mem[9] = EBP-0xE4
+0040A4E8: [13] xor [EAX], *VM_Mem[0x9]
+0040A500: [10] VM_mem[9] = EBP-0xE4
+0040A516: [11] *VM_mem[9] = EAX
+0040A52E: [10] VM_mem[9] = EBP-0xE0
+0040A544: [12] ECX = *VM_mem[9]
+0040A55C: [0A] and ecx, 0xff000000
+0040A571: [10] VM_mem[9] = EBP-0xE4
+0040A587: [13] xor [ECX], *VM_Mem[0x9]
+0040A59F: [10] VM_mem[9] = EBP-0xE4
+0040A5B5: [11] *VM_mem[9] = ECX
+0040A5CD: [0A] push eax
+0040A5DD: [10] VM_mem[9] = EBP-0xE0
+0040A5F3: [12] EAX = *VM_mem[9]
+0040A60B: [17] 
+0040A61D: [19] 
+0040A62D: [14] 
+0040A63E: [18] 
+0040A652: [18] 
+0040A666: [18] 
+0040A67A: [18] 
+0040A68E: [15] 
+0040A69F: [17] 
+0040A6B1: [10] VM_mem[9] = EBP-0xE0
+0040A6C7: [11] *VM_mem[9] = EAX
+0040A6DF: [0A] pop eax
+0040A6EF: [10] VM_mem[9] = EBP-0xE0
+0040A705: [12] EDX = *VM_mem[9]
+0040A71D: [0A] and edx, 0xff
+0040A732: [10] VM_mem[9] = EBP-0xE4
+0040A748: [13] xor [EDX], *VM_Mem[0x9]
+0040A760: [10] VM_mem[9] = EBP-0xE4
+0040A776: [11] *VM_mem[9] = EDX
+0040A78E: [10] VM_mem[9] = EBP-0xE0
+0040A7A4: [12] EAX = *VM_mem[9]
+0040A7BC: [0A] and eax, 0xff00
+0040A7D0: [10] VM_mem[9] = EBP-0xE4
+0040A7E6: [13] xor [EAX], *VM_Mem[0x9]
+0040A7FE: [10] VM_mem[9] = EBP-0xE4
+0040A814: [11] *VM_mem[9] = EAX
+0040A82C: [10] VM_mem[9] = EBP-0xE0
+0040A842: [12] ECX = *VM_mem[9]
+0040A85A: [0A] and ecx, 0xff0000
+0040A86F: [10] VM_mem[9] = EBP-0xE4
+0040A885: [13] xor [ECX], *VM_Mem[0x9]
+0040A89D: [10] VM_mem[9] = EBP-0xE4
+0040A8B3: [11] *VM_mem[9] = ECX
+0040A8CB: [10] VM_mem[9] = EBP-0xE0
+0040A8E1: [12] EDX = *VM_mem[9]
+0040A8F9: [0A] and edx, 0xff000000
+0040A90E: [10] VM_mem[9] = EBP-0xE4
+0040A924: [13] xor [EDX], *VM_Mem[0x9]
+0040A93C: [10] VM_mem[9] = EBP-0xE4
+0040A952: [11] *VM_mem[9] = EDX
+0040A96A: [10] VM_mem[9] = EBP-0xE4
+0040A980: [12] EAX = *VM_mem[9]
+0040A998: [10] VM_mem[9] = EBP-0x94
+0040A9AE: [11] *VM_mem[9] = EAX
+0040A9C6: [10] VM_mem[9] = EBP-0x58
+0040A9DC: [12] ECX = *VM_mem[9]
+0040A9F4: [10] VM_mem[9] = EBP-0xEC
+0040AA0A: [11] *VM_mem[9] = ECX
+0040AA22: [10] VM_mem[9] = EBP-0x94
+0040AA38: [12] EDX = *VM_mem[9]
+0040AA50: [10] VM_mem[9] = EBP-0xF0
+0040AA66: [11] *VM_mem[9] = EDX
+0040AA7E: [0A] push eax
+0040AA8E: [10] VM_mem[9] = EBP-0xEC
+0040AAA4: [12] EAX = *VM_mem[9]
+0040AABC: [17] 
+0040AACE: [19] 
+0040AADE: [14] 
+0040AAEF: [18] 
+0040AB03: [18] 
+0040AB17: [18] 
+0040AB2B: [18] 
+0040AB3F: [15] 
+0040AB50: [17] 
+0040AB62: [10] VM_mem[9] = EBP-0xEC
+0040AB78: [11] *VM_mem[9] = EAX
+0040AB90: [0A] pop eax
+0040ABA0: [10] VM_mem[9] = EBP-0xEC
+0040ABB6: [12] EAX = *VM_mem[9]
+0040ABCE: [0A] and eax, 0xff
+0040ABE2: [10] VM_mem[9] = EBP-0xF0
+0040ABF8: [13] xor [EAX], *VM_Mem[0x9]
+0040AC10: [10] VM_mem[9] = EBP-0xF0
+0040AC26: [11] *VM_mem[9] = EAX
+0040AC3E: [10] VM_mem[9] = EBP-0xEC
+0040AC54: [12] ECX = *VM_mem[9]
+0040AC6C: [0A] and ecx, 0xff00
+0040AC81: [10] VM_mem[9] = EBP-0xF0
+0040AC97: [13] xor [ECX], *VM_Mem[0x9]
+0040ACAF: [10] VM_mem[9] = EBP-0xF0
+0040ACC5: [11] *VM_mem[9] = ECX
+0040ACDD: [10] VM_mem[9] = EBP-0xEC
+0040ACF3: [12] EDX = *VM_mem[9]
+0040AD0B: [0A] and edx, 0xff0000
+0040AD20: [10] VM_mem[9] = EBP-0xF0
+0040AD36: [13] xor [EDX], *VM_Mem[0x9]
+0040AD4E: [10] VM_mem[9] = EBP-0xF0
+0040AD64: [11] *VM_mem[9] = EDX
+0040AD7C: [10] VM_mem[9] = EBP-0xEC
+0040AD92: [12] EAX = *VM_mem[9]
+0040ADAA: [0A] and eax, 0xff000000
+0040ADBE: [10] VM_mem[9] = EBP-0xF0
+0040ADD4: [13] xor [EAX], *VM_Mem[0x9]
+0040ADEC: [10] VM_mem[9] = EBP-0xF0
+0040AE02: [11] *VM_mem[9] = EAX
+0040AE1A: [0A] push eax
+0040AE2A: [10] VM_mem[9] = EBP-0xEC
+0040AE40: [12] EAX = *VM_mem[9]
+0040AE58: [17] 
+0040AE6A: [19] 
+0040AE7A: [14] 
+0040AE8B: [18] 
+0040AE9F: [18] 
+0040AEB3: [18] 
+0040AEC7: [18] 
+0040AEDB: [15] 
+0040AEEC: [17] 
+0040AEFE: [10] VM_mem[9] = EBP-0xEC
+0040AF14: [11] *VM_mem[9] = EAX
+0040AF2C: [0A] pop eax
+0040AF3C: [10] VM_mem[9] = EBP-0xEC
+0040AF52: [12] ECX = *VM_mem[9]
+0040AF6A: [0A] and ecx, 0xff
+0040AF7F: [10] VM_mem[9] = EBP-0xF0
+0040AF95: [13] xor [ECX], *VM_Mem[0x9]
+0040AFAD: [10] VM_mem[9] = EBP-0xF0
+0040AFC3: [11] *VM_mem[9] = ECX
+0040AFDB: [10] VM_mem[9] = EBP-0xEC
+0040AFF1: [12] EDX = *VM_mem[9]
+0040B009: [0A] and edx, 0xff00
+0040B01E: [10] VM_mem[9] = EBP-0xF0
+0040B034: [13] xor [EDX], *VM_Mem[0x9]
+0040B04C: [10] VM_mem[9] = EBP-0xF0
+0040B062: [11] *VM_mem[9] = EDX
+0040B07A: [10] VM_mem[9] = EBP-0xEC
+0040B090: [12] EAX = *VM_mem[9]
+0040B0A8: [0A] and eax, 0xff0000
+0040B0BC: [10] VM_mem[9] = EBP-0xF0
+0040B0D2: [13] xor [EAX], *VM_Mem[0x9]
+0040B0EA: [10] VM_mem[9] = EBP-0xF0
+0040B100: [11] *VM_mem[9] = EAX
+0040B118: [10] VM_mem[9] = EBP-0xEC
+0040B12E: [12] ECX = *VM_mem[9]
+0040B146: [0A] and ecx, 0xff000000
+0040B15B: [10] VM_mem[9] = EBP-0xF0
+0040B171: [13] xor [ECX], *VM_Mem[0x9]
+0040B189: [10] VM_mem[9] = EBP-0xF0
+0040B19F: [11] *VM_mem[9] = ECX
+0040B1B7: [10] VM_mem[9] = EBP-0xF0
+0040B1CD: [12] EDX = *VM_mem[9]
+0040B1E5: [10] VM_mem[9] = EBP-0x94
+0040B1FB: [11] *VM_mem[9] = EDX
+0040B213: [10] VM_mem[9] = EBP-0xB4
+0040B229: [11] *VM_mem[9] = 0x0
+0040B241: [07] jmp 0x40B2C7
+0040B259: [10] VM_mem[9] = EBP-0xB4
+0040B26F: [12] EAX = *VM_mem[9]
+0040B287: [0A] add eax, 0x1
+0040B299: [10] VM_mem[9] = EBP-0xB4
+0040B2AF: [11] *VM_mem[9] = EAX
+0040B2C7: [10] VM_mem[9] = EBP-0xB4
+0040B2DD: [12] ECX = *VM_mem[9]
+0040B2F5: [0A] cmp ecx, [ebp-0x14]
+0040B307: [02] jg 0x40BC59
+0040B320: [10] VM_mem[9] = EBP-0xB4
+0040B336: [12] EDX = *VM_mem[9]
+0040B34E: [0A] and edx, 0x80000001
+0040B363: [02] jns 0x40B3AE
+0040B37C: [0A] dec edx
+0040B38C: [0A] or edx, 0xfe
+0040B39E: [0A] inc edx
+0040B3AE: [0A] test edx, edx
+0040B3BF: [02] jz 0x40B7AB
+0040B3D8: [10] VM_mem[9] = EBP-0xB4
+0040B3EE: [12] EAX = *VM_mem[9]
+0040B406: [0A] movsx ecx, byte [ebp+eax+0xffffff70]
+0040B41D: [10] VM_mem[9] = EBP-0x1C
+0040B433: [12] EDX = *VM_mem[9]
+0040B44B: [0A] add edx, [ebp+0xffffff4c]
+0040B460: [17] 
+0040B472: [17] 
+0040B484: [14] 
+0040B495: [14] 
+0040B4A6: [16] 
+0040B4B8: [16] 
+0040B4CA: [16] 
+0040B4DC: [16] 
+0040B4EE: [16] 
+0040B500: [16] 
+0040B512: [16] 
+0040B524: [16] 
+0040B536: [16] 
+0040B548: [16] 
+0040B55A: [16] 
+0040B56C: [16] 
+0040B57E: [16] 
+0040B590: [16] 
+0040B5A2: [16] 
+0040B5B4: [16] 
+0040B5C6: [16] 
+0040B5D8: [16] 
+0040B5EA: [16] 
+0040B5FC: [16] 
+0040B60E: [16] 
+0040B620: [16] 
+0040B632: [16] 
+0040B644: [16] 
+0040B656: [16] 
+0040B668: [16] 
+0040B67A: [16] 
+0040B68C: [16] 
+0040B69E: [16] 
+0040B6B0: [16] 
+0040B6C2: [16] 
+0040B6D4: [16] 
+0040B6E6: [15] 
+0040B6F7: [17] 
+0040B709: [10] VM_mem[9] = EBP-0x5C
+0040B71F: [13] xor [ECX], *VM_Mem[0x9]
+0040B737: [10] VM_mem[9] = EBP-0xC
+0040B74D: [13] xor [ECX], *VM_Mem[0x9]
+0040B765: [10] VM_mem[9] = EBP-0xC
+0040B77B: [11] *VM_mem[9] = ECX
+0040B793: [07] jmp 0x40BB66
+0040B7AB: [10] VM_mem[9] = EBP-0xB4
+0040B7C1: [12] EAX = *VM_mem[9]
+0040B7D9: [0A] movsx ecx, byte [ebp+eax+0xffffff70]
+0040B7F0: [10] VM_mem[9] = EBP-0x8
+0040B806: [12] EDX = *VM_mem[9]
+0040B81E: [0A] sub edx, [ebp+0xffffff4c]
+0040B833: [17] 
+0040B845: [17] 
+0040B857: [14] 
+0040B868: [14] 
+0040B879: [16] 
+0040B88B: [16] 
+0040B89D: [16] 
+0040B8AF: [16] 
+0040B8C1: [16] 
+0040B8D3: [16] 
+0040B8E5: [16] 
+0040B8F7: [16] 
+0040B909: [16] 
+0040B91B: [16] 
+0040B92D: [16] 
+0040B93F: [16] 
+0040B951: [16] 
+0040B963: [16] 
+0040B975: [16] 
+0040B987: [16] 
+0040B999: [16] 
+0040B9AB: [16] 
+0040B9BD: [16] 
+0040B9CF: [16] 
+0040B9E1: [16] 
+0040B9F3: [16] 
+0040BA05: [16] 
+0040BA17: [16] 
+0040BA29: [16] 
+0040BA3B: [16] 
+0040BA4D: [16] 
+0040BA5F: [16] 
+0040BA71: [16] 
+0040BA83: [16] 
+0040BA95: [16] 
+0040BAA7: [16] 
+0040BAB9: [15] 
+0040BACA: [17] 
+0040BADC: [10] VM_mem[9] = EBP-0x5C
+0040BAF2: [13] xor [ECX], *VM_Mem[0x9]
+0040BB0A: [10] VM_mem[9] = EBP-0xC
+0040BB20: [13] xor [ECX], *VM_Mem[0x9]
+0040BB38: [10] VM_mem[9] = EBP-0xC
+0040BB4E: [11] *VM_mem[9] = ECX
+
+0040BB66: [0A] push eax
+0040BB76: [0A] push ecx
+0040BB86: [10] VM_mem[9] = EBP-0xB4
+0040BB9C: [12] ECX = *VM_mem[9]
+0040BBB4: [10] VM_mem[9] = EBP-0xC
+0040BBCA: [12] EAX = *VM_mem[9]
+0040BBE2: [0A] rol eax, cl
+0040BBF3: [10] VM_mem[9] = EBP-0xC
+0040BC09: [11] *VM_mem[9] = EAX
+0040BC21: [0A] pop ecx
+0040BC31: [0A] pop eax
+0040BC41: [07] jmp 0x40B259
+0040BC59: [10] VM_mem[9] = EBP-0xC
+0040BC6F: [12] EAX = *VM_mem[9]
+0040BC87: [0A] cmp eax, [ebp+0xffffff6c]
+0040BC9C: [02] jnz 0x__BADBOY__
+0040BCB5: [03] push 0x0
+0040BCC9: [03] push 0x86F398A4
+0040BCDD: [0D] [esp] = deobfuscate_string([esp])
+0040BD04: [03] push 0x322974EE
+0040BD18: [0D] [esp] = deobfuscate_string([esp])
+0040BD52: [12] ECX = 0x00405378
+0040BD6A: [0A] push ecx
+0040BD7A: [01] call user32!MessageBoxA
+0040BD91: [0C] 
+0040BDA1: [0C] 
+0040BDB1: [07] jmp 0xQUIT
+
+00__BADBOY__: [04] sub esp, 0x4
+0040BDDD: [06] mov dword [esp], 0x0
+0040BDF2: [0D] [esp] = deobfuscate_string([esp])
+0040BE0F: [04] sub esp, 0x4
+0040BE23: [06] mov dword [esp], 0x3E9
+0040BE38: [12] EDX = 0x00405378
+0040BE50: [0A] push edx
+0040BE60: [01] call user32!SetDlgItemTextA
+0040BE77: [0C] 
+0040BE87: [0C] 
+0040BE97: [03] push 0x0
+0040BEAB: [10] VM_mem[9] = EBP-0x58
+0040BEC1: [12] EAX = *VM_mem[9]
+0040BED9: [0A] push eax
+0040BEE9: [04] sub esp, 0x4
+0040BEFD: [06] mov dword [esp], 0x3EF
+0040BF12: [12] ECX = 0x00405378
+0040BF2A: [0A] push ecx
+0040BF3A: [01] call user32!SetDlgItemIntA
+0040BF51: [0C] 
+0040BF61: [0C] 
+0040BF71: [03] push 0x0
+0040BF85: [04] sub esp, 0x4
+0040BF99: [06] mov dword [esp], 0x0
+0040BFAE: [0D] [esp] = deobfuscate_string([esp])
+0040BFD5: [03] push 0x4F99A259
+0040BFE9: [0D] [esp] = deobfuscate_string([esp])
+0040C009: [12] EDX = 0x00405378
+0040C021: [0A] push edx
+0040C031: [01] call user32!MessageBoxA
+0040C048: [0C] 
+0040C058: [0C] 
+00QUIT: [0A] nop 
+0040C078: [00] 
+0040C087: [00] 
+0040C096: [00] 
+0040C0A5: [00] 
+0040C0B4: [00] 
+0040C0C3: [00] 
+0040C0D2: [00] 
+0040C0E1: [00] 
+0040C0F0: [00] 
+0040C0FF: [00] 
+0040C10E: [00] 
+0040C11D: [00] 
+0040C12C: [00] 
+0040C13B: [00] 
+0040C14A: [00] 
+0040C159: [00] 
+0040C168: [00] 
+0040C177: [00] 
+0040C186: [00] 
+0040C195: [00] 
+0040C1A4: [00] 
+0040C1B3: [00] 
+0040C1C2: [00] 
+0040C1D1: [00] 
+0040C1E0: [00] 
+0040C1EF: [00] 
+0040C1FE: [00] 
+Total instructions: 988

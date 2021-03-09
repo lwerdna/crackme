@@ -1,0 +1,378 @@
+Keygen tutorial by andrewl
+
+  Date: Started July 13th, 2008 .. Finished September 20th :0
+Target: "Keygenme 2008 v1.0" by Crosys
+ Tools: IDA, WinDBG
+
+[----------------------------------------------------------------------------------]
+  CONVENTIONS
+[----------------------------------------------------------------------------------]
+
+Eight digit numbers are base sixteen and usually refer to addresses, eg: 004096C8
+
+Numbers ending in 'h' are base sixteen, eg: DEADh
+
+Numbers ending in 'd' are base ten, eg: CAFEd
+
+All other numbers containing only digits are assumed base ten.
+
+[----------------------------------------------------------------------------------]
+  IDENTIFYING FUNCTIONS
+[----------------------------------------------------------------------------------]
+
+I see "miracl" string in the file. This is a big number library.
+
+Apply these signatures:
+
+http://andrewl.us/tools_reversing/CryptoSIG.v2.0.rar
+http://andrewl.us/tools_reversing/miracl_Beatrix2004.sig 
+
+There is one important function not identified by either sig at 00406870:
+
+.text:00406870         mov     eax, dword_4115D0
+.text:00406875         push    ebx
+...
+.text:0040689A         jge     short loc_4068B8
+.text:0040689C         mov     dword ptr [ecx+eax*4+20h], 8Ch
+.text:004068A4         mov     eax, dword_4115D0
+.text:004068A9         mov     ecx, [eax+240h]
+.text:004068AF         test    ecx, ecx
+.text:004068B1         jz      short loc_4068B8
+.text:004068B3         call    _mr_track
+
+I look through miracl source for _mr_track. We find this macro in include\miracl.h:
+
+#define MR_IN(N) mr_mip->depth++; if (mr_mip->depth<MR_MAXDEPTH) \
+{mr_mip->trace[mr_mip->depth]=(N); if (mr_mip->TRACER) mr_track(_MIPPO_); }
+
+So this is probably inserted by such a macro. The numerical argument to the macro
+is used in the assignment:
+
+mr_mip->trace[mr_mip->depth]=(N)
+
+Which is compiled to this line:
+
+.text:0040689C         mov     dword ptr [ecx+eax*4+20h], 8Ch
+
+So now I look for call to MR_IN(141) and find it big_to_bytes from source/mrarth1.c
+responsible.
+
+MD5 hash functions come right from the RFC:
+
+004015D0 MD5Init
+00402070 MD5Update
+00402130 MD5Final
+
+[----------------------------------------------------------------------------------]
+  READING MIRACL's BIG NUMBERS 
+[----------------------------------------------------------------------------------]
+
+You must be able to watch big numbers as they are calculated in memory. Here is
+their structure from miracl.h:
+
+struct bigtype
+{
+    mr_lentype len;
+    mr_small *w;
+};  
+
+typedef struct bigtype *big;
+
+Those defined types can vary depending on the platform. Here, both are 32-bit types.
+The len is the number of DWORDS comprise the number, and w is  a  pointer  to  those
+dwords, least significant stored first.  This is a snippet from my windbg  extension
+for printing out these values in memory:
+
+typedef struct {
+    ULONG   len;
+    PULONG  pDwords;
+} MIRACL, *PMIRACL;
+..
+//ui64_start is address of bigtype structure
+..
+MIRACL m;
+g_ExtDataSpaces->ReadVirtual(ui64_start, &m, (ULONG)sizeof(MIRACL), &ulBytesRead);
+OutputRaw("    .len=%08X\n", m.len);
+OutputRaw(".pdwords=%08X\n", m.pDwords);
+PUCHAR  pbytes=new UCHAR[m.len];
+g_ExtDataSpaces->ReadVirtual((ULONG64)m.pDwords, pbytes, m.len*4, &ulBytesRead);
+for(int i=m.len*4-1; i>=0; --i)
+  OutputRaw("%02X", pbytes[i]);
+OutputRaw("\n");
+delete [] pbytes;
+
+[----------------------------------------------------------------------------------]
+  ANALYSIS STAGE 1
+[----------------------------------------------------------------------------------]
+
+To enable the second part, you have to satisfy the first. The serial has form:
+
+AAAA BBBB CCCC DDDD EEEE FFFF
+
+Which are to be entered into the 6 independent text fields.
+
+.text:004010C2         push    eax                     <-- CCCCDDDD
+.text:004010C3         call    _atoi                    
+.text:004010C8         add     esp, 4
+.text:004010CB         lea     ecx, [esp+0A4h+CompleteSerialString2]
+.text:004010CF         push    eax
+.text:004010D0         push    ecx                     <-- AAAABBBB
+.text:004010D1         call    _atoi                    
+.text:004010D6         add     esp, 4
+.text:004010D9         push    eax
+.text:004010DA         call    _igcd
+.text:004010DF         add     esp, 8
+.text:004010E2         cmp     eax, 1                  <-- GCD must be 1
+.text:004010E5         jz      short loc_4010F4
+
+In other words, they have to be coprime. The simplest such values I can think of are
+1 and 1. So enter 0000 0001 0000 0001 XXXX XXXX and verify that this section is
+satisfied.
+
+Break the last part of the serial EEEE FFFF into 4 bytes, AABB CCDD. This code
+determines if it passes or not:
+
+.text:004010F4         lea     edx, [esp+0A4h+CompleteSerialString]
+.text:004010F8         push    10h
+.text:004010FA         push    edx
+.text:004010FB         call    GetByteAtoi
+.text:00401100         mov     ebx, eax                <-- ebx = atoi(serial[10h]) AA
+.text:00401102         lea     eax, [esp+0ACh+CompleteSerialString]
+.text:00401106         push    12h
+.text:00401108         push    eax
+.text:00401109         call    GetByteAtoi
+.text:0040110E         lea     ecx, [esp+0B4h+CompleteSerialString]
+.text:00401112         push    14h
+.text:00401114         push    ecx
+.text:00401115         mov     esi, eax                <-- esi = atoi(serial[12h]) BB
+.text:00401117         call    GetByteAtoi
+.text:0040111C         lea     edx, [esp+0BCh+CompleteSerialString]
+.text:00401120         push    16h
+.text:00401122         push    edx
+.text:00401123         mov     edi, eax                <-- edi = atoi(serial[14h]) CC
+.text:00401125         call    GetByteAtoi             <-- eax = atoi(serial[16h]) DD
+.text:0040112A         lea     ecx, [esi+esi*2]        ; ecx = 5B
+.text:0040112D         lea     ebp, [eax+eax*4]        ; ebp = 5D
+.text:00401130         sub     ecx, edi                ; ecx = 5B-C
+.text:00401132         add     esp, 20h
+.text:00401135         lea     edx, [ecx+ebx*4]        ; edx = (5B-C)+4A
+.text:00401138         lea     ecx, [edx+ecx*2]        ; ..ah I give up! :)
+.text:0040113B         add     ebp, ecx
+.text:0040113D         lea     ecx, ds:0[ebx*4]
+.text:00401144         lea     edx, [ecx+edi*8]
+.text:00401147         mov     ecx, edi
+.text:00401149         add     ecx, edx
+.text:0040114B         lea     edx, ds:0[esi*8]
+.text:00401152         add     ecx, eax
+.text:00401154         sub     edx, esi
+.text:00401156         add     ecx, ecx
+.text:00401158         sub     ecx, edx
+.text:0040115A         mov     [esp+0A4h+var_8C], ecx
+.text:0040115E         lea     ecx, [eax+eax]
+.text:00401161         imul    eax, edi
+.text:00401164         imul    eax, esi
+.text:00401167         sub     ecx, esi
+.text:00401169         imul    eax, ebx
+.text:0040116C         shl     ecx, 2
+.text:0040116F         mov     edx, ecx
+.text:00401171         lea     ecx, [edi+edi*2]
+.text:00401174         sub     edx, ebx
+.text:00401176         lea     ecx, [ecx+ecx*4]
+.text:00401179         lea     ecx, [ecx+edx*2]
+.text:0040117C         lea     edx, [eax+eax*2]
+.text:0040117F         shl     edx, 3
+.text:00401182         mov     eax, 66666667h
+.text:00401187         imul    edx
+.text:00401189         sar     edx, 1
+.text:0040118B         mov     eax, edx
+.text:0040118D         shr     eax, 1Fh
+.text:00401190         add     edx, eax
+.text:00401192         cmp     ebp, 0BAh               <-- requirement
+.text:00401198         jnz     short returnNot1
+.text:0040119A         cmp     [esp+0A4h+var_8C], 0FCh <-- requirement
+.text:004011A2         jnz     short returnNot1
+.text:004011A4         cmp     ecx, 0B1h               <-- requirement
+.text:004011AA         jnz     short returnNot1
+.text:004011AC         cmp     edx, 0E700h             <-- requirement
+.text:004011B2         jnz     short returnNot1
+.text:004011B4         mov     eax, 1
+
+Rather than try to reverse this, it's bruteforce time :) See brute.cpp. The result
+we get is (AA, BB, CC, DD) = (20, 08, 07, 11). I think this is the date. 07'th
+month, 11'th day, 2008'th year.
+
+The total serial is now:
+
+0000 0001 0000 0001 2008 0711
+
+And it enabled the other part :)
+
+[----------------------------------------------------------------------------------]
+  ANALYSIS STAGE 2
+[----------------------------------------------------------------------------------]
+
+The second serial has the following form:
+
+AAAAAAAA-BBBBBBBB-CCCCCCCC
+
+The AAAAAAAA is a string that gets MD5'd, then converted to a number that I'll call
+dw0 or hash.
+
+The BBBBBBBB and CCCCCCCC are base 24 representations of numbers I'll call dw1 and
+dw2, respectively).
+
+Here is where the MIRACL big of the MD5 of the AAAAAAAA string is made:
+
+.text:00401236         push    8                       <-- length
+.text:00401238         lea     ecx, [esp+1A0h+varHashFirst8]
+.text:0040123F         push    eax                     <-- "AAAAAAAA"
+.text:00401240         push    ecx                     <-- context
+.text:00401241         call    MD5Update
+.text:00401246         lea     edx, [esp+1A8h+var_164]
+.text:0040124A         lea     eax, [esp+1A8h+varHashFirst8]
+.text:00401251         push    edx
+.text:00401252         push    eax                     <-- buffer receives hash
+.text:00401253         call    MD5Final                
+....
+.text:004012DA         mov     edx, [esp+1A0h+BigFromHash]
+.text:004012DE         mov     ecx, initCallRet
+.text:004012E4         mov     ebp, eax
+.text:004012E6         lea     eax, [esp+1A0h+var_164]
+.text:004012EA         push    edx                     <-- MIRACL big 
+.text:004012EB         push    eax                     <-- buffer of hash
+.text:004012EC         push    8                       <-- number of bytes to use
+.text:004012EC                                             (hash is 16 total)
+.text:004012EE         mov     dword ptr [ecx+234h], 18h
+.text:004012F8         call    bytes_to_big
+
+There are 4 constants initialized from base24 strings here:
+
+.text:00401301         push    offset a15f7n00f9hma25  ; "15F7N00F9HMA25D7EEA60"
+.text:00401306         push    ecx
+.text:00401307         call    _cinstr
+.text:0040130C         mov     edx, [esp+1B4h+c1]
+.text:00401310         push    offset aD011b68n1d7b50  ; "D011B68N1D7B503DL1F54"
+.text:00401315         push    edx
+.text:00401316         call    _cinstr
+.text:0040131B         push    offset aBfc6j1i21n5gf5  ; "BFC6J1I21N5GF5"
+.text:00401320         push    edi
+.text:00401321         call    _cinstr
+.text:00401326         mov     eax, [esp+1C4h+c3]
+.text:0040132A         push    offset aF34ij4cd05f6gi  ; "F34IJ4CD05F6GI28959G7"
+.text:0040132F         push    eax
+.text:00401330         call    _cinstr
+
+In more standard base16, we get:
+
+c0: 100A8731C4A45A47A0906B10
+c1: A8E276C5FDF00FA415C2283C
+c2: 8DA9A1C93977236D                                   <-- prime
+c3: C4921F47591E845FB382B3C7                           <-- prime
+
+I also might call these const0, const1, const2, const3.
+
+Now here comes a bunch of math that interacts c0, c1, c2, c3 with dw0, dw1, dw2:
+
+.text:00401389         push    ebx                     ; BBBBBBBB
+.text:0040138A         call    _cinstr
+.text:0040138F         lea     edx, [esp+1A0h+var_8C]
+.text:00401396         push    edx
+.text:00401397         push    esi
+.text:00401398         call    _cinstr                 ; CCCCCCCC
+.text:0040139D         push    esi
+.text:0040139E         push    esi
+.text:0040139F         push    esi
+.text:004013A0         push    edi                     ; const2
+.text:004013A1         push    esi                     ; dw2
+.text:004013A2         call    _xgcd                   ; inverse = 1/dw2 mod const2 (const2 is prime)
+.text:004013A7         mov     eax, [esp+1BCh+Prod0]
+.text:004013AB         mov     ecx, [esp+1BCh+BigFromHash]
+.text:004013AF         push    eax                     ; result
+.text:004013B0         push    ecx                     ; num from hash
+.text:004013B1         push    esi                     ; inv0
+.text:004013B2         call    _multiply               ; Prod0 = BNhash * inverse
+.text:004013B7         mov     edx, [esp+1C8h+Mod0]
+.text:004013BB         mov     eax, [esp+1C8h+Prod0]
+.text:004013BF         push    edx
+.text:004013C0         push    edi
+.text:004013C1         push    1
+.text:004013C3         push    eax                     ; prod0
+.text:004013C4         call    _power                  ; mod0 = Prod0^1 (MOD C2)
+.text:004013C9         mov     ecx, [esp+1D8h+Prod1]
+.text:004013CD         add     esp, 40h
+.text:004013D0         push    ecx
+.text:004013D1         push    esi                     ; inverse
+.text:004013D2         push    ebx                     ; dw1
+.text:004013D3         call    _multiply               ; Prod1 = dw1 * inverse
+.text:004013D8         mov     esi, [esp+1A4h+Mod1]
+.text:004013DC         mov     edx, [esp+1A4h+Prod1]
+.text:004013E0         push    esi
+.text:004013E1         push    edi                     ; c2
+.text:004013E2         push    1
+.text:004013E4         push    edx                     ; Prod1
+.text:004013E5         call    _power                  ; Mod1 = Prod1 (mod c2)
+.text:004013EA         mov     eax, [esp+1B4h+c3]
+.text:004013EE         mov     ecx, [esp+1B4h+c1]
+.text:004013F2         mov     edx, [esp+1B4h+Mod0]
+.text:004013F6         push    ebp
+.text:004013F7         push    eax                     ; c3
+.text:004013F8         mov     eax, [esp+1BCh+c0]
+.text:004013FC         push    esi                     ; Mod1
+.text:004013FD         push    ecx                     ; c1
+.text:004013FE         push    edx                     ; Mod0
+.text:004013FF         push    eax                     ; c0
+.text:00401400         call    _powmod2                ; ebp = c0^Mod0 * c1^Mod1 (Mod C3)
+.text:00401405         push    ebp
+.text:00401406         push    edi
+.text:00401407         push    1
+.text:00401409         push    ebp
+.text:0040140A         call    _power                  ; ebp = ebp (Mod c2)
+.text:0040140F         add     esp, 44h
+.text:00401412         push    ebx                     ; dw1
+.text:00401413         push    ebp
+.text:00401414         call    _compare
+
+And the result of this comparison must show that these two are equal. This is the
+final formula I get:
+
+dw1 == [[c0^(hash*inv(mod c2)) * c1^(dw1*inv(mod c2))] (mod c3)] (mod c2)
+
+Does that make your heart sink?
+
+Modulus a prime? Kind of like RSA. Then modulus another prime? Strange.
+
+I look on wikipedia for "public key cryptosystems". It is very very similar to a
+system called "Cramer-Shoup". It has the A^B*C^D (mod E) calculations and a hash
+used. You can't quite make it fit though. I gave up for the weekend, then came this
+message on IRC:
+
+21:03 <fusss> hi
+21:59 -!- fusss [mcmarcinho@189.60.108.238] has quit []
+Day changed to 13 Jul 2008
+18:27 <fusss> "Is this correct? I don't have near the math skill to do this. Is
+              it a particular cryptosystem we can study?"
+18:27 <fusss> it's DSA, just sort the parameters out ;)
+
+Wow! Well, credit to fusss for this, I never would have figured it out.
+
+He submitted solution in meantime, so there's no reason for me to go on. Like he
+says, sort the parameters out.
+
+[----------------------------------------------------------------------------------]
+  KEYGEN STRATEGY
+[----------------------------------------------------------------------------------]
+
+The first part of the key is a random message. The second two parts are the R and S
+components of the DSA signature algorithm.
+
+I guess in a real protection, the message could encode some feature flags.
+
+Just generate a random message and sign it using the DSA algorithm.
+
+example serials:
+
+?h/Z-N{g-4HIHA22IDLA4N8-3E3F4B7A7F8361
+1HlYU![O-5JG13IEBD1JIG3-AGF0161816M17C
+d@(B+kt@-8NJA31MI10LI5G-7L3JDFCBI35KM6
+8/_o=@y<-1GB864D0J691K6-1CIL3G3KIK1377
+

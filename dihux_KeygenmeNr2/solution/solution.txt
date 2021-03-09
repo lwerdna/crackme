@@ -1,0 +1,208 @@
+  what: crackme solution to "keygenme nr.2" by dihux
+  when: July 3rd,2009
+ tools: ida,windbg,bigcalto
+   who: andrewl/crackmes.de
+
+cracking product key
+--------------------
+
+- len = strlen(code)
+- require len > 10
+- require code[len-1] == '-'
+- code[0..5] must be (regex) [0-9a-zA-Z]
+- code[6..] must be (regex) [C-X] ???
+- 6 byte array is made:
+  temp[0] = code[5]
+  temp[1] = code[10]
+  temp[2] = code[15]
+  temp[3] = code[20]
+  temp[4] = ascii value of first character of itoa(strlen(code))
+  temp[5] = ascii value of second ...
+- b = Bignum(temp)
+- m = 8E4DE6FCE957BB4372BD40B99E7D91E36B11F06BE83FFED9FA2462F45C544F8E
+      F1D1ACE38FE9C340C14DBBDBFDDFAA8F13477FAC2FA68AD8A86FFEC549B21EA6
+      B8B1E8099E841C6DE9E2781AFF856E6431839884419398D11A3483288C3377B2
+      B0BC895C9BE78E119C32AA4420F28C0CD22582E258D2A2709A43CC85BC3EE9E9
+- require b ^ 3 (mod m) = 1682944BB0365B65246E7084D96B9B58969
+     sizeof(b) <= 6 bytes
+  -> sizeof(b^3) <= 18 bytes < sizeof(m)
+  -> b^3 (mod m) = b^3
+  -> b = (1682944BB0365B65246E7084D96B9B58969) ^ (1/3)
+       = 2D2D2D2D3239
+  hah! now we understand trick...
+  code[5] = 0x2D '-'
+  code[10] = 0x2D '-'
+  code[15] = 0x2D '-'
+  code[20] = 0x2D '-'
+  strlen(code) = 0x3239 = "29" characters
+  revised activation code form: XXXXX-YYYYY-YYYYY-YYYYY-YYYYY
+  with X in (regex) [0-9a-zA-Z]
+  with Y in (regex) [C-X]
+  label the five groups groupA, groupB, groupC, groupD, groupE
+- at 00404560 a 256-byte buffer is generated
+  initialized (buff[0], buff[1], ..., buff[255]) = (0, 1, ..., 0xFF) then:
+    unsigned char loc=0;
+    for(int i=0;i<=255;++i) {
+        loc += serial[i%17]; 
+        loc += buff[i];
+        unsigned char temp = buff[loc];
+        buff[loc] = buff[i];
+        buff[i] = temp;
+    }
+- each of the five characters from groupA are considered as number (temporary labels: A,B,C,D,E)
+  equations are set up that must be part of activation, here are they are being solved in bruter prog:
+    for(int A=0;A<10;++A)
+    for(int B=0;B<10;++B)
+    for(int C=0;C<10;++C)
+    for(int D=0;D<10;++D)
+    for(int E=0;E<10;++E)
+    if((16*D+E-6+C+B+A==30)&& // anything beyond random equations? idk
+       (C*(16*D+E-6)+A*B==120)&&
+       (C*(16*D+E-6)-3*A-2*B==76)&&
+       (5*A*B*C*(16*D+E-6)==10395))
+       printf("(A,B,C,D,E)==(%d,%d,%d,%d,%d)\n",A,B,C,D,E);
+  we learn (A,B,C,D,E)==(3,7,9,1,1) so revised activation code form: 37911-YYYYY-YYYYY-YYYYY-YYYYY
+- same thing with groupB, but with different equation, here is bruter prog:
+    for(int A='C';A<'Y';++A)
+    for(int B='C';B<'Y';++B)
+    for(int C='C';C<'Y';++C)
+    for(int D='C';D<'Y';++D)
+    for(int E='C';E<'Y';++E)
+       if(A+B*B+C*C*C+D*D*D*D+E*E*E*E*E==0x3DAFCBC6) // A^1 + B^2 + C^3 + D^4 + E^5 == 1034931142
+          printf("(A,B,C,D,E)==('%c','%c','%c','%c','%c')\n",A,B,C,D,E);
+  we learn (A,B,C,D,E)==('D','I','H','U','X') so revised activation code form: 37911-DIHUX-YYYYY-YYYYY-YYYYY
+- same thing with groupC, different equations, bruter prog:
+    for(int A=0;A<10;++A)
+    for(int B=0;B<10;++B)
+    for(int C=0;C<10;++C)
+    for(int D=0;D<10;++D)
+    for(int E=0;E<10;++E)
+    if(A*5*5*5+B*5*5*5*5+C*5*5*5*5*5+D*5*5*5*5*5*5+E*5*5*5*5*5*5*5==0xB0BA3) // 5^3 * A + 5^4 * B + 5^5 * C + 5^6 * D + 5^7 * E == 723875
+    printf("(A,B,C,D,E)==(%d,%d,%d,%d,%d)\n",A,B,C,D,E);
+  results:
+    (A,B,C,D,E)==(1,3,1,1,9)
+    (A,B,C,D,E)==(1,3,1,6,8)
+    (A,B,C,D,E)==(1,3,6,0,9)
+    (A,B,C,D,E)==(1,3,6,5,8)
+    (A,B,C,D,E)==(1,8,0,1,9)
+    (A,B,C,D,E)==(1,8,0,6,8)
+    (A,B,C,D,E)==(1,8,5,0,9)
+    (A,B,C,D,E)==(1,8,5,5,8)
+    (A,B,C,D,E)==(6,2,1,1,9)
+    (A,B,C,D,E)==(6,2,1,6,8)
+    (A,B,C,D,E)==(6,2,6,0,9)
+    (A,B,C,D,E)==(6,2,6,5,8)
+    (A,B,C,D,E)==(6,7,0,1,9)
+    (A,B,C,D,E)==(6,7,0,6,8)
+    (A,B,C,D,E)==(6,7,5,0,9)
+    (A,B,C,D,E)==(6,7,5,5,8)
+  we just choose one to move on with testing... revised activation code form: 37911-DIHUX-13119-YYYYY-YYYYY
+- the  256-byte buffer is used with the first 17 characters of the serial (groupA, groupB, groupC) to
+  decrypt the hardcoded string at 00404291 {0xB9, 0x80, 0xEC, 0xC7, 0x11, 0x00}
+  since we know that groupA and groupB are constant, we can just try all 16 solutions for groupC and see
+  what gets decrypted... so try all serials, replacing groupC with {"13119", "13168", ..., "67558"}
+    37911-DIHUX-13119-CCCCE-CCCCF
+    37911-DIHUX-13168-CCCCE-CCCCF
+    37911-DIHUX-13609-CCCCE-CCCCF
+    37911-DIHUX-13658-CCCCE-CCCCF
+    37911-DIHUX-18019-CCCCE-CCCCF
+    37911-DIHUX-18068-CCCCE-CCCCF
+    37911-DIHUX-18509-CCCCE-CCCCF
+    37911-DIHUX-18558-CCCCE-CCCCF
+    37911-DIHUX-62119-CCCCE-CCCCF -> "FUNNY"
+    37911-DIHUX-62168-CCCCE-CCCCF
+    37911-DIHUX-62609-CCCCE-CCCCF
+    37911-DIHUX-62658-CCCCE-CCCCF
+    37911-DIHUX-67019-CCCCE-CCCCF
+    37911-DIHUX-67068-CCCCE-CCCCF
+    37911-DIHUX-67509-CCCCE-CCCCF
+    37911-DIHUX-67558-CCCCE-CCCCF
+  for all you get trash, except for "62119" which decrypts the bytes to "FUNNY" :) this gets compared to groupD
+  in conclusion, activation codes have form: 37911-DIHUX-62119-FUNNY-XXXXX
+
+cracking activation code
+------------------------
+
+- require  20 >= strlen(name) > 4
+- require 100 >= strlen(Serial) > 10
+- in first 50 characters, must find a '-'
+- serial is two bignums (base 16 encoded string representations) separated by dash, ie: <A>-<B>
+- init's some bignums:
+    P = CBEC5F1F97FB14C803CB
+  P-1 = CBEC5F1F97FB14C803CA
+      = 2*3*149F*1A03*10388CBA47DDE3
+    X = 39DDDC2ECDDEB42918A6
+    Y = 3652B36A37B0C7ECE042
+    N = bignum(name)
+- requires Y^A * A^B = X^N (mod P)
+- both X and Y are primitive in Zp -> X^K = Y for some integer K
+  to find K is the "discrete logarithm problem"... using solver http://www.alpertron.com.ar/DILOG.HTM
+    K = 3C9790DF807600AF91D
+  now the equation is
+    (X^K)^A * A^B = X^N (mod P)
+    X^(K*A) * A^B = X^N (mod P)
+  we can choose A=X to simplify further
+    X^(K*X) * X^B = X^N (mod P)
+    X^(K*X + B) = X^N (mod P)
+  we cannot quite equate exponents, must take Lagrange's theorem into account (note totient(P) = P-1)
+    K*X + B = N (mod P-1)
+  B is now solvable as
+    B = (K*X)^(-1)*N (mod P-1)
+  but only if K*X has an inverse (mod P-1)... gcd(K*X, P-1) = 2 (no inverse guaranteed for any N!)
+- try reverse direction, let's express X = Y^k for some integer K
+    K = 14F9FCF8ED4883E91A61
+  so equations become
+    Y^A * A^B = (Y^K)^N (mod P)
+    Y^A * A^B = Y^(K*N) (mod P)
+  choose A=Y
+    Y^Y * Y^B = Y^(K*N) (mod P)
+  equating exponents
+    Y+B = K*N (mod P-1)
+  solving for B
+    B = Y^(-1)*K*N (mod P-1)
+  so we test if Y has an inverse (mod P-1)... gcd(Y, P-1) == 6 (no inverse guaranteed for any N! fuck!)
+- can X and Y be represented as some other common base? 2 is primitive... so let's try
+    2^R = X (mod P) -> R=1BBE0FE2BADBB5B5854
+    2^S = Y (mod P) -> S=853CEEC49F0A38C67F50
+  now equations are
+    Y^A * A^B = X^N (mod P)
+    2^(S*A) * A*B = 2^(R*N)
+  to get common base we choose A=2 and equate exponents
+    2*S + B = R*N (mod P-1)
+  and look! no inverse is needed any longer! solving for B is just:
+    B = R*N - 2*S (mod P-1)
+
+keygen review
+-------------
+
+product key is simple, just "37911-DIHUX-62119-FUNNY-XXXXX" with XXXXX generated randomly
+activation key just choose A=2 and solve B = R*N - 2*S (mod P-1)
+in case A and B are very short, pad with leading zero's (so total serial length is >= 10)
+
+hand-worked example for name "dihux":
+  A = 2
+  N = 6469687578
+  B = R*N - 2*S (mod P-1)
+    = 1BBE0FE2BADBB5B5854*6469687578 - 2*853CEEC49F0A38C67F50 (mod P-1)
+    = C5E5E9BAF183F64078F6 - 3E8D7E69A6195CC4FAD6
+    = 87586B514B6A997B7E20
+
+so final serial activation code is: "2-87586B514B6A997B7E20" it is accepted! :) :) !!!
+
+other examples:
+
+      name: crackmes.de
+   product: 37911-DIHUX-62119-FUNNY-9603A
+activation: 2-B8F7B4D31F7E1246922C
+
+      name: #cracking4newbies
+   product: 37911-DIHUX-62119-FUNNY-963FF
+activation: 2-5309D66507BF56A849A
+
+list of names
+-------------
+
+E.L.,numernia,cyclops,obnoxious,dihux,artif,
+upb,indomit,jbadger,simonzack,KernelJ,pusher,
+ultrasnord
+

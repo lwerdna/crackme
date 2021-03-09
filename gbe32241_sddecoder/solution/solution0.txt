@@ -1,0 +1,97 @@
+gbe32241's method of evaluating MQ system
+-----------------------------------------
+please send any corrections @andrewl
+-----------------------------------------
+
+suppose you want an MQ system of 4 equations with 4 variables {x1...x8} over GF(2)
+    
+    y1 = x1*x2 + x2*x4 + x3*x3
+    y2 = x1*x2 + x2*x2 + x3*x3
+    y3 = x2*x4 + x2*x3 + x4*x4
+    y4 = x1*x3 + x1*x4 + x2*x3
+
+obvious way to implement this is (example for y1):
+
+    xor eax, eax  ; accumulates result
+
+    mov ebx, [x1]
+    and ebx, [x2]
+    xor eax, ebx  ; add x1*x2
+
+    mov ebx, [x3]
+    and ebx, [x3]
+    xor eax, ebx  ; add x3*x3
+
+    mov ebx, [x4]
+    and ebx, [x3]
+    xor eax, ebx  ; add x4*x2
+
+                  ; now eax has y1 value
+
+a shorter way is to store which equations are affected by every possible term
+
+for example, x1*x2 term affects equations y1, y2
+
+we naturally represent the variables as bits
+
+a value 1011 representing the function output Y means that y1=1, y2=0, y3=1, y4=0
+
+a value 1100 representing the function input X means that x1=1, x2=1, x3=0, x4=0
+
+if the x1*x2 term is active (when both x1=1 and x2=1, otherwise this term adds 0) then y1 and
+y2 should be incremented, meaning we can add 1100 to our binary value representing Y
+
+the lookup table is thus:
+
+    CHAR lsvec[10] = { 
+                       0x00, // because x1*x1 affects no output variables
+                       0x0C, // because x1*x2 affects y1, y2
+                       0x01, // because x1*x3 affects y4
+                       0x01, // because x1*x4 affects y4
+                       0x04, // because x2*x2 affects y2
+                       0x03, // because x2*x3 affects y3, y4
+                       0x0A, // because x2*x4 affects y1, y3
+                       0x0C, // because x3*x3 affects y1, y2
+                       0x00, // because x3*x4 affects no output variables
+                       0x02  // because x4*x4 affects y3
+		};
+    
+to evaluate the function, we scan the input bit vector to determine whether each of every possible
+input terms is active: if it is, we let the term affect the output variables by looking it up in the
+table and xor'ing it in (GF(2) vector addition)
+
+rough C++ would be:
+
+      char f_evaluate(char x)
+      {
+        char cursor=0;
+        char y=0;
+    
+        for(char i=0; i<4; ++i)
+        {   
+          for(char j=i; j<4; ++j)
+          {
+            if(GETBIT(x,i) && GETBIT(x,j))     // if both xi and xj are 1 (otherwise the term is 0)
+            {
+              y ^= lsvec[cursor];              // then update the output
+            }
+            
+            cursor++;                          // point to next table entry
+          }
+        }
+    
+        return y;
+      }
+
+with N input variables, there are N(N+1)/2 possible terms, which is why SDDecoder JR's 64-bit input
+equation needs 2080 lookups
+
+SDDecoder has 128-bit input and thus requires 8256 lookups (since its lookup stores primitive 32-bit
+types, its size is 4x this amount)
+
+
+
+
+
+
+

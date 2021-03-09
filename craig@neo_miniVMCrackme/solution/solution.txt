@@ -1,0 +1,183 @@
+Tutorial by andrewl (http://andrewl.us)
+
+Target: "miniVMCrackme" by craig@neo
+
+Password is read here. I have renamed some stuff already:
+
+.text:004018B5                 cmp     eax, 3EAh
+.text:004018BA                 jnz     loc_401943
+.text:004018C0                 push    hWndTextfield   ; hWnd
+.text:004018C6                 call    GetWindowTextLengthA
+.text:004018CB                 cmp     eax, 1          ; require len(password) > 2 chars
+.text:004018CE                 jbe     short loc_40190E
+.text:004018D0                 push    offset buffPassword ; lParam
+.text:004018D5                 push    14h             ; 20 chars max?
+.text:004018D7                 push    0Dh             ; WM_GETTEXT
+.text:004018D9                 push    hWndTextfield   ; hWnd
+.text:004018DF                 call    SendMessageA
+.text:004018E4                 mov     eax, offset PtrPtrPW
+.text:004018E9                 mov     dword ptr [eax], offset buffPassword
+.text:004018EF                 push    offset VMCode <--- VM program
+.text:004018F4                 push    offset PtrPtrPW
+.text:004018F9                 call    VM_Initialize   ; <--- desire this to write 18h to PtrPtrPW
+.text:004018FE                 mov     eax, offset PtrPtrPW
+.text:00401903                 mov     eax, [eax]
+.text:00401905                 mov     ebx, offset BadboyGoodboy
+.text:0040190A                 add     ebx, eax
+.text:0040190C                 call    ebx 
+
+As you can see, it calls VM_Initialize. That function modifies PtrPtrPW with a value. That
+value is added to the function at BadboyGoodboy, which looks like this:
+
+.text:0040180B BadboyGoodboy:                          ; DATA XREF: DialogFunc+CAo
+.text:0040180B                 push    0
+.text:0040180D                 push    offset aBadBoy  ; "Bad Boy!"
+.text:00401812                 push    offset aBadBoy  ; "Bad Boy!"
+.text:00401817                 push    hWnd
+.text:0040181D                 call    MessageBoxA
+.text:00401822                 retn
+.text:00401823                 push    0
+.text:00401825                 push    offset aGoodBoy ; "Good Boy!"
+.text:0040182A                 push    offset aGoodBoy ; "Good Boy!"
+.text:0040182F                 push    hWnd
+.text:00401835                 call    MessageBoxA
+.text:0040183A                 retn
+
+Obviously BadboyGoodboy+0 prints the badboy message while BadboyGoodboy+0x18 prints the
+goodboy message. Thus we want the call at 4018F9 to write 0x18 to PtrPtrPW.
+
+VM_Initialize calls VM_Fetch, which looks like this:
+
+.text:0040102F VM_Fetch        proc near               ; CODE XREF: VM_Initialize+27p
+.text:0040102F                                         ; VM_Fetch:loc_40107Cj
+.text:0040102F                 mov     ebx, VM_EIP
+.text:00401035                 xor     eax, eax
+.text:00401037                 xor     ecx, ecx
+.text:00401039                 xor     edx, edx
+.text:0040103B                 mov     al, [ebx]       ; get VM opcode
+.text:0040103D                 mov     dl, al
+.text:0040103F                 and     dl, 0Fh         ; dl = low nibble
+.text:00401042                 and     al, 0F0h        ; al = high nibble
+.text:00401044                 cmp     al, 0C0h
+.text:00401046                 jz      short loc_40107E <--- logic continues based on opcode
+.text:00401048                 cmp     al, 0B0h
+.text:0040104A                 jz      short loc_401085
+.text:0040104C                 cmp     al, 0D0h
+.text:0040104E                 jz      short loc_40108C
+
+Using breakpoint at 40103D that prints AL register, I can watch all opcodes executed.
+
+OPCODES Executed on password "asdf":
+39, b0, cb, ca, 42, 40, d8, 20, 63, 30, 3b, e9, b0, 10, 42, 40, d8, 
+20, 63, 30, 3b, e9, b0, 10, 42, 40, d8, 20, 63, 30, 3b, e9, b0, 10, 
+42, 40, d8, 20, 63, 30, 3b, e9, b0, 10, 42, 40, d8, 20, c8, 03, d8, 
+20, 32, 10, 43
+
+43h is indeed the opcode to quit the VM. Now I compare this to the VM program stored
+at VMCode (4016BC):
+
+39, B0, CB, 00, 00, 00, 00, CA, 00, 00, 00, 00, 42, 40, FF, 00, 
+00, 00, D8, 00, 00, 00, 00, 20, 26, 00, 00, 00, 63, 30, 3B, E9, 
+B0, 10, 0C, 00, 00, 00, C8, 9A, 02, 00, 00, 03, D8, 00, 00, 00, 
+00, 20, 3C, 00, 00, 00, 32, 10, 42, 00, 00, 00, CA, 18, 00, 00, 
+00, 32, 43
+
+Was a jump taken? Or are some of these bytes operands? I attempt to reorder this "program"
+in opcode/operand pairs to reconcile it with the execution we saw for "asdf":
+
+    opcode   operand
+
+        39, 
+        B0, 
+        CB,  00, 00, 00, 00, 
+        CA,  00, 00, 00, 00, 
+repeat: 42, 
+        40,  FF, 00, 00, 00, 
+        D8,  00, 00, 00, 00, 
+        20,  26, 00, 00, 00,        // jXX noloop ?
+        63, 
+        30, 
+        3B, 
+        E9, 
+        B0, 
+        10,  0C, 00, 00, 00,        // jmp repeat ?
+noloop: C8,  9A, 02, 00, 00, 
+        03, 
+        D8,  00, 00, 00, 00, 
+        20,  3C, 00, 00, 00, 
+        32, 
+        10,  42, 00, 00, 00,        // jxx quit ?
+        CA,  18, 00, 00, 00,
+        32, 
+quit:   43
+
+
+Immediately I wonder if the 5 passes through repeat (and on the 5th, a jmp to noloop 
+occurring) correspond to the four characters of the password I entered. I quickly test
+with password "1234567" and find 8 passes, the 8th of which caused the jmp to noloop
+to be taken.
+
+I also wonder, had the opcodes after the "jmp quit" not been taken, if it would have
+made good boy appear. I can see that the operand to 0xCA opcode is 0x18, and we know 0x18
+was what was needed to be written to jump over the badboy message.
+
+More tracing reveals:
+
+    opcode   operand
+
+        39, 
+        B0, 
+        CB,  00, 00, 00, 00, 
+        CA,  00, 00, 00, 00, 
+
+                                    // dword[403004] is pointer inside serial chars array
+
+                               
+                                    // GET CURRENT SERIAL CHARACTER
+repeat: 42,                         // dword[403000] = dword[dword[403000]]
+        40,  FF, 00, 00, 00,        // dword[403000] &= 0xFF
+
+                                    // IF IT IS NULL, QUIT
+        D8,  00, 00, 00, 00,        // cmp dword[403000], 0 ???
+        20,  26, 00, 00, 00,        // je noloop ???
+
+                                    // ADD CURRENT CHAR TO PREVIOUS SUM
+        63,                         // dword[403000] += dword[40300C]
+
+                                    // SAVE NEW SUM
+        30,                         // dword[403049] = dword[403000]
+        3B,                         // dword[40300C] = dword[403049]
+
+                                    // POINT TO NEXT SERIAL CHARACTER
+        E9,                         // dword[403004] += 1 
+        B0,                         // dword[403000] = dword[403004]
+        10,  0C, 00, 00, 00,        // jmp repeat ?
+noloop: C8,  9A, 02, 00, 00, 
+        03, 
+        D8,  00, 00, 00, 00, 
+        20,  3C, 00, 00, 00, 
+        32, 
+        10,  42, 00, 00, 00,        // jxx quit ?
+        CA,  18, 00, 00, 00,
+        32, 
+quit:   43
+
+
+It looks like it just adds up all the byte values of the serial characters. By the time
+execution reaches noloop, both dword[403000] and dword[403049] contain the sum of all the
+characters.
+
+Now we just need to find out what comparison occurs.
+
+I notice something right at noloop, though:
+
+noloop: C8,  9A, 02, 00, 00, 
+
+The operand in little endian order is 0x0000029A. This is a very famous number in the virus
+writing scene, being the name of one of the best virus writer groups. 29Ah == 666d.
+
+I'm just going to guess from this that the sum of characters must be 29Ah.
+
+Quickly I produce a serial that fits this: "ZZZZZZA=". It works.
+
+Keygen is obvious.

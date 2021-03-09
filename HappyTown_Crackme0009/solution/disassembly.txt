@@ -1,0 +1,114 @@
+
+
+CODE:004597A9     lea edx, [ebp+serial]
+CODE:004597AC     mov eax, [ebp+var_4]
+CODE:004597AF     mov eax, [eax+304h]
+CODE:004597B5     call @Controls@TControl@GetText$qqrv                        ; Controls::TControl::GetText(void)
+CODE:004597BA     mov eax, [ebp+serial]
+CODE:004597BD     call GetStrLen
+CODE:004597C2     cmp eax, 10h
+CODE:004597C5     jnz fail                                                    ; serial must be 16 chars
+CODE:004597C5                                                                 ;
+CODE:004597CB     lea edx, [ebp+name]
+CODE:004597CE     mov eax, [ebp+var_4]
+CODE:004597D1     mov eax, [eax+2F8h]
+CODE:004597D7     call @Controls@TControl@GetText$qqrv                        ; Controls::TControl::GetText(void)
+CODE:004597DC     mov eax, [ebp+name]
+CODE:004597DF     call DoCRC                                                  ;
+CODE:004597DF                                                                 ;
+CODE:004597E4     mov [ebp+FinalCRC], eax
+CODE:004597E7     lea eax, [ebp+name]
+CODE:004597EA     call GetProductID                                           ;
+CODE:004597EA                                                                 ;
+CODE:004597EF     mov eax, [ebp+name]
+CODE:004597F2     call DoCRC                                                  ;
+CODE:004597F2                                                                 ;
+CODE:004597F7     xor [ebp+FinalCRC], eax                                     ;
+CODE:004597F7                                                                 ;
+CODE:004597FA     lea eax, [ebp+name]
+CODE:004597FD     call @System@@LStrClr$qqrpv                                 ; System::__linkproc__ LStrClr(void *)
+CODE:00459802     mov eax, [ebp+FinalCRC]
+CODE:00459805     xor edx, edx
+CODE:00459807     push edx
+CODE:00459808     push eax
+CODE:00459809     lea edx, [ebp+strCRC]
+CODE:0045980C     mov eax, 8
+CODE:00459811     call @Sysutils@IntToHex$qqrji                               ;
+CODE:00459811                                                                 ;
+CODE:00459816     lea edx, [ebp+strMD5]
+CODE:00459819     mov eax, [ebp+strCRC]
+CODE:0045981C     call DoMD5                                                  ;
+CODE:0045981C                                                                 ;
+CODE:00459821     mov eax, [ebp+strMD5]
+CODE:00459824     lea edx, [ebp+key]                                          ; key = uppercase(MD5(CRC's))
+CODE:00459827     call @Sysutils@UpperCase$qqrx17System@AnsiString            ;
+CODE:00459827                                                                 ;
+CODE:0045982C     lea edx, [ebp+strSHA1]
+CODE:0045982F     mov eax, [ebp+key]
+CODE:00459832     call DoSHA1                                                 ;
+CODE:00459832                                                                 ;
+CODE:00459837     mov eax, [ebp+strSHA1]
+CODE:0045983A     lea edx, [ebp+strSHA1_uppercase]
+CODE:0045983D     call @Sysutils@UpperCase$qqrx17System@AnsiString            ;
+CODE:0045983D                                                                 ;
+CODE:00459842     mov edx, [ebp+strSHA1_uppercase]
+CODE:00459845     lea eax, [ebp+key]
+CODE:00459848     call @System@@LStrLAsg$qqrpvpxv                             ; key = upper(SHA1(uppercase(MD5(CRC's))))
+CODE:00459848                                                                 ;
+CODE:0045984D     mov eax, [ebp+key]
+CODE:00459850     call BlowfishInit                                           ;
+CODE:00459850                                                                 ;
+CODE:00459855     mov eax, [ebp+FinalCRC]
+CODE:00459858     xor edx, edx
+CODE:0045985A     mov [ebp+var_28], eax
+CODE:0045985D     mov [ebp+var_24], edx
+CODE:00459860     push [ebp+var_24]
+CODE:00459863     push [ebp+var_28]
+CODE:00459866     call BlowfishEncrypt                                        ;
+CODE:00459866                                                                 ;
+CODE:0045986B     push edx                                                    ; left ciphertext
+CODE:0045986C     push eax                                                    ; right ciphertext
+CODE:0045986D     lea edx, [ebp+StrEncryptResult]
+CODE:00459870     xor eax, eax
+CODE:00459872     call @Sysutils@IntToHex$qqrji                               ; make string <left>||<right>
+CODE:00459872                                                                 ;
+CODE:00459877     mov eax, offset _str_kernel32_dll.Text
+CODE:0045987C     call BlowfishInit                                           ; wtf?
+CODE:0045987C                                                                 ;
+CODE:00459881     lea edx, [ebp+serial_]
+CODE:00459884     mov eax, [ebp+var_4]
+CODE:00459887     mov eax, [eax+304h]
+CODE:0045988D     call @Controls@TControl@GetText$qqrv                        ;
+CODE:0045988D                                                                 ;
+CODE:00459892     mov eax, [ebp+serial_]
+CODE:00459895     call StringToEDXEAX                                         ;
+CODE:00459895                                                                 ;
+CODE:0045989A     mov [ebp+var_28], eax
+CODE:0045989D     mov [ebp+var_24], edx
+CODE:004598A0     push [ebp+var_24]
+CODE:004598A3     push [ebp+var_28]
+CODE:004598A6     call BlowfishDecrypt                                        ;
+CODE:004598A6                                                                 ;
+CODE:004598AB     push edx
+CODE:004598AC     push eax
+CODE:004598AD     lea edx, [ebp+StrDecryptResult]
+CODE:004598B0     xor eax, eax
+CODE:004598B2     call @Sysutils@IntToHex$qqrji                               ; note that this chops leading zeros
+CODE:004598B2                                                                 ;
+CODE:004598B2                                                                 ;
+CODE:004598B7     mov eax, [ebp+FinalCRC]
+CODE:004598BA     xor edx, edx
+CODE:004598BC     push edx
+CODE:004598BD     push eax
+CODE:004598BE     lea edx, [ebp+strCRC_real]
+CODE:004598C1     xor eax, eax
+CODE:004598C3     call @Sysutils@IntToHex$qqrji                               ; 00000000||<crc>
+CODE:004598C3                                                                 ;
+CODE:004598C8     mov eax, [ebp+strCRC_real]
+CODE:004598CB     lea edx, [ebp+strCRC_real_upper]
+CODE:004598CE     call @Sysutils@UpperCase$qqrx17System@AnsiString            ;
+CODE:004598CE                                                                 ;
+CODE:004598D3     mov edx, [ebp+strCRC_real_upper]
+CODE:004598D6     mov eax, [ebp+StrDecryptResult]
+CODE:004598D9     call @System@@LStrCmp$qqrv                                  ; System::__linkproc__ LStrCmp(void)
+CODE:004598DE     jnz fail                                                    ;

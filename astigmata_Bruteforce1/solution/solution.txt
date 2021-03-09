@@ -1,0 +1,78 @@
+Crackme solution by andrewl
+
+  Date: December 25th 2008
+Target: Astigmata Bruteforce
+
+astigmata, "HI I'M FRENCH AND NEW TO THE CRACKING" :)
+
+[----------------------------------------------------------------------------------]
+  INTRODUCTION
+[----------------------------------------------------------------------------------]
+
+This crackme is intriguing because it is so simple, yet so difficult. RCL and add
+play together using the carry flag to make something surprisingly difficult to
+reverse. Four instructions do 99% of the algorithm's work starting at 00401041:
+
+- EAX = convert(8 digit character serial)
+- EBX = 0
+- mix EAX, EBX 100000000 times
+   mov     cl, al
+   rcr     eax, cl
+   add     eax, ebx
+   add     eax, 11223344h
+   xchg    eax, ebx
+- if(EAX ^ EBX) == 0x5f5E100 -> GOOD BOY!
+
+[----------------------------------------------------------------------------------]
+  CUT TO THE CHASE!
+[----------------------------------------------------------------------------------]
+
+The key is 76449502!
+
+What found it was a non-intelligent brute forcer running on an NVIDIA 260GTX
+graphics card.
+
+Whereas I could only get a PC to do 1 or 2 trials/second, this can average about
+123 trials/second. The CUDA toolkit was used to write it (see brute.cu) in C. The
+RCL (which doesn't exist in NVIDIA's PTX) was emulated with a carry flag variable
+and shifts and or's. See bruter().
+
+It started 10AM Dec 16 and finished 8:30AM Dec 24, nearly 8 full days. It
+was 84% done with the keyspace, having completed 84037632 trials. Since each
+trial required 100000000 iterations through the body of the loop, a total of 
+8403763200000000 iterations were performed. That's over 8.4 quadrillion iterations!
+
+See log.html for a full breakdown of what the brute forcer searched and when, as
+well as statistics about how fast it was going.
+
+[----------------------------------------------------------------------------------]
+  BRUTE-FORCING IS DUMB, DID YOU TRY ANYTHING ELSE?
+[----------------------------------------------------------------------------------]
+
+Yes. See \failures\* for all the crap that didn't work.
+
+In emulate.cpp there are attempts at different optimizations. Removing the xcgh, the
+RCL, unrolling the loop a little, a lot.
+
+A ton of time was spent trying to work bottom up. There are 2^32 DWORD pairs that
+XOR to d5446474. For each of those, try to work backwards, branching on inputs to
+the RCR. Unfortunately the branching factor is too large (see branching_factor.cpp
+for a test on what the factor is, and branching_factor.txt for the results) and
+after about 100 inputs in, things really bog down. Gave up on this after it couldn't
+work backwards to an input of my own choice (given the output). See kg2.cpp.	
+
+Next I let the loop run nonstop, and saw if anytime along the way, EAX ^ EBX ==
+D5446474. I kept markers during the search so that I could look 100000000 iterations
+back and retrace the steps. See traveller.cpp for the implementation.
+
+Surprisingly, there are many solutions, like eax==0xF048E01D, ebx==0xF6D52A3C. See
+known_solutions.h for a list.
+
+Unfortunately, none of them had ebx==0. I think the author knew the strength of
+jumping from 2^32 -> 2^64 when setting eax=<user input> ebx=0.
+
+Next, I tried making a list of these, and for each solution, let the algo run about
+100 iterations in. From there, brute force my way backwards 100 iterations. This
+technique finds new solutions given previous ones. See more_solutions.cpp.
+
+Unfortunately, this never found one with ebx=0.

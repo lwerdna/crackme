@@ -1,0 +1,320 @@
+Crackme solution by andrewl
+
+Target: Ra$cal's Ra$cal crackme N3 with vm
+
+****************************************************************
+ GETTING STARTED
+****************************************************************
+
+Button press handled here:
+
+.text:00401586                 push    offset buff_pass
+.text:0040158B                 push    offset buff_user
+.text:00401590                 call    sub_4035A0 <--- BADBOY MESSAGE DURING THIS CALL
+.text:00401595                 add     esp, 8
+
+A few calls later is the fetch/case statement of VM opcodes:
+
+.text:0040190C VM_Fetch:
+.text:0040190C          
+.text:0040190C                 mov     eax, pVM_Program_CURRENT
+.text:00401911                 mov     ecx, [ebp+var_MIXED_FINAL]
+.text:00401914                 cmp     ecx, [eax+2]
+.text:00401917                 jnz     VM_IncrementIP
+.text:0040191D                 mov     edx, pVM_Program_CURRENT <--- starts at 407000
+.text:00401923                 movzx   eax, word ptr [edx] ; <--- FETCH
+.text:00401926                 mov     [ebp+var_Operand], eax
+.text:00401929                 cmp     [ebp+var_Operand], 19h
+.text:0040192D                 ja      case_OPERAND_19h
+.text:00401933                 mov     ecx, [ebp+var_Operand]
+.text:00401936                 jmp     ds:switch_table[ecx*4] ; <--- SWITCH ON OPCODE
+
+We know now that the opcodes are 2 bytes. Glance at operand_above_19h:
+
+.text:00401A7C                 push    0               ; uType
+.text:00401A7E                 push    offset Caption  ; "ERROR!"
+.text:00401A83                 push    offset Text     ; "Error! Unknown code!"
+.text:00401A88                 push    0               ; hWnd
+.text:00401A8A                 call    ds:MessageBoxA
+
+We can know for decent certainty that we're detailing with at most 19h (25d) operands.
+
+How does VM_IncrementIP work?
+
+.text:00401A97 VM_IncrementIP:                   
+.text:00401A97                 mov     edx, pVM_Program_CURRENT
+.text:00401A9D                 mov     [ebp+var_C], edx ; var_C = pVM_PRogram_CURRENT
+.text:00401A9D                                   
+.text:00401AA0                 mov     eax, pVM_Program_CURRENT
+.text:00401AA5                 movzx   ecx, byte ptr [eax+6] ; ecx = current_instruction[6]
+.text:00401AA9                 mov     edx, [ebp+var_C]
+.text:00401AAC                 lea     eax, [edx+ecx+0Fh]
+.text:00401AB0                 mov     [ebp+var_C], eax
+.text:00401AB3                 mov     ecx, [ebp+var_C]
+.text:00401AB6                 mov     pVM_Program_CURRENT, ecx
+
+That tells us that the instructions are of variable length, where the 7'th byte (index 6)
+within the current instruction is the size of that instruction - 0Fh.
+
+****************************************************************
+ LISTING INSTRUCTIONS
+****************************************************************
+
+Using this knowledge, I made a small program that just prints the first two bytes as the
+opcode and then reads the 7'th byte to find how many bytes to skip to the next instruction.
+The full output is provided in instr_list.txt:
+
+00407000: [10 00] 55 96 E7 01 07 B6 24 28 38 00 00 00 00 02 09 AC FF FF FF 00 
+00407016: [11 00] B6 24 28 38 09 57 59 0C A9 00 00 00 00 09 00 00 00 00 00 00 00 02 
+0040702E: [0A 00] 57 59 0C A9 04 A3 4A 5E 99 00 00 00 00 EB 21 2A 62 
+00407041: [10 00] A3 4A 5E 99 07 3B D5 3E 19 00 00 00 00 02 09 6C FF FF FF 00 
+00407057: [11 00] 3B D5 3E 19 09 B0 B7 24 76 00 00 00 00 09 00 00 00 00 00 00 00 02 
+0040706F: [10 00] B0 B7 24 76 07 34 C5 A9 78 00 00 00 00 02 09 F4 FF FF FF 00 
+...
+
+The opcode appears in the brackets. We can be reasonably confident that the instruction
+separation based on the 7'th byte is accurate since every opcode falls within the [0..18h]
+range we discovered.
+
+Let us watch the VM execute by setting a strategic breakpoint:
+
+.text:0040191D                 mov     edx, pVM_Program_CURRENT
+.text:00401923                 movzx   eax, word ptr [edx] ; 
+.text:00401926                 mov     [ebp+var_Operand], eax <--- BREAKPOINT HERE
+
+Make your breakpoint print EDX, which will be the VM's EIP, and AX, which will be the opcode.
+
+You should now get output like this, as you go and allow the breakpoint to hit.
+
+edx=00407000
+ax=10
+edx=00407016
+ax=11
+edx=0040702e
+ax=a
+edx=00407041
+ax=10
+edx=00407057
+ax=11
+...
+
+This does not contradict the instr_list.txt output.
+
+****************************************************************
+ INSTRUCTION ANALYSIS EXAMPLE: OPCODE 0x01
+****************************************************************
+
+I am curious as to the operand responsible for popping the message box up by simply observing the
+last fetched opcode before a breakpoint on MessageBoxA is hit:
+
+edx=0040c031
+ax=1
+
+Opcode 01, hmm, I wonder what the other opcode 01's do:
+
+.text:00401957 case_OPERAND_01:                      
+.text:00401957                 call    ProcessOperand01h <---- API monitor from here
+.text:0040195C                 mov     [ebp+var_ProcessOperandRetVal], eax
+.text:0040195F                 jmp     loc_401AFD
+
+This is what we learn:
+
+00407193: [01 00] 25 37 1F 41 08 F6 AD BA 05 00 00 00 00 !C3 C8 DA CE! 00 00 40 00 // kernel32!lstrlenA
+00407236: [01 00] 9C 73 60 B7 08 30 F0 3C CE 00 00 00 00 !C3 C8 DA CE! 00 00 40 00 // kernel32!lstrlenA
+004075FA: [01 00] A5 66 98 CF 08 10 23 0E 2F 00 00 00 00 !C0 C8 DA CE! 00 00 40 00 // kernel32!GetColmputerNameA
+0040BE60: [01 00] 8E E4 22 78 08 48 26 AA F2 00 00 00 00 !C6 C8 DA 8E! 00 00 40 00 // user32!SetDlgItemTextA
+0040BF3A: [01 00] 81 1E C8 56 08 00 58 CF E4 00 00 00 00 !C7 C8 DA 8E! 00 00 40 00 // user32!SetDlgItemIntA
+0040C031: [01 00] B0 56 11 29 08 60 1B 86 4C 00 00 00 00 !C6 C8 DA 4E! 00 00 40 00 // user32!MessageBoxA
+0040737C: [01 00] C2 AA 49 45 08 3C CD 1E 5D 00 00 00 00 !C6 C8 DA 4E! 00 00 40 00 // user32!MessageBoxA
+
+The 01 opcode's have that same last DWORD in common when the function calls are in common.
+
+It's probably encrypted or something. Tracing into ProcessOperand01h we find:
+
+.text:00401F15                 mov     eax, [ebp+var_1C]     <--- the encrypted dword
+.text:00401F18                 mov     ebx, const_4C5BC478
+.text:00401F1E                 mov     ecx, 4
+.text:00401F23                 xor     eax, ebx
+.text:00401F25                 ror     eax, 7
+.text:00401F28                 rol     ebx, 10h
+.text:00401F2B                 dec     ecx
+.text:00401F2C                 jnz     short loc_401F23      <--- do 4 passes
+.text:00401F2E                 xor     eax, ebx
+.text:00401F30                 mov     [ebp+var_10], eax     <--- eax is now import thunk of function
+
+Great! VM instructions that contain obfuscated operands :/
+
+****************************************************************
+ ANALYZING VM EXECUTION FLOW
+****************************************************************
+
+Now I desire a better feel for how execution flows about the instructions in the VM. I write a small
+program to draw arrows of where execution travels among the VM program for when the path to badboy
+occurs. See fulltrace.cpp for source and fulltrace.txt for output.
+
+Here is an excerpt that shows the decision to notify you if empty name is entered:
+
+...
+0040726D: [10 00]                                                                                       
+00407283: [11 00]                                                                                       
+0040729B: [0A 00]                                                                                       
+004072AE: [02 00] -+                                                                                    
+004072C7: [03 00]  |                                                                                    
+004072DB: [04 00]  |                                                                                    
+004072EF: [06 00]  |                                                                                    
+00407304: [0D 00]  |                                                                                    
+0040731F: [03 00]  |                                                                                    
+00407333: [0D 00]  |                                                                                    
+00407354: [12 00]  |                                                                                    
+0040736C: [0A 00]  |                                                                                    
+0040737C: [01 00]  |  <--- calls user32!MessageBoxA to display "Enter your name!" when the name field is empty              00407393: [0C 00]  |                                                                                    
+004073A3: [0C 00]  |                                                                                    
+004073B3: [07 00]  |                                                                                    
+004073CB: [10 00] <+  
+...
+
+And here is a loop that passes over the characters of the username:
+
+...
+004073E1: [11 00]                                                                                       
+004073F9: [07 00]   -+                                                                                  
+00407411: [10 00]    |<+<+<+<+<+<+<+<+                                                                  
+00407427: [12 00]    | | | | | | | | |                                                                  
+0040743F: [0A 00]    | | | | | | | | |                                                                  
+00407451: [10 00]    | | | | | | | | |                                                                  
+00407467: [11 00]    | | | | | | | | |                                                                  
+0040747F: [10 00]   <+ | | | | | | | |                                                                  
+00407495: [12 00]      | | | | | | | |                                                                  
+004074AD: [0A 00]      | | | | | | | |                                                                  
+004074BF: [02 00]      | | | | | | | |-+                                                                
+004074D8: [10 00]      | | | | | | | | |                                                                
+004074EE: [12 00]      | | | | | | | | |                                                                
+00407506: [0A 00]      | | | | | | | | |                                                                
+0040751B: [0A 00]      | | | | | | | | |                                                                
+0040752D: [0A 00]      | | | | | | | | |                                                                
+0040753F: [10 00]      | | | | | | | | |                                                                
+00407555: [11 00]      | | | | | | | | |                                                                
+0040756D: [07 00]     -+-+-+-+-+-+-+-+ |                                                                
+00407585: [10 00]                     <+                                                                
+0040759B: [11 00]                          
+...
+
+Obviously opcode 07 is an unconditional and 02 is a conditional branch.
+
+****************************************************************
+ VM'S CONTEXT STRUCTURE
+****************************************************************
+
+Tracing through some instructions, we learn of the VM's context structure:
+
++--------------------+
+| EFLAGS
++--------------------+ <-- +20h
+| EAX
++--------------------+ <-- +1Ch
+| ECX
++--------------------+ <-- +18h
+| EDX
++--------------------+ <-- +14h
+| EBX
++--------------------+ <-- +10h
+| ESP
++--------------------+ <-- +0Ch
+| EBP
++--------------------+ <-- +08h
+| ESI
++--------------------+ <-- +04h
+| ESI
++--------------------+ <-- context @ 00a2e048h pointed to by pContext0 @ 00405338h
+                       <-- context @ 009af008h pointed to by pContext1 @ 00405340h
+
+In sub_4017C0 they were set up initially.
+
+Context0:
+00a2e048  004012d0 004012d0 0012fb34 0012fa44
+00a2e058  00000000 00140608 7e43218c 00000004
+00a2e068  00000206 
+
+Context1:
+009af008  004012d0 004012d0 0012fb34 0012fa44
+009af018  00000000 00140608 7e43218c 009af008
+009af028  00000206
+
+Some VM instructions hold machine language that will be decrypted to memory and run.
+They run in a different context. Before that code is jumped to, the current context
+is stored in Context1. Context0 is then loaded in, decrypted code jumped to, then
+Context1 restored.
+
+****************************************************************
+ WHAT DOES THE VM PROGRAM DO?
+****************************************************************
+
+Here's an ugly reality for you: there may not exist a shortcut for learning what the
+VM is really doing without disassembling all instructions. I would really, REALLY
+like to hear from you if you have a shortcut to writing a full disassembler. Until
+then, see disasm.cpp and disasm.txt for the output.
+
+The disassembler is not perfect. I used different conventions depending on what I was
+working on it and there may be some errors, but it gets the job done.
+
+I analyzed the VM program in two stages, see analysis0.txt and analysis1.txt.
+
+The key has this form:
+
+<decimal number>-<hex number 0><hex number 1><hex number2>
+
+The decimal number must represent the sum of the characters in the username.
+
+Let F represent the function that produces a 32-bit value I'll call target from the
+input hex number 0 and hex number 2. See computeTarget() in keygen.cpp for details.
+
+Let D^ represent "double xor". For example X D^ Y means D ^ bswap(Y) ^ Y.
+
+Let dwCpu be a 32-bit value produced from a rol/xor loop from the computer name. See
+keygen.cpp for details.
+
+Here's a crappy diagram:
+
+<decimal number>-<hex number 0><hex number 1><hex number2>
+                     |             |             |
+          dwCpu----> D^            |             D^ <----dwCpu
+                     |             |             |
+                 "compute0"        |         "compute2"
+                     |             |             |
+                     |             D^ <----------+
+                     |             |
+                     +-----------> D^
+                                   |
+                  (must equal F(compute0, compute2, name))
+
+
+****************************************************************
+ KEYGEN STRATEGY
+****************************************************************
+
+The decimal number part of the key is calculated simply as the sum of all the user
+name characters.
+
+Pick hex number 0 and hex number 2 at random and do some "double xor" action to
+get compute0 and compute2. Also find out what the output of F() is.
+
+Finally, just undo the two xor's (by xor'ing again) to find hex number 1.
+
+****************************************************************
+ CONCLUSION
+****************************************************************
+
+I found this very difficult, time consuming, but also interesting.
+
+Please contact me if you have some techniques or ideas for speeding up analysis
+on VM's like this.
+
+Oh, rascal.map is included to load into IDA to see names I made for addresses.
+
+Example pair:
+
+user:
+        Ra$cal
+key:
+        519-DEADBEEF053D75CFBADC0D32-
+

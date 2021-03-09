@@ -1,0 +1,664 @@
+Keygen solution by andrewl
+
+  Date: February 18, 2008
+Target: Malfunction's Crackme #5 "Digital Arithmetic"
+
+[----------------------------------------------------------------------------------]
+  INTRODUCTION
+[----------------------------------------------------------------------------------]
+
+The crackme consists of some binary protection tricks that must be peeled away to
+see the key file acceptance algorithm.
+
+[----------------------------------------------------------------------------------]
+  INITIAL PROTECTIONS
+[----------------------------------------------------------------------------------]
+
+The crackme de-xor's its own code before jumping to it:
+
+.crkme:004033DD         mov     esi, offset dword_401000        <-- loop setup
+.crkme:004033E2         mov     edi, esi
+.crkme:004033E4         mov     ecx, 23DDh
+.crkme:004033E9         lodsb                                   <-- loop body
+.crkme:004033EA         xor     al, 9Ah
+.crkme:004033EC         stosb
+.crkme:004033ED         loop    loc_4033E9
+.crkme:004033EF         jmp     short loc_403376                <-- done, jmp to code
+
+Simply allow the xor loop to complete, then dump the process back to EXE. Then patch
+so that this loop doesn't execute again (entry point jmp to 4033EF or just make
+entry point directly 403376). See da_dexor.exe.
+
+.crkme:00403376         cld
+.crkme:00403377         call    ResolveImports                  ;
+.crkme:00403377                                                 ;
+.crkme:0040337C         xchg    eax, pGetModuleHandleA
+.crkme:00403382         cmp     byte ptr [eax], 0CCh            <-- check for breakpoint
+.crkme:00403385         jz      access_violate                
+.crkme:0040338B         xchg    eax, pGetModuleHandleA          ;
+.crkme:0040338B                                                 ;
+.crkme:00403391         push    0
+.crkme:00403393         call    pGetModuleHandleA               ;
+.crkme:00403393                                                 ;
+.crkme:00403399         xchg    eax, pDialogBoxParamA
+.crkme:0040339F         cmp     byte ptr [eax], 0CCh            <-- check for breakpoint
+.crkme:004033A2         jz      access_violate
+.crkme:004033A8         xchg    eax, pDialogBoxParamA           ;
+.crkme:004033A8                                                 ;
+.crkme:004033AE         push    0
+.crkme:004033B0         push    offset DlgProc
+.crkme:004033B5         push    0
+.crkme:004033B7         push    25h
+.crkme:004033B9         push    eax
+.crkme:004033BA         call    pDialogBoxParamA                ;
+.crkme:004033BA                                                 ;
+.crkme:004033C0         xchg    eax, pExitProcess
+.crkme:004033C6         cmp     byte ptr [eax], 0CCh
+.crkme:004033C9         jz      access_violate
+.crkme:004033CF         xchg    eax, pExitProcess               ;
+.crkme:004033CF                                                 ;
+.crkme:004033D5         push    0
+.crkme:004033D7         call    pExitProcess
+
+The ResolveImports call just does LoadLibrary/GetProcAddress on a bunch of functions
+that the crackme will be using throughout its executions. It saves them in globals.
+
+That xchg for the first byte of resolved functions and a test for 0xCC is used all
+throughout the crackme. One way to evade this is to set your breakpoints on the
+second instruction of functions.
+
+The crackme also calls IsDebuggerPresent often.
+
+[----------------------------------------------------------------------------------]
+  MAIN PROTECTION
+[----------------------------------------------------------------------------------]
+
+About 12 functions within this crackme are wrapped with a reasonably difficult
+decrypter that uses SEH during its execution, clears debug registers, and whose
+output depends both on the bytes of the decrypter, and the real-time state of the
+decrypting code.
+
+Luckily they all fit into the same pattern. The arrows indicate how execution flows.
+
++---------------------------+
+| initialize decrypter      |
++---------------------------+             <-+
+| update key                |               |
++---------------------------+               |
+| patch one byte            |               |
++---------------------------+               |
+| jmp exception generator   | --+           |
++---------------------------+   | <-+       |
+| exception handler         |   |   |       |
+|   drX = 0                 |   |   |       |
+|   eip = decide continue   |   |   | --+   |
++---------------------------+ <-+   |   |   |
+| set handler = [esp]       |       |   |   |
+| div 0                     |     --+   |   |
++---------------------------+         <-+   |
+| decide continue           |             --+ (or fall thru to decrypted code)
++---------------------------+
+|                           |
+| encrypted function code   |
+|                           |
++---------------------------+
+
+Let's look at one. Here is the code that executes when you click the "Browse" button.
+
+.crkme:00402653         push    [ebp+arg_0]                             ; BROWSE button
+.crkme:00402656         call    Protect0
+
+Going to 401718:
+
+.crkme:00401718 Protect0 proc near
+.crkme:00401718         pusha
+.crkme:00401719         mov     esi, offset loc_401915                  ; <-- point encrypted code
+.crkme:0040171E         mov     ecx, 185h                               ; <-- num bytes
+.crkme:00401723         mov     edx, InitVector                                              
+
+The protector points to encrypted code at 401915. ECX is loaded with the number of
+bytes that will be decrypted. Decryption moves backwards, towards lower addresses.
+
+.crkme:00401729 continue_patching:
+.crkme:00401729         mov     edi, (offset loc_401991+3)
+.crkme:0040172E         mov     ebx, 27Dh
+
+The key changes for each of the bytes to decrypt. The key is calculated from a
+memory region that includes this protection scheme, and the region that is being
+decrypted. In this case it is [401717, 401994] (0x27D bytes). Thus any breakpoint
+byte present in the scheme will change the result of decryption.
+
+.crkme:00401733 loc_401733:
+.crkme:00401733         movzx   eax, byte ptr [edi]                     ; <-- patch calculated from bytes at:
+.crkme:00401733                                                         ;     
+.crkme:00401736         xor     edx, eax
+.crkme:00401738         sub     edx, eax
+.crkme:0040173A         dec     edi
+.crkme:0040173B         dec     ebx
+.crkme:0040173C         test    ebx, ebx
+.crkme:0040173E         jnz     short loc_401733                        ;
+
+This calculates the key.
+
+.crkme:00401740         mov     eax, [esi]
+.crkme:00401742         sub     eax, edx
+.crkme:00401744         xor     eax, edx
+.crkme:00401746         mov     [esi], eax                              ; <-- self-modified code here
+
+The key is applied to decrypt a double word. But this decryptor moves only one byte
+at a time, so really just one meaningful byte came out of this.
+
+.crkme:00401748         call    Protect0_Helper                         ; <-- cause exception
+
+Scroll below to see Protect0_Helper. It uses the top of the stack (here, the return
+address pushed by the call, 40174D) as an exception handler, then causes an exception
+by dividing by 0.
+                                              ;
+.crkme:0040174D         mov     edx, [esp-4A98h+arg_4AA0]               ; <-- handler is here (land after div 0)
+.crkme:0040174D                                                         ;
+.crkme:0040174D                                                         ; stack looks like:
+.crkme:0040174D                                                         ; 0006f7c4  7c9037bf ntdll!ExecuteHandler2+0x26
+.crkme:0040174D                                                         ; 0006f7c8  0006f8ac
+.crkme:0040174D                                                         ; 0006f7cc  0006fb8c
+.crkme:0040174D                                                         ; 0006f7d0  0006f8c0 <-- (CONTEXT *)
+.crkme:0040174D                                                         ; 0006f7d4  0006f880
+.crkme:0040174D                                                         ;
+.crkme:0040174D                                                         ; see excpt.h for details
+.crkme:0040174D                                                         ;
+.crkme:00401751         mov     dword ptr [edx+0B8h], offset loc_401783 ; CONTEXT.Eip = 401783h
+.crkme:00401751                                                         ;
+.crkme:0040175B         mov     dword ptr [edx+18h], 155h               ; CONTEXT.DR7 = 155h
+.crkme:0040175B                                                         ;
+.crkme:00401762
+.crkme:00401762 loc_401762:
+.crkme:00401762         sub     eax, eax
+.crkme:00401764         mov     [edx+4], eax                            ; CONTEXT.Dr0 = 0
+.crkme:00401767         mov     [edx+8], eax                            ; CONTEXT.Dr1 = 0
+.crkme:0040176A         mov     [edx+0Ch], eax                          ; CONTEXT.Dr2 = 0
+.crkme:0040176D         mov     [edx+10h], eax                          ; CONTEXT.Dr3 = 0
+.crkme:00401770         retn
+
+The divide by 0 executes this code. It just sets EIP to 401783 (see below) and clears
+hardware breakpoints. 401783 restores the original exception handler, and jumps to 401729 to
+continue decrypting.
+
+.crkme:00401771 Protect0_Helper proc near
+.crkme:00401771         push    large dword ptr fs:0
+.crkme:00401778         mov     large fs:0, esp
+.crkme:0040177F         xor     eax, eax
+.crkme:00401781         div     eax
+
+As described above, this is the little stub that sets [esp] as the exception handler, then
+causes an exception.
+
+.crkme:00401783 loc_401783:
+.crkme:00401783         pop     large dword ptr fs:0                    ; <-- land here when handler returns
+.crkme:0040178A         add     esp, 4
+.crkme:0040178D         dec     esi
+.crkme:0040178E         dec     ecx
+.crkme:0040178F         jnz     short continue_patching
+.crkme:00401791         jnz     short loc_401762                        ; <-- patching ends here (modded code)
+
+As described above, this is where the handler returns to. It restores the handler before this
+routine's modification, and decides whether to continue decrypting or not. If it decides not
+to continue, execution falls downward.
+
+Everything below here is encrypted code. IDA tried to make sense of some of it.
+
+.crkme:00401793         inc     edi
+.crkme:00401794         and     byte ptr [eax], 0F1h
+.crkme:00401797         xchg    eax, ebp
+.crkme:00401798         out     dx, eax
+.crkme:00401799         pop     edx
+.crkme:0040179A         retn    4AB8h
+.crkme:0040179D         retf
+.crkme:0040179E         dw 0E82Eh
+.crkme:004017A0         dd 8F51F088h, 0E0A2F748h, 78AC543h, 0D8546588h, 6BE20B53h, 8572632Fh
+.crkme:004017A0         dd 514299E0h, 852AB9FFh, 0B10C8279h, 3AE7CDC6h, 4EB2BB8h, 0B46C69BCh
+.crkme:004017A0         dd 6162BF0Ch, 0A956B220h, 555297Dh, 53789450h, 0C5D5B5E6h, 854A6D8h
+.crkme:004017A0         dd 0D5BE1705h, 0BD4B39E9h, 0A344DCD9h, 89B9B9B6h, 0ABB5C0C3h, 5EDA1AFCh
+.crkme:004017A0         dd 6B00A902h, 42CFC5D5h, 3944FFFFh, 0BCD7EEBFh, 0FFFFB6CCh, 0F13D77B2h
+.crkme:004017A0         dd 0CAA884B7h, 27D1B097h, 93993D34h, 141E8625h, 0B7ADC24Eh, 63CDE802h
+.crkme:004017A0         dd 38CEFFFFh, 0C1FF78BEh, 1AFF8EECh, 0EB071EF2h, 7053D558h, 38C2AB83h
+.crkme:004017A0         dd 0E5874452h, 853F2A58h, 0C3779274h, 0FFFFA59Eh, 47846668h, 3CB58403h
+.crkme:004017A0         dd 0C089BDD9h, 0D1FFBB24h, 39963051h, 0D7D77787h, 11E7BBA4h, 2A37CC72h
+.crkme:004017A0         dd 1803463Eh, 5B689833h, 3DB8AC92h, 8DFCFC00h, 0F7221FE6h, 5ED216F2h
+.crkme:004017A0         dd 66C24D96h, 7258C8C7h, 0BE8A44C5h, 0E72893Eh, 728B2D5h, 43AEFBBFh
+.crkme:004017A0         dd 0F59618B3h, 9DAC27FAh, 52C7970Dh, 0E791686Dh, 98B9DA52h, 0C5D1C1B4h
+.crkme:004017A0         dd 0ACDE400h, 3E2D8D51h, 0BA3ECCEAh, 3BC7A797h, 29B19A68h, 0BB46D244h
+.crkme:004017A0         dd 261968DEh, 68190A63h, 4A88EB52h, 32AD3A6Ah, 9B93A7C2h, 1C7FDC85h
+.crkme:004017A0         dd 7B469089h, 0B6B59A14h, 85845D35h, 2116BB4Fh, 179AE817h, 0CA18F7Ch
+.crkme:004017A0         dd 0B1AAB015h, 1AE2DEBBh, 7915FCF9h
+.crkme:00401914         db 9Ah
+.crkme:00401915         dec     ecx                                     ; <-- patching begins here (moving backwards)
+
+How can we defeat this? We cannot breakpoint anywhere within the function or the
+decryption changes. We cannot get around this via hardware breakpoints because the
+drX registers are cleared.
+
+One way, a dynamic approach, is to somehow get the crackme to pause while the 
+original function is executing. Here, it is easy, because the GetOpenFileName() API
+blocks with the "Open File" dialog until the user OK's or CANCEL's.
+
+Simply dump the original function code and NOP out the protection wrapper. Replace
+all calls to the protection function with calls to the decrypted code. We get:
+
+.crkme:00401791         popa
+.crkme:00401792         pop     dword_4019A4
+.crkme:00401798         call    sub_4017A2                              ; <-- jump to original function
+.crkme:0040179D         jmp     loc_401919
+
+.crkme:004017A2         push    ebp                                     ; <-- original function
+.crkme:004017A3         mov     ebp, esp
+.crkme:004017A5         sub     esp, 258h
+.crkme:004017AB         mov     [ebp+var_200], 0
+.crkme:004017B2         mov     [ebp+var_258], 58h
+.crkme:004017BC         mov     [ebp+var_254], 0
+.crkme:004017C6         mov     [ebp+var_250], 0
+.crkme:004017D0         mov     [ebp+var_24C], offset aKeyFiles_dat ; "Key files (*.dat)"
+.crkme:004017DA         mov     [ebp+var_248], 0
+.crkme:004017E4         mov     [ebp+var_244], 0
+.crkme:004017EE         mov     [ebp+var_240], 1
+.crkme:004017F8         lea     eax, [ebp+var_200]
+.crkme:004017FE         mov     [ebp+var_23C], eax
+.crkme:00401804         mov     [ebp+var_238], 200h
+.crkme:0040180E         mov     [ebp+var_234], 0
+.crkme:00401818         mov     [ebp+var_230], 0
+.crkme:00401822         mov     [ebp+var_22C], offset word_4018EA
+.crkme:0040182C         mov     [ebp+var_228], 0
+.crkme:00401836         mov     [ebp+var_224], 2001000h
+.crkme:00401840         mov     [ebp+var_220], 0
+.crkme:00401849         mov     [ebp+var_21E], 0
+.crkme:00401852         mov     [ebp+var_21C], (offset a_dat+2)
+.crkme:0040185C         mov     [ebp+var_218], 0
+.crkme:00401866         mov     [ebp+var_214], 0
+.crkme:00401870         mov     [ebp+var_210], 0
+.crkme:0040187A         mov     [ebp+var_20C], 0
+.crkme:00401884         mov     [ebp+var_208], 0
+.crkme:0040188E         mov     [ebp+var_204], 0
+.crkme:00401898         lea     eax, [ebp+var_258]
+.crkme:0040189E         xchg    eax, dword_4016BE
+.crkme:004018A4         cmp     byte ptr [eax], 0CCh
+.crkme:004018A7         jz      fail_
+.crkme:004018AD         xchg    eax, dword_4016BE
+.crkme:004018B3         push    eax
+.crkme:004018B4         call    dword_4016BE
+.crkme:004018BA         test    eax, eax
+.crkme:004018BC         jz      short locret_4018E6
+.crkme:004018BE         mov     eax, [ebp+var_23C]
+.crkme:004018C4         mov     ebx, [ebp+arg_0]
+.crkme:004018C7         xchg    eax, dword_40115E
+.crkme:004018CD         cmp     byte ptr [eax], 0CCh
+.crkme:004018D0         jz      fail_
+.crkme:004018D6         xchg    eax, dword_40115E
+.crkme:004018DC         push    eax
+.crkme:004018DD         push    66h
+.crkme:004018DF         push    ebx
+.crkme:004018E0         call    dword_40115E
+.crkme:004018E6         leave
+.crkme:004018E7         retn    4
+
+Much better! 
+
+This can be tedious. What if we do not know what is called within the encrypted code
+and cannot set a breakpoint to pause it?
+
+We move to a static approach. All of the wrapped functions fit the same pattern. The
+encrypted code is always 0x8A bytes after the start of the wrapped function, etc. We
+can simply emulate the decryption routine and write it back to the file. A full
+de-wrapper program is provided: dewrap\dewrap.exe and its result on the crackme
+is da_dewrap.exe.
+
+[----------------------------------------------------------------------------------]
+  THE ALGORITHM
+[----------------------------------------------------------------------------------]
+
+For a given name, you must supply an input file.
+
+Sparing you the story about how I neglected sleep for a few days to figure this out,
+the file describes a circuit of NAND gates. The crackme simulates the circuit with
+inputs derived from the username. The result of the simulation must equal the result
+of a complicated function of the inputs derived from the username.
+
+The file consists of dword 3-tuples, each dword designating a numbered terminal of
+the circuit. Equivalently, the file holds an array of gate structures:
+
+struct gate
+{
+	unsigned long inputA;
+	unsigned long inputB;
+	unsigned long output;
+}
+
+Numbered terminals [0..63] are the inputs of the simulation.
+
+Numbered terminals [64..127] are the outputs of the simulation.
+
+You may use terminals [128..<infinity>) but you cannot skip a terminal.
+
+The routine starts here:
+
+.crkme:00402725         push    ebp
+.crkme:00402726         mov     ebp, esp
+.crkme:00402728         sub     esp, 0BCh
+.crkme:0040272E         cld
+.crkme:0040272F         mov     [ebp+var_B0], 0
+.crkme:00402739         lea     eax, [ebp+UsernamePadded32]
+.crkme:0040273C         push    eax
+.crkme:0040273D         push    [ebp+arg_0]
+.crkme:00402740         call    zGetUserAndPad
+.crkme:00402745         test    eax, eax
+.crkme:00402747         jz      fail__                          ;
+
+The username is retrieved from the EDIT field and padded to 32 bytes. The padding
+occurs by concatenating reversed versions of the name onto itself. For example
+"malfunction" becomes "malfunctionnoitcnuflamnoitcnufla". 
+
+.crkme:0040274D         lea     eax, [ebp+FileLenDiv12]
+.crkme:00402753         lea     ebx, [ebp+var_B4]
+.crkme:00402759         push    ebx
+.crkme:0040275A         push    eax
+.crkme:0040275B         push    [ebp+arg_0]
+.crkme:0040275E         call    zReadFile
+.crkme:00402763         test    eax, eax
+.crkme:00402765         jz      fail__                          ;
+.crkme:00402765                                                 ;
+.crkme:0040276B         mov     [ebp+FileBytes], eax
+.crkme:00402771         mov     eax, [ebp+FileLenDiv12]
+.crkme:00402777         add     eax, 40h
+.crkme:0040277A         shr     eax, 3
+.crkme:0040277D         add     eax, 4
+.crkme:00402780         mov     [ebp+AllocLen], eax
+.crkme:00402786         xchg    eax, pVirtualAlloc
+.crkme:0040278C         cmp     byte ptr [eax], 0CCh
+.crkme:0040278F         jz      fail_
+.crkme:00402795         xchg    eax, pVirtualAlloc
+.crkme:0040279B         push    4
+.crkme:0040279D         push    1000h
+.crkme:004027A2         push    eax                             ; size
+.crkme:004027A3         push    0
+.crkme:004027A5         call    pVirtualAlloc
+.crkme:004027AB         test    eax, eax
+.crkme:004027AD         jz      loc_402950                      ;
+.crkme:004027AD                                                 ;
+.crkme:004027B3         mov     [ebp+AllocBuff], eax
+.crkme:004027B9         push    [ebp+FileLenDiv12]
+.crkme:004027BF         push    [ebp+AllocLen]
+.crkme:004027C5         push    eax
+.crkme:004027C6         push    [ebp+FileBytes]
+.crkme:004027CC         call    zVerifyProcessFileContents
+.crkme:004027D1         test    eax, eax
+.crkme:004027D3         jz      fail                            ;
+
+The file is read, and a memory region is allocated to perform the simulation. 
+
+The file contents are put through some small tests to ensure that no two
+gates' outputs are connected to the same terminal. It also tries to arrange
+the gates so that simulation will flow left to right from the inputs and
+outputs respectively that are derived from the name.
+
+.crkme:004027D9         xchg    eax, pIsDebuggerPresent
+.crkme:004027DF         cmp     byte ptr [eax], 0CCh
+.crkme:004027E2         jz      fail_
+.crkme:004027E8         xchg    eax, pIsDebuggerPresent
+.crkme:004027EE         call    pIsDebuggerPresent
+.crkme:004027F4         test    eax, eax
+.crkme:004027F6         jnz     fail_                           ;
+.crkme:004027F6                                                 ;
+
+What should I say?
+
+.crkme:004027FC         lea     eax, [ebp+UsernamePadded32]
+.crkme:004027FF         push    eax
+.crkme:00402800         call    SrandFrom8Dwords                ;
+.crkme:00402800                                                 ;
+
+Here starts an unnecessarily long production of 10 qword pairs from the
+username. The username, padding to 32 bytes has its 8 dwords added
+modulo 32 to generate the initial value for a linear congruence random
+number generator (LCG):
+
+Xn+1 = (a * Xn + c) mod m
+
+where
+a = 0x343FD (hardcoded @402A17)
+c = 0x269EC3 (hardcoded @402A1D)
+m = 2^32 (addition confined in 32-bit register)
+
+.crkme:00402805         lea     eax, [ebp+RandArray_2]
+.crkme:0040280B         push    eax
+.crkme:0040280C         call    MakeRandomArray20h
+.crkme:00402811         lea     eax, [ebp+RandArray_1]
+.crkme:00402814         push    eax
+.crkme:00402815         call    MakeRandomArray20h
+.crkme:0040281A         lea     eax, [ebp+RandArray_0]
+.crkme:0040281D         push    eax
+.crkme:0040281E         call    MakeRandomArray20h              ; make random arrays
+
+Three arrays are constructed using the LCG. Each has form:
+
+struct RandArray
+{
+	UCHAR indices_a[8]; // [0..7] arranged randomly	
+	UCHAR indices_b[8]; // [0..7] arranged randomly
+	UCHAR indices_c[8]; // [0..7] arranged randomly
+	UCHAR operation[8]; // each position chosen randomly, independently from [0..5] 
+}
+
+.crkme:00402823         mov     ecx, 0Ah
+.crkme:00402828
+.crkme:00402828 repeat_ops:                                     ; CODE XREF: VerifySerial+180j
+.crkme:00402828         push    ecx
+.crkme:00402829         lea     ebx, [ebp+UsernamePadded32]     ; arg0
+.crkme:0040282C         lea     eax, [ebp+Hash8Bytes]           ; arg1
+.crkme:00402832         push    eax
+.crkme:00402833         push    ebx
+.crkme:00402834         call    Make8ByteHash                   ;
+
+An 8-byte hash is made of the padded username. This function also changes the padded
+username buffer so when the loop execution comes back around, the hash will be
+different.
+                                       ;
+.crkme:00402839         lea     esi, [ebp+Hash8Bytes]           ; arg0: operands
+.crkme:0040283F         lea     eax, [ebp+RandArray_2]          ; arg1: operation description
+.crkme:00402845         lea     edi, [ebp+Result2]              ; arg2: result
+.crkme:00402848         push    edi
+.crkme:00402849         push    eax
+.crkme:0040284A         push    esi
+.crkme:0040284B         call    DoOperations                    ;
+.crkme:0040284B                                                 ;
+.crkme:00402850         lea     esi, [ebp+Result2]
+.crkme:00402853         lea     eax, [ebp+RandArray_1]
+.crkme:00402856         lea     edi, [ebp+Result1]
+.crkme:00402859         push    edi
+.crkme:0040285A         push    eax
+.crkme:0040285B         push    esi
+.crkme:0040285C         call    DoOperations                    ;
+.crkme:0040285C                                                 ;
+.crkme:00402861         lea     esi, [ebp+Result1]
+.crkme:00402864         lea     eax, [ebp+RandArray_0]
+.crkme:00402867         lea     edi, [ebp+Result2]              ; final result into here
+.crkme:0040286A         push    edi
+.crkme:0040286B         push    eax
+.crkme:0040286C         push    esi
+.crkme:0040286D         call    DoOperations                    ;
+
+The 8-byte hash with the RandArray is given to the DoOperations function. 
+
+The 8-byte hash is really 8 operands, and the RandArray dictates what operations
+are done with what operands. This is how DoOperations works:
+
+ loop [0..7] -----+--------------+--------------+--------------+
+                  |              |              |              |
+                  V              V              V              V
+      +--------------+--------------+--------------+--------------+
+      | indices_a[8] | indices_b[8] | indices_c[8] | operation[8] |
+      +--------------+--------------+--------------+--------------+
+                 |               |              |              |
+    chose oper a | choose oper b |              |              | 0: add
+                 |               |              |              | 1: sub
+                 | +-------------+              |              | 2: mul
+                 | |                            |              | 3: min
+                 V V                            |              | 4: max
+      +--------------+                          |              | 5: xor
+hash: |  operands[8] | -----> OPERATION <----------------------+
+      +--------------+               |          |
+                                     |          | index to put result
+                                     | +--------+
+                                     | |
+                                     V V
+                          +--------------+
+                          |    result[8] | 
+                          +--------------+
+
+An implementation of this function exists in keygen\keygen.cpp DoOperations().
+
+This is done three times, cascading the result. Its really irrelevant, because the
+calculation is constant given a username, which we do not control.
+
+.crkme:00402872         lea     eax, [ebp+Hash8Bytes]
+.crkme:00402878         lea     edx, [ebp+FinalVerifyOutput]
+.crkme:0040287B         push    edx                             ; arg4: output of FinalVerify
+.crkme:0040287C         push    [ebp+AllocBuff]                 ; arg3: output of ProcessFile
+.crkme:00402882         push    [ebp+FileLenDiv12]              ; arg2: num of triplets
+.crkme:00402888         push    [ebp+FileBytes]                 ; arg1: FileBytes
+.crkme:0040288E         push    eax                             ; arg0: Hash8Bytes
+.crkme:0040288F         call    FinalVerify                     ;
+
+The FinalVerify function does the simulation with NAND input terminals [0..63] connected to
+the bits of the current value of the hash.
+
+It returns the output terminals [64..127] to the 64-bits in the FinalVerifyOutput qword.
+
+.crkme:0040288F                                                 ;
+.crkme:00402894         lea     esi, [ebp+Result2]
+.crkme:00402897         lea     edi, [ebp+FinalVerifyOutput]
+.crkme:0040289A         mov     ecx, 8
+.crkme:0040289F         repe cmpsb
+.crkme:004028A1         pop     ecx
+.crkme:004028A2         jnz     short fail                      ;
+.crkme:004028A2                                                 ;
+.crkme:004028A4         dec     ecx
+.crkme:004028A5         jnz     short repeat_ops                ; 10 times
+.crkme:004028A5                                                 ;
+.crkme:004028A7         mov     [ebp+var_B0], 1
+.crkme:004028B1         push    40h
+.crkme:004028B3         call    sub_4028C8                      ; <-- goodboy
+
+The FinalVerifyOutput qword must equal the result of the DoOperation functions
+given the hash.
+
+This process (the Make8ByteHash, the three DoOperations, the FinalVerify) occurs
+ten times, meaning the same NAND circuit must produce the correct corresponding
+output for ten different inputs.
+
+Stated differently, the three applications of DoOperations define a very complicated
+function mapping qwords to qwords.
+
+We must construct a NAND circuit which emulates this complicated function, at least
+for the ten supplied input/output examples.
+
+[----------------------------------------------------------------------------------]
+  EXAMPLE
+[----------------------------------------------------------------------------------]
+
+For the username "malfunction", the crackme calculates:
+
+hash/input         DoOperation x3/output
+0x103473A2E909556A 0xD5C5F13B5D19C47B
+0xD58409F7ACE0B636 0xCC00155EACD0443C
+0xB8E23CEC3499154F 0xDA1F03994BAD8545
+0x7D0D5F4A4B7EE494 0x3700BB945FE19291
+0x3C8249E1942D1311 0xB21A80661AF8410E
+0x6450E69AC82EF542 0x149E7890D8C07AFC
+0xFA754B5BE6241519 0x4D0FF60D1535ED08
+0xD2AC47F7A3DDC7F2 0xD8002D85A3D9E8D5
+0x67BF14070BAAE972 0x8F000EC07480C934
+0x7D173C2B4336EE20 0xE1F3F4387250BC3F
+
+Consider the first listed input/output pair 0x103473A2E909556A/0xD5C5F13B5D19C47B,
+we have to make this:
+
+ 0 0 0 1 0 0 0 0 0 0 1 1 0 1 0 0 0 1 1 1 0 0 1 1 1 0 1 0 0 0 1 0 1 1 1 0 1 0 0 1 0 0 0 0 1 0 0 1 0 1 0 1 0 1 0 1 0 1 1 0 1 0 1 0 
+ | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | 
+ V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V 
++-------------------------------------------------------------------------------------------------------------------------------+
+|                                                          NAND GATES                                                           |
++-------------------------------------------------------------------------------------------------------------------------------+
+ | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | 
+ V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V V 
+ 1 1 0 1 0 1 0 1 1 1 0 0 0 1 0 1 1 1 1 1 0 0 0 1 0 0 1 1 1 0 1 1 0 1 0 1 1 1 0 1 0 0 0 1 1 0 0 1 1 1 0 0 0 1 0 0 0 1 1 1 1 0 1 1 
+
+And it must work for the remaining nine input/output pairs.
+
+[----------------------------------------------------------------------------------]
+  KEYGENNING
+[----------------------------------------------------------------------------------]
+
+First I tried to search for the smallest subset of bit columns in the input values
+such that, when they are NAND'ed together, the output is correct in a chosen bit
+column [0..63]. After a few minutes of waiting, none were found and this approach
+was abandoned.
+
+If you consider the bit columns of the inputs as 10-dimensional vectors over GF(2)
+then we have 64 vectors, and are nearly guaranteed that a basis exists. So we can
+target any vector (bit column in output) using vector addition (xor) and vector
+multiplication (either using the vector or not) from the inputs.
+
+In actual experiments, I could not find a username that required more than three
+vectors be chosen from the inputs to get every vector in the output.
+
+But so what? Why do we care about this GF(2) XOR addition crap?
+
+Well if we can find a solution using XOR, we can find a solution using NAND, because:
+
+XOR(A,B) = NAND(NAND(A,(NAND(A,B)),NAND(B,NAND(A,B)))
+
+And thus the strategy is complete.
+
+For each bit column/vector in the output, find the smallest set of columns/vectors
+among the inputs that, when XORed, equal the output. Construct the XOR gates while
+doing this.
+
+An output vector that requires two input vectors would look like this during circuit
+simulation:
+                                   +-----+   
+       +---------------+---------> | XOR | -----+
+       |               |           +-----+      |
+       |               |                        V
++--------------------------------+--------------------------------+-----------+
+| 64-bit input: terminal[0..63]  | 64-bit output: terminal[0..63] | temp area |
++--------------------------------+--------------------------------+-----------+
+
+Since no two outputs of a gate may be connected to a terminal, an output vector that
+requires three input vectors must write to the temp area first:
+
+                                   +-----+   
+       +---------------+---------> | XOR | ------------------------+
+       |               |           +-----+                         |
+       |               |                                           V
++--------------------------------+--------------------------------+-----------+
+| 64-bit input: terminal[0..63]  | 64-bit output: terminal[0..63] | temp area |
++--------------------------------+--------------------------------+-----------+
+                             |                  ^                  |
+                             |                  |                  |
+                             |               +-----+               | 
+                             +-------------> | XOR | <-------------+
+                                             +-----+
+
+Finally, convert the XOR gates to NAND gates, using the temp area for intermediate
+outputs.
+
+[----------------------------------------------------------------------------------]
+  CONCLUSION
+[----------------------------------------------------------------------------------]
+
+Very cool, malfunction :)
+
+Hello to E.L. and all crackmes.de and all #c4n!
+
+Thanks to Numernia for keeping crackmes.de alive!
+
+Example key files for "malfunction", "crackmes.de" are supplied.
+
+

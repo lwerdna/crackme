@@ -1,0 +1,106 @@
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Solution to happytowns's CrackMe_0026 - May 05, 2009
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+tools: windbg
+       IDA
+       bigcalto
+       msieve
+       ECDLP Solver v0.2a by Mr. Haandi
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+intro:
+-----
+crackme implements ECDSA (http://en.wikipedia.org/wiki/Elliptic_Curve_DSA)
+using miracl lib
+
+serial is parsed into bignums, example:
+-------------------------------------- 
+"DEAD-BEEF" parses to:
+r = 0xDEAD
+s = 0xBEEF
+
+name is made into a bignum:
+--------------------------
+h = bignum(SHA1(name))
+
+curve has Wierstrass form over F_p with parameters:
+--------------------------------------------------
+  a: 2982
+  b: 3408
+  p: AEBF94CEE3E707
+  G: (7A3E808599A525,28BE7FAFD2A052) // generator
+Q_A: (9F70A02013BC9B,9E0B275B93CF5E) // public key
+  n: AEBF94D5C6AA71
+
+crackme computes:
+----------------
+s^(-1) (mod AEBF94D5C6AA71)
+
+u1 = s^(-1) * h (mod n)
+u2 = s^(-1) * r (mod n)
+
+if(x_coord(u1 * G + u2 * Q_A) == r)
+  goodboy
+else
+  badboy
+
+keygenning:
+----------
+producing a key is producing a signature, we must compute:
+k = random
+r = k * G (mod n)
+s = k^-1 * (h + r * d_A) (mod n)
+
+but we are missing private key d_A
+
+first use msieve to find that n = 17 * 53 * 905461 * 60291817 (decimal)
+
+now make job file for ECDLP Solver (all values in decimal):
+
+GF := GF(49187291794761479);
+E := EllipticCurve([GF|10626,13320]);
+G := E![34408668876875045,11468454688366674];
+K := E![44878354332236955,44485309988327262];
+/*
+FactorCount:=4;
+17;
+53;
+905461;
+60291817;
+*/
+
+ECDLP solver reports: "Found k=44260970446300645; time=172ms" fast! :)
+
+don't confuse this k with the ECDSA randomization variable k, this is our
+private key d_A such that d_A * G = Q_A
+
+we have all necessary components to compute s, r using the equations above,
+see keygen.cpp for the implementation
+
+here are some examples:
+
+user: happytown
+ key: 7F0AD577221B99-9B54AA8F08DC21
+
+user: crackmes.de
+ key: 41FAF05D937B66-B12544FBFE3C6
+
+conclusion:
+----------
+quickest tutorial ever! I couldn't wait to do another curve crackme!
+
+hello to E.L. and crackmes.de mods and friends!
+
+andrewl
+crackmes.de
+
+
+
+
+
+
+
+
+
+
+

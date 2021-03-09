@@ -1,0 +1,153 @@
+how to crack EazyCrack by Kwazy Webbit (googling this will turn up result at reteam.org to download crackme)
+8/31/2007 andrewl
+
+this loads at 00400000, so adjust addresses if yours loads differently
+
+breakpoint on USER32!GetDlgItemTextA
+
+enter any name and serial
+
+.text:004010D2 loc_4010D2:                             
+.text:004010D2                 mov     edi, [ebp+hDlg]
+.text:004010D5                 push    32h             ; nMaxCount
+.text:004010D7                 lea     eax, [ebp+String]
+.text:004010DA                 push    eax             ; lpString <---- name gets written here
+.text:004010DB                 push    3E8h            ; nIDDlgItem
+.text:004010E0                 push    edi             ; hDlg
+.text:004010E1                 call    ds:GetDlgItemTextA <---- gets name
+.text:004010E7                 test    eax, eax
+.text:004010E9                 jnz     short loc_4010F8   <---- if function did not fail, jump
+.text:004010EB                 push    eax
+.text:004010EC                 push    offset aPfft_   ; "PFFT."
+.text:004010F1                 push    offset aYouMightWantTo ; "You might want to enter a name?"
+.text:004010F6                 jmp     short loc_401117
+.text:004010F8 loc_4010F8:                             
+.text:004010F8                 xor     esi, esi
+.text:004010FA                 push    esi             ; bSigned
+.text:004010FB                 push    esi             ; lpTranslated
+.text:004010FC                 push    3E9h            ; nIDDlgItem
+.text:00401101                 push    edi             ; hDlg
+.text:00401102                 call    ds:GetDlgItemInt <---- gets serial
+.text:00401108                 cmp     eax, esi         <---- serial in eax
+.text:0040110A                 jnz     short loc_401120
+.text:00401120 loc_401120:                             ; CODE XREF: sub_401083+87j
+.text:00401120                 push    eax		<---- serial on the stack
+.text:00401121                 lea     eax, [ebp+String]
+.text:00401124                 push    eax		<---- name on the stack
+.text:00401125                 call    sub_401000
+.text:0040112A                 test    eax, eax		<---- test return value
+.text:0040112C                 pop     ecx
+.text:0040112D                 pop     ecx
+.text:0040112E                 push    esi             ; uType
+.text:0040112F                 jz      short loc_40113D <---- if zero, skip success box
+.text:00401131                 push    offset aRight   ; "RIGHT"
+.text:00401136                 push    offset aYouGotIt ; "You got it!"
+.text:0040113B                 jmp     short loc_401117
+
+between the read of name/serial and the success box, there is one call, and the result of this call
+may skip the success box - so it is likely the serial verification routine, so unassemble at 00401000
+
+here is the routine with comments
+
+.text:00401000 sub_401000      proc near 
+.text:00401000 
+.text:00401000 temp            = dword ptr -8
+.text:00401000 runner          = dword ptr -4
+.text:00401000 username        = dword ptr  8
+.text:00401000 numeric_serial_value= dword ptr  0Ch
+.text:00401000 
+.text:00401000                 push    ebp
+.text:00401001                 mov     ebp, esp
+.text:00401003                 push    ecx
+.text:00401004                 push    ecx
+.text:00401005                 and     [ebp+runner], 0 <----  set to 0
+.text:00401009                 push    esi
+.text:0040100A                 mov     esi, [ebp+username] <----  esi = name
+.text:0040100D                 push    edi
+.text:0040100E                 push    esi         
+.text:0040100F                 call    ds:lstrlenA
+.text:00401015                 mov     edi, eax        <----  edi = strlen(username)
+.text:00401017                 xor     edx, edx
+.text:00401019                 test    edi, edi
+.text:0040101B                 jle     short loc_401047 <----  if(strlen(username == 0) quit;  )
+.text:0040101D 
+.text:0040101D loc_40101D:                           
+.text:0040101D                 movsx   ecx, byte ptr [edx+esi] <----  ecx = 0x000000.username[i]
+.text:0040101D                                         <----  
+.text:0040101D                                         <----  where:
+.text:0040101D                                         <----  esi == username
+.text:0040101D                                         <----  edx == i
+.text:00401021                 add     [ebp+runner], ecx <----  runner += username[i]
+.text:00401024                 mov     [ebp+temp], ecx <----  temp = username[i]
+.text:00401027                 rol     [ebp+runner], 1 <----  rotate runner
+.text:0040102A                 mov     eax, ecx
+.text:0040102C                 imul    eax, [ebp+runner]
+.text:00401030                 mov     [ebp+runner], eax <----  runner *= username[i]
+.text:00401033                 mov     eax, [ebp+temp]
+.text:00401036                 add     [ebp+runner], eax <----  runner += temp
+.text:00401039                 xor     [ebp+runner], ecx <----  runner ^= username[i]
+.text:0040103C                 inc     edx
+.text:0040103D                 cmp     edx, edi        <----  if(i++ > strlen(username))
+.text:0040103F                 jl      short loc_40101D <----  ecx = 0x000000.username[i]
+.text:00401041                 cmp     [ebp+runner], 0
+.text:00401045                 jnz     short loc_401063
+.text:00401047 
+.text:00401047 loc_401047:                      
+.text:00401047                 push    0          
+.text:00401049                 push    offset aAProblemHasOcc
+.text:0040104E                 push    offset aThereIsNoValid
+.text:00401053                 push    ds:hWnd        
+.text:00401059                 call    ds:MessageBoxA <---- error msg
+.text:0040105F                 xor     eax, eax
+.text:00401061                 jmp     short loc_40107F
+.text:00401063 <----  ---------------------------------------------------------------------------
+.text:00401063 
+.text:00401063 loc_401063:                           
+.text:00401063                 xor     [ebp+numeric_serial_value], 1337C0DEh
+.text:0040106A                 sub     [ebp+numeric_serial_value], 0BADC0DE5h
+.text:00401071                 mov     eax, [ebp+runner]
+.text:00401074                 not     [ebp+numeric_serial_value]
+.text:00401077                 xor     eax, [ebp+numeric_serial_value]
+.text:0040107A                 neg     eax
+.text:0040107C                 sbb     eax, eax
+.text:0040107E                 inc     eax
+.text:0040107F 
+.text:0040107F loc_40107F:                          
+.text:0040107F                 pop     edi
+.text:00401080                 pop     esi
+.text:00401081                 leave
+.text:00401082                 retn
+
+so from here you can see what happens - a running value starts at 0 - it then scans over each character in
+the name, performing some math and increasing the value in runner
+
+it then takes the serial and xor's it with 1337c0de, subtracts 0badc0de5, and then negates it
+
+now is the interesting part - it xor's the runner with the transformed serial, negates this value, subtracts with
+borrow, increments, and returns this
+
+xor has the property that any value xor'd with itself is 0
+
+negate has the property that the carry flag is always set unless the argument is 0
+
+sbb subtracts its operands, and also subtracts the carry flag
+
+since sbb is given the same destination and source operand, it first computes 0 - if the carry flag is set, the final
+result will be -1, else the final result will remain 0
+
+then the increment will move this to 0 or 1 respectively, and we want 1
+
+to get 1, inc must be given argument 0
+to get 0, sbb must be executed with carry flag 0
+to get carry flag 0, neg must be given argument 0
+to get 0, xor must be given identical arguments
+
+thus, the the transformed serial must equal the running value computed from name
+
+transformed serial == running value
+
+where transformed_serial == ~((serial ^ 1337c0de)-badc0de5)
+
+serial == (~(running value)+badc0de5) ^ 1337c0de5
+
+

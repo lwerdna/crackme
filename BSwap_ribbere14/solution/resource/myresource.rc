@@ -1,0 +1,17 @@
+#include <windows.h>
+#include "myresource.h"
+
+ID_ICON ICON icon.ico
+ID_DIALOG DIALOG 256, 256, 128, 40
+FONT 8, "MS Shell Dlg"
+CAPTION "            Ribbere 1.4 Keygen"
+STYLE WS_POPUP
+BEGIN
+    EDITTEXT                    ID_EDIT1,          002, 002, 124, 012, ES_CENTER, ES_READONLY
+    PUSHBUTTON      "GENERATE",  ID_BUTTON1,   002, 016, 124, 012
+    RTEXT           "2008 andrewl",  ID_RTEXT1,   002, 030, 124, 012, WS_DISABLED
+
+END
+
+
+

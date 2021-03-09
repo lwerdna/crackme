@@ -1,0 +1,319 @@
+Subject: CapRiCcio keygenme
+Quest Author: andrewl.us
+Solution Author: vallani
+Tools: OllyDbg
+
+When the keygenme starts it does in the INITDIALOG part of the DlgProc also filling an 
+array[0..255] of 64-Bit Integer Values, with a routine called at 4013EB:
+
+004015EE   /$  53                         PUSH EBX
+004015EF   |.  56                         PUSH ESI
+004015F0   |.  57                         PUSH EDI
+004015F1   |.  33F6                       XOR ESI,ESI
+004015F3   |>  8BC6                       /MOV EAX,ESI                                             ;  current_int64:=esi
+004015F5   |.  6A 08                      |PUSH 8
+004015F7   |.  99                         |CDQ
+004015F8   |.  5B                         |POP EBX                                                 ;  00270500
+004015F9   |>  8BC8                       |/MOV ECX,EAX
+004015FB   |.  0FACD0 01                  ||SHRD EAX,EDX,1                                         ;  Shift right 1 lower bytes
+004015FF   |.  83E1 01                    ||AND ECX,1                                              ;  if first bit is set...
+00401602   |.  33FF                       ||XOR EDI,EDI
+00401604   |.  D1EA                       ||SHR EDX,1                                              ;  Shift right 1 higher bytes
+00401606   |.  0BCF                       ||OR ECX,EDI                                             ;  ..then...
+00401608   |.  74 0C                      ||JE SHORT capr.00401616
+0040160A   |.  3305 08414000              ||XOR EAX,DWORD PTR DS:[404108]
+00401610   |.  3315 0C414000              ||XOR EDX,DWORD PTR DS:[40410C]                          ;  ...current_int64 xor C96C5795D7870F42
+00401616   |>  4B                         ||DEC EBX
+00401617   |.^ 75 E0                      |\JNZ SHORT capr.004015F9                                ;  for ebx:=8 downto 1 do
+00401619   |.  8904F5 30414000            |MOV DWORD PTR DS:[ESI*8+404130],EAX
+00401620   |.  8914F5 34414000            |MOV DWORD PTR DS:[ESI*8+404134],EDX                     ;  int64_array[esi]:=current_int64
+00401627   |.  46                         |INC ESI
+00401628   |.  81FE 00010000              |CMP ESI,100
+0040162E   |.^ 7C C3                      \JL SHORT capr.004015F3                                  ;  --> for esi:=0 to 255 do
+00401630   |.  5F                         POP EDI                                                  ;  00270500
+00401631   |.  5E                         POP ESI                                                  ;  00270500
+00401632   |.  5B                         POP EBX                                                  ;  00270500
+00401633   \.  C3                         RETN
+
+This array will be play an important role about the calculations of the keygenme. For a 
+keygen it is necessary to work with exact this array, too. So we've to copy it for our keygen 
+or use a similar routine to create it.
+
+Here is the Delphi Routine I use in my KeyGen, doing the same task as its counterpart in the
+keygenme:
+
+procedure TForm1.FormCreate(Sender: TObject);
+var i,i2:integer;
+b:boolean;
+begin
+for i:=0 to 255 do
+begin
+field[i]:=i;
+for i2:=1 to 8 do
+begin
+b:=((field[i] mod 2)<>0);
+field[i]:=field[i] shr 1;
+if  b then
+field[i]:=field[i] xor $C96C5795D7870F42;
+end;
+end;
+end;
+
+
+Before we come to the main calculation routine we look at the further preparations, the 
+program makes in the DlgProc, when we click the button:
+
+004011C0    > \68 2C314000                PUSH capr.0040312C                                       ; /Text = "Never give up."; Case 64 of switch 00401160
+004011C5    .  6A 42                      PUSH 42                                                  ; |ControlID = 42 (66.)
+004011C7    .  FF75 70                    PUSH DWORD PTR SS:[EBP+70]                               ; |hWnd = 0013FC00
+004011CA    .  FF15 80304000              CALL DWORD PTR DS:[<&USER32.SetDlgItemTextA>]            ; \SetDlgItemTextA
+004011D0    .  8B35 74304000              MOV ESI,DWORD PTR DS:[<&USER32.GetDlgItemTextA>]         ;  USER32.GetDlgItemTextA
+004011D6    .  6A 11                      PUSH 11                                                  ; /Count = 11 (17.)
+004011D8    .  8D45 20                    LEA EAX,DWORD PTR SS:[EBP+20]                            ; |
+004011DB    .  50                         PUSH EAX                                                 ; |Buffer = F221DF7F
+004011DC    .  6A 68                      PUSH 68                                                  ; |ControlID = 68 (104.)
+004011DE    .  FF75 70                    PUSH DWORD PTR SS:[EBP+70]                               ; |hWnd = 0013FC00
+004011E1    .  FFD6                       CALL ESI                                                 ; \GetDlgItemTextA
+004011E3    .  8BD8                       MOV EBX,EAX                                              ;  ebx:=length(username)
+004011E5    .  83FB 04                    CMP EBX,4
+004011E8    .  0F82 AF030000              JB capr.0040159D                                         ;  username must have at least 4 chars
+004011EE    .  6A 11                      PUSH 11                                                  ; /Count = 11 (17.)
+004011F0    .  8D45 34                    LEA EAX,DWORD PTR SS:[EBP+34]                            ; |
+004011F3    .  50                         PUSH EAX                                                 ; |Buffer = F221DF7F
+004011F4    .  6A 69                      PUSH 69                                                  ; |ControlID = 69 (105.)
+004011F6    .  FF75 70                    PUSH DWORD PTR SS:[EBP+70]                               ; |hWnd = 0013FC00
+004011F9    .  FFD6                       CALL ESI                                                 ; \GetDlgItemTextA
+004011FB    .  83F8 10                    CMP EAX,10
+004011FE    .  0F85 99030000              JNZ capr.0040159D                                        ;  serial must have at least 16 chars
+00401204    .  8D45 50                    LEA EAX,DWORD PTR SS:[EBP+50]
+00401207    .  50                         PUSH EAX
+00401208    .  8D45 34                    LEA EAX,DWORD PTR SS:[EBP+34]
+0040120B    .  50                         PUSH EAX
+0040120C    .  E8 EFFDFFFF                CALL capr.00401000                                       ;  convert Hexstring into Int64
+00401211    .  59                         POP ECX
+00401212    .  59                         POP ECX
+00401213    .  85C0                       TEST EAX,EAX
+00401215    .  0F84 82030000              JE capr.0040159D
+0040121B    .  8D85 E0FEFFFF              LEA EAX,DWORD PTR SS:[EBP-120]
+00401221    .  8945 78                    MOV DWORD PTR SS:[EBP+78],EAX
+00401224       BE 00404000                MOV ESI,capr.00404000                                    ;  ASCII "      GF(2^64)[X]/(x^64 + x^62 + x^57 + x^55 + x^54 + x^53 + x^52 + x^47 + x^46 + x^45 + x^40 + x^39 + x^38 + x^37 + x^35 + x^33 + x^32 + x^31 + x^29 + x^27 + x^24 + x^23 + x^22 + x^21 + x^19 + x^17 + x^13 + x^12 + x^10 + x^9 + x^7 + x^4"...
+00401229    .  8B7D 78                    MOV EDI,DWORD PTR SS:[EBP+78]
+0040122C    .  B9 00010000                MOV ECX,100
+00401231    .  F3:A4                      REP MOVS BYTE PTR ES:[EDI],BYTE PTR DS:[ESI]             ;  copy DlgBox_caption_string
+00401233    .  33C0                       XOR EAX,EAX
+00401235    .  85DB                       TEST EBX,EBX
+00401237    .  76 14                      JBE SHORT capr.0040124D
+00401239    .  8DB5 E0FEFFFF              LEA ESI,DWORD PTR SS:[EBP-120]                           ;  esi:=@string[1]
+0040123F    >  8A4C05 20                  MOV CL,BYTE PTR SS:[EBP+EAX+20]                          ;  cl:=username[eax]
+00401243    .  880E                       MOV BYTE PTR DS:[ESI],CL                                 ;  --> string[esi]:=username[eax]
+00401245    .  40                         INC EAX
+00401246    .  83C6 10                    ADD ESI,10                                               ;  esi:=1;17;33;49..
+00401249    .  3BC3                       CMP EAX,EBX                                              ;  for eax:=1 to length(username) do
+0040124B    .^ 72 F2                      JB SHORT capr.0040123F
+0040124D    >  8B45 50                    MOV EAX,DWORD PTR SS:[EBP+50]                            ;  /
+00401250    .  89849D E0FEFFFF            MOV DWORD PTR SS:[EBP+EBX*4-120],EAX                     ;  | copy Int64(serial) at
+00401257    .  8B45 54                    MOV EAX,DWORD PTR SS:[EBP+54]                            ;  | string[length(username)+1]
+0040125A    .  89849D E4FEFFFF            MOV DWORD PTR SS:[EBP+EBX*4-11C],EAX                     ;  \
+00401261    .  8D85 E0FEFFFF              LEA EAX,DWORD PTR SS:[EBP-120]
+00401267    .  68 00010000                PUSH 100
+0040126C    .  50                         PUSH EAX
+0040126D    .  E8 C2030000                CALL capr.00401634                                       ;  main_calculate_routine, returns an Int64
+00401272    .  59                         POP ECX
+00401273    .  59                         POP ECX
+00401274    .  3D 63617072                CMP EAX,72706163                                         ;  /
+00401279    .  0F85 1E030000              JNZ capr.0040159D                                        ;  | if result_00401634=6963636972706163
+0040127F    .  81FA 69636369              CMP EDX,69636369                                         ;  | then goodboy else badboy
+00401285    .  0F85 12030000              JNZ capr.0040159D                                        ;  \
+0040128B    .  68 0C314000                PUSH capr.0040310C                                       ; /Text = "Congratulations! Send Keygen!"
+00401290    .  6A 42                      PUSH 42                                                  ; |ControlID = 42 (66.)
+00401292    .  FF75 70                    PUSH DWORD PTR SS:[EBP+70]                               ; |hWnd = 0013FC00
+00401295    .  FF15 80304000              CALL DWORD PTR DS:[<&USER32.SetDlgItemTextA>]            ; \SetDlgItemTextA
+0040129B    .  E9 FD020000                JMP capr.0040159D
+
+
+So the KeyGenMe interpretates the serial as an hex-string and converts it into int64, after 
+that it copies the string we can see in the caption of the dialog box and overwrite some 
+elements of it, these are:
+Each 16th character beginning from the first for each characters of username from to 
+length(username), thus: string[1],string[17],string[33],string[49],string[66], with 
+username[1],username[2],username[3]...
+
+Besides the Int64_array, which was created at the beginning, this is the second imporant
+piece, which is necessary for the main calculating routine (of course because it's the only
+thing username and serial influences), we analyze now:
+
+  
+00401634   /$  56                         PUSH ESI
+00401635   |.  33D2                       XOR EDX,EDX
+00401637   |.  33C0                       XOR EAX,EAX
+00401639   |.  33F6                       XOR ESI,ESI
+0040163B   |.  395424 0C                  CMP DWORD PTR SS:[ESP+C],EDX
+0040163F   |.  76 2B                      JBE SHORT capr.0040166C
+00401641   |.  57                         PUSH EDI
+00401642   |>  8B4C24 0C                  /MOV ECX,DWORD PTR SS:[ESP+C]                            ;  USER32.7E37519B
+00401646   |.  0FB60C0E                   |MOVZX ECX,BYTE PTR DS:[ESI+ECX]                         ;  ecx:=string[esi+1]
+0040164A   |.  0FB6F8                     |MOVZX EDI,AL                                            ;  set edi=lowest byte of current_int64
+0040164D   |.  0FACD0 08                  |SHRD EAX,EDX,8                                          ;  shift right 1 byte the lower dword of current_int64
+00401651   |.  33CF                       |XOR ECX,EDI                                             ;  index:=string[esi+1] xor lowest byte of last_Int64
+00401653   |.  3304CD 30414000            |XOR EAX,DWORD PTR DS:[ECX*8+404130]                     ;  xor lower dword of current_Int64, Int64_array[index]
+0040165A   |.  C1EA 08                    |SHR EDX,8                                               ;  shift right 1 byte the higher dword of current_int64
+0040165D   |.  3314CD 34414000            |XOR EDX,DWORD PTR DS:[ECX*8+404134]                     ;  xor higher dword of current_Int64, Int64_array[index]
+00401664   |.  46                         |INC ESI
+00401665   |.  3B7424 10                  |CMP ESI,DWORD PTR SS:[ESP+10]                           ;  for esi:=0 to 255 do
+00401669   |.^ 72 D7                      \JB SHORT capr.00401642
+0040166B   |.  5F                         POP EDI
+0040166C   |>  5E                         POP ESI
+0040166D   \.  C3                         RETN
+
+
+Our task is to ensure that after 256 loops(0 to 255) the current Int64, stored in eax and 
+edx is 6963636972706163. For this we can only influence 8 Bytes of the string, we prepared in
+DlgProc. This string have exactly 256 Elements, so 1 for each loop. I'll name string[esi+1] 
+the current string element now (who wonder about my notation: in delphi the first element of
+a string has the index 1 and I'll use this notation here). The current string element is 
+always xor'ed with the lowest byte of the Int64 value, the last loops results. For that
+it is save in edi before it is deleted with shrd 8. The result in ecx of this I'll name index
+here because, it is used as an index for the Int64_array. The current Int64 value is, after 
+it is shifted one byte right, xor'ed with Int64_array[index]. So the value the current Int64
+is xor'ed with depends on the current string element and the lowest byte of the Int64 Value 
+of the last loop. 
+
+We also should not forget that the string is of course different for each username. The 
+characters are pasted in at 1,17,33,49 and so on as shown above. The 8 Bytes of the serial
+are pasted to string element 4*username+1 and may will overwrite the parts of username.
+And we also see that we'll have the parts of the string modified by our username before and 
+after the serial bytes. Because of the length of the string(256) and the pasting mechanism of 
+our username into the string we can consider that our username shouldn't have more than 
+15 characters (16*16+1=257).   
+ 
+
+How to influence this by the serial that the result in the end becomes 6963636972706163?
+
+I'll explain this on the example of username="Vallani" (length=7). This means we can direct
+influence with our serial the loops from 28 to 35 using string elements from 29 to 36 
+(an Int64 at string[4*length(username)+1]). 
+
+What we'll do first is to calculate the current Int64 values and indexs for each loop 
+backward until 36 (were our serial is used) starting from our expected current int64 value 
+6963636972706163 at loop 255.
+
+How to calculate the current int64 value at loop 254, which is needed to get 6963636972706163 
+at loop 255, without using the serial/user combos andrewl provided (if you would make a bit 
+further analyzing with them you'll realize that you can't use them to deduce a general 
+solution)?
+
+We know following, how the the current int64 at loop 255 is calculated:
+(Int64_of_loop_254 shr 8) xor Int64_array[index_loop_255]=Int64_of_loop_255
+
+Our chance to get both variables(Int64_of_loop_254 and index_loop_255) lies in that "shr 8". 
+Because of it, we know that the highest byte of (Int64_of_loop_254 shr 8) have always to be 
+00. So, because of the mechanism of xor operation, the highest byte of Int64_of_loop_255 have
+to be equal to the highest byte of Int64_array[index_loop_255]. 
+
+Example with Int64 ("1:" is our Int64_of_loop_255, "2:" our searched 
+Int64_array[index_loop_255]):
+
+1:	00XXXXXXXXXXXXXX xor
+2:	6963636972706163  
+=	69XXXXXXXXXXXXXX	
+
+So what we simply can do now is, to search our Int64_array for an Int64 starting with byte 69 
+to get the index(index_loop_255), which should to be used to xor 6963636972706163. To get
+Int64_of_loop_254 we xor 6963636972706163 and Int64_array[index]. But now we've only
+(Int64_of_loop_254 shr 8), we shift it left 8 bits to reverse this. The lowest byte of    
+Int64_of_loop_254 has to be calculated with the current string element (string[256]) xor the
+current index(index_loop_255). This works because the routine in the keygenme calculate the 
+current index with the current string element xor the lowest byte of the Int64 value of the 
+last loop(in our case Int64_of_loop_254).
+
+Example:
+
+Search Int64 array after a value with highest byte equal to 69: 
+69B2361C9D14F94B (found at index ED)
+
+("1:" is our Int64_of_loop_255, "2:" Int64_array[ED]) 
+
+1:	6963636972706163 xor
+2:	69B2361C9D14F94B  
+=	00D15575EFEF6498	
+
+00D15575EFEF6498=Int64_of_loop_254 shr 8
+
+00D15575EFEF6498 shl 8 = D15575EFEF649800
+
+   
+Int64_of_loop_254=D15575EFEF649800+(string[256] xor index_loop_255)
+
+The string element 256 is the terminating 00 character and index_loop_255 is ED as we 
+calculated it, so:    
+
+Int64_of_loop_254=D15575EFEF649800+(00 xor ED) 
+Int64_of_loop_254=D15575EFEF6498ED
+
+And now we search in our Int64_array for a value with D1 as highest byte, to get 
+index_loop_254 and Int64_of_loop_253 and so on.  
+
+Like this we can proceed with every current Int64 value until we come to loop 35, 
+where in the keygenme our serial would be used. 
+
+For us now here nothing changes yet because we use for our calculations of Int64_of_loop_35 
+still string[37] (the first element after the serial influenced bytes) but when we go one 
+loop further to 34, we can't anymore calculate the lowest byte of Int64_of_loop_34, because 
+for this we would need string[36], but to get this byte is a part of the task we've to 
+accomplish to solve this keygenme. So the lowest byte of Int64_of_loop_34 is unknown at this 
+moment. If we go further to Int64_of_loop_33 we don't know the lowest two bytes and of 
+Int64_of_loop_32 we are unable to calculate the three lowest bytes and so on until we know 
+only 1 of 8 bytes by loop 28, where in the keygenme first is 1 byte of our serial is used. 
+The last sentences are not directly necessary to solve the keygenme but they help eventually
+to avoid misunderstandings. 
+
+We know only the the highest byte of Int64_of_loop_28 but as we know this is the only thing 
+we need to get the current index, searching our Int64_array for an value, which also have 
+this byte as it's highest. 
+
+How do we finnally get this string elements 29-36, which represents the serial?
+
+Let us reconsider for what these elements are used in the keygenme, focussing for now on 
+string[29]:
+
+The element is xor'ed in loop 28 with the lowest byte of Int64_of_loop_27. The result is the 
+index of this value in the Int64_array ((Int64_of_loop_27) shr 8) will xor'ed with:
+
+(Int64_of_loop_27) shr 8) xor Int64_array[index_loop_28]=Int64_of_loop_28
+
+and
+   
+index_loop_28=string[29] xor lowest_byte_of_Int64_of_loop_27
+
+From our former calculation we know, what index_loop_28 must be(because we know the highest 
+byte Int64_of_loop_28 must have). So we've to know also lowest_byte_of_Int64_of_loop_27 to get 
+the value we would need for string[29] but we are unable to calculate Int64_of_loop_27 
+(because an other Usage of shl 8 we wouldn't know anything about it).
+
+But as we said loop 28 is the first one which is influenced by our serial, so regardless what
+character we set through our serial to string 29-36, the result of Int64_of_loop_27, will be
+the same (because it only depends on the username), so we can simply use a similar routine
+to this one, which is used in the keygenme to calculate "forward" Int64_of_loop_1 to 
+Int64_of_loop_27. 
+
+When we know lowest_byte_of_Int64_of_loop_27 we can calculate string[29]:
+
+string[29]=index_loop_28 xor lowest_byte_of_Int64_of_loop_27
+         
+With (Int64_of_loop_27 shr 8) xor Int64_array[index_loop_28] we can also calculate the full
+Int64_of_loop_28, inclusive the lowest_byte_of_Int64_of_loop_28, which is needed for
+string[30]=index_loop_29 xor lowest_byte_of_Int64_of_loop_28 and so on simply using the 
+routine similar to this in the keygenme to calculating the string elements with our
+"backward" calculated indexes and our now "forward" calculated current 
+Int64_of_loop_X Values.
+      
+ 
+I hope I don't tortured you too badly with my poor english, when you made it until here :) .
+    
+
+Greetings
+Vallani
+      
+
+
+   

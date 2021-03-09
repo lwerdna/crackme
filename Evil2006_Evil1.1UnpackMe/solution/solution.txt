@@ -1,0 +1,236 @@
+Unpack Tutorial by andrewl
+
+  Date: July 18th, 2008
+Target: Evil2006's Evil 1.1 Unpackme
+ Tools: IDA, WinDBG, IMPREC, dumpbin
+
+[----------------------------------------------------------------------------------]
+  CONVENTIONS
+[----------------------------------------------------------------------------------]
+
+Eight digit numbers are base sixteen and usually refer to addresses, eg: 004096C8
+
+Numbers ending in 'h' are base sixteen, eg: DEADh
+
+Numbers ending in 'd' are base ten, eg: 1024d
+
+All other numbers containing only digits are assumed base ten.
+
+Will use INTEL conventions when describing memory locations:
+
+lower/below/down refers to addresses of less quantity
+higher/above/up refers to address of greater quantity
+
+Examples: "The stack grows downwards towards lower addresses.  The import  table  is
+located above the DOS header in the memorize mapped exe  image."  Run  PELAB.   Open
+crackme with "re" command:
+
+[----------------------------------------------------------------------------------]
+  ANALYZING EXE
+[----------------------------------------------------------------------------------]
+
+Use any EXE reading program like LordPE or dumpbin to get some stats:
+
+@offset 000000D0 IMAGE_OPTIONAL_HEADER:
+
+.Magic:                          010B
+.MajorLinkerVersion:             06
+.MinorLinkerVersion:             00
+.SizeOfCode:                     00000000
+.SizeOfInitializedData:          00018000
+.SizeOfUninitializedData:        00000000
+.AddressOfEntryPoint:            00026B33
+.BaseOfCode:                     00025000
+.BaseOfData:                     00021000
+.ImageBase:                      00400000
+
+Using ImageBase and AddressOfEntryPoint members within the  IMAGE_OPTIONA_HEADER  we
+know that the entrypoint is 00400000 + 00026B33 = 4026B33.  This is in section  "3".
+Here's how the sections are distributed:
+
+section distribution in file:
+
+            NAME               RANGE     SIZE
+               0 [00001000-00007000) 00006000 (0.250000%)
+               1 [00000000-00000000) 00000000 (0.000000%)
+               2 [00007000-0000A000) 00003000 (0.125000%)
+               3 [0000A000-00016000) 0000C000 (0.500000%)
+               4 [00016000-00017000) 00001000 (0.041667%)
+               5 [00017000-00019000) 00002000 (0.083333%)
+
+section distribution in virtual memory: [00400000-00440000)
+
+            NAME               RANGE     SIZE
+               0 [00401000-00420BE4) 0001FBE4 (0.527539%)
+               1 [00421000-00421D3C) 00000D3C (0.013746%)
+               2 [00422000-0042405C) 0000205C (0.033611%)
+               3 [00425000-00436ABF) 00011ABF (0.293685%)
+               4 [00437000-00437D76) 00000D76 (0.013982%)
+               5 [00438000-0043F110) 00007110 (0.117437%)
+
+In the file, section 3 occupies  the  most  space,  about  half  among  its  section
+brethren.  But the areas allocated for it in memory, once  loaded,  make  it  appear
+smaller.  Section 0 comprises only 6000h bytes in the file, yet in memory will  have
+an area 1FBE4h to stretch out in, an increase of 135%. Section five grows over 300%.
+I have a feeling section 3 will contain maybe some  type  of  decompressor  for  the
+other sections, especiall 0 and 5. I like pictures:
+
+                        FILE OFFSET  
+
++----------------+ <--  00019000
+|                |
+|SECTION "5" rwx |
++----------------+ <--  00017000 (2000h bytes)
+|SECTION "4" rwx |
++----------------+ <--  00016000 (1000h bytes)
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|SECTION "3" rwx |
++----------------+ <--  0000A000 (C000h bytes)
+|                |
+|                |
+|SECTION "2" rwx |
++----------------+ <--  00007000 (3000h bytes)
+|                |
+|                |
+|                |
+|                |
+|                |
+|SECTION "0" rwx |
++----------------+ <--  00001000 (6000h bytes) 
+|HEADERS         |
++----------------+ <--  00000000 (1000h bytes)     
+
++----------------+
+|SECTION "1" rwx |
++----------------+             
+
+                        VIRTUAL ADDRESS  
+
++----------------+ <--  00019000
+|                |
+|SECTION "5" rwx |
++----------------+ <--  00017000 (2000h bytes)
+|SECTION "4" rwx |
++----------------+ <--  00437000 (1000h bytes)
++----------------+ <--  00436ABE 
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|SECTION "3" rwx |
++----------------+ <--  00425000 (11ABFh bytes)
++----------------+ <--  0042405B
+|SECTION "2" rwx |
++----------------+ <--  00422000 (205Ch bytes)
++----------------+ <--  00421D3B
+|SECTION "1" rwx |
++----------------+ <--  00421000 (D3Ch bytes)
++----------------+ <--  00420BE3
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|                |
+|SECTION "0" rwx |
++----------------+ <--  00401000 (1FBE4h bytes) 
+|HEADERS         |
++----------------+ <--  00000000 (1000h bytes == size of headers) 
+
+Let us now trace the program in search of the original entrypoint (OEP): 
+
+Entry is here, in section 3:
+
+_3:00426B33         call    $+5
+_3:00426B38         pusha
+_3:00426B39         call    loc_426B8D
+..
+
+_3:00426B8D         call    loc_426700
+..
+
+_3:00426700         call    sub_4262E0
+_3:00426705         pop     eax
+_3:00426706         call    near ptr byte_426E60
+_3:0042670B         pop     eax
+_3:0042670C         mov     [esp+24h], eax
+_3:00426710         popa
+_3:00426711         pop     eax                 
+_3:00426712         pop     eax
+_3:00426713         call    eax                    <-- call 00401130 (OEP)
+
+This is the OEP because at 401130 we have:
+
+_0:00401130         push    41BEF8h                <-- "VB5!..*........."
+_0:00401135         call    near ptr loc_401128
+
+Where:
+
+_0:00401128         jmp     dword ptr [0040105c]   <-- MSVBVM60!RTMain
+
+What's at 40105C?
+
+0040105c  7342de3e MSVBVM60!ThunRTMain
+
+So I think 0041BEF8 holds kind of the VB opcodes and ThunRTMain()  is  like  the  VB
+Virtual Machine start functions.
+
+[----------------------------------------------------------------------------------]
+  DUMP IT
+[----------------------------------------------------------------------------------]
+
+Open ImpREC and choose this process.  Enter 00400000 - 00401130 == 1130 as  the  OEP
+and click "IAT Autosearch". Then choose "Get Imports". It should show imports from
+msvbm60.dll with "valid:YES" in  the  text  area  for  "Imported  Functions  Found."
+
+Right click that line and choose "Advanced Commands" -> "Select Code Section(s)".  I
+choose them all since the IMAGE_SCN_MEM_EXECUTE bit was set on all five.  Dump  them
+to  the  file  c:\foo.exe.   Now  choose   "Fix   Dump"   and   choose   c:\foo.exe.
+
+Foo.exe should now execute and IDA should recognise 401130  as  the  start  address.

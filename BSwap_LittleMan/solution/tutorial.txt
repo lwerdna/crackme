@@ -1,0 +1,191 @@
+Keygen tutorial by andrewl
+
+Target: "LittleMan" by BSWAP
+ Tools: IDA, WinDBG
+
+[--------------------------------------------------------------------------]
+  CONVENTIONS
+[--------------------------------------------------------------------------]
+
+Eight digit numbers are base 16 and usually refer to addresses, eg: 004096C8
+
+Numbers ending in 'h' are base 16, eg: DEADh
+
+Numbers ending in 'd' are base 10, eg: CAFEd
+
+All other numbers are assumed base 10.
+
+[--------------------------------------------------------------------------]
+  SOLUTION
+[--------------------------------------------------------------------------]
+
+Entry point (Ctrl+E) in IDA is 00401065.
+
+It calls DialogBoxParamA (look this up on MSDN)  with  the  dialog  callback
+function at 00401090.
+
+This function processes window messages,  and  usually  button  presses  are
+handled with WM_COMMAND. You can use winuser.h from the SDK to know that the
+value of WM_COMMAND is 0x0111. 
+
+Follow the logic down and you'll see that 0x0111  is  handled  at  004013EA.
+Logic then breaks down depending on what button is pressed - like the "about"
+button press is handled at 4013F3.
+
+The "register" button press is handled at 00401426.
+
+00401426    mov     dword_40334B, 0
+00401430    xor     eax, eax
+00401432    mov     dword_403330, 0
+0040143C    xor     ecx, ecx
+0040143E    mov     dword_403353, 0
+00401448    mov     buff_serial, 0
+00401452    xor     edx, edx
+00401454    mov     dword_40334F, 0
+0040145E    mov     dword_403334, 0
+00401468    xor     ebx, ebx 
+0040146A    mov     esi, offset buff_serial     <-- source
+0040146F    mov     edi, offset dword_40334B    <-- destination
+00401474    mov     ecx, 1                      <-- amount
+
+loc_401479:
+00401479    movsx   eax, byte ptr [ebx+esi]
+0040147D    xadd    ecx, eax
+00401480    add     ecx, ebx
+00401482    shrd    dx, ax, 8
+00401487    inc     dl
+00401489    xor     dl, dh
+0040148B    mov     [ebx+edi], dl
+0040148E    inc     ebx
+0040148F    cmp     ebx, 4
+00401492    jnz     short loc_401479            <-- loop
+
+When I see some ESI and EDI set up I know some  memory  write  is  going  to
+happen and since the crackme hasn't even read my serial yet, there's nothing
+he could be doing based on my input, so I'll just see what  he  does.   Just
+watch memory at ESI and EDI.
+
+This code does the same thing everytime - just writes bytes 00 03 00  07  to
+address 40334b.
+
+Next he reads the serial to a buffer:
+
+00401494    push    1Eh                 
+00401496    push    offset buff_serial          <-- BUFFER RECEIVES SERIAL
+0040149B    push    0C9h                
+004014A0    push    hDlg                
+004014A6    call    GetDlgItemTextA    
+004014AB    cmp     eax, 1                      <-- LENGTH OF SERIAL IN EAX
+004014AE    jge     short serial_stage2
+
+You can see what happens if the JGE is not taken; that is, when your  serial
+is less than 1 byte: it prints the "Your code must be at  least  one  byte!"
+message.
+
+Next it does this:
+
+00401506 serial_stage2:             
+00401506    mov     eax, buff_serial ;
+0040150B    mov     ebx, dword_403330
+00401511    mov     dword_4032E6, eax
+00401516    mov     dword_4032EA, ebx
+0040151C    call    sub_4019E9
+00401521    mov     dword_40334B, edi 
+00401527    mov     eax, dword_40334B
+0040152C    mov     ebx, dword_403330
+00401532    mov     dword_4032E6, eax
+00401537    xor     eax, eax                    <-- EAX is made 0
+00401539    mov     dword_4032EA, ebx
+0040153F    pusha                               <-- EAX is saved
+00401540    push    0DEADh                      <-- BULLSHIT
+00401545    pop     eax
+00401546    push    0BEEFh
+0040154B    pop     ebx
+0040154C    push    0AAAAAAFh
+00401551    pop     ecx
+00401552    bswap   ecx
+00401554    bswap   ecx
+00401556    popa                                <-- EAX zero again
+00401557    or      al, 1                       <-- MADE 1
+00401559    or      eax, eax
+0040155B    jnz     maybe_return1               <-- THIS IS ALWAYS TAKEN
+00401561    jmp     short goodboy0              <-- IMPOSSIBLE!!!
+
+00401578 goodboy0:
+00401578    jmp     short goodboy1
+
+00401585 goodboy1:                  
+00401585    push    40h                         <-- DECOY DECOY DECOY DECOY!
+00401587    push    offset aGoodWork ; "Good Work!"
+0040158C    push    offset aYourAreRegiste ; "Your are Registered!"
+00401591    push    0               
+00401593    call    MessageBoxA
+
+We've  been  duped!   Good  thing  we  didn't  waste  too  much  time  here.
+
+If you set a read breakpoint on 403330, you'll notice that it gets hit about
+every second, without you doing anything.  Debugger lands here inside  timer
+routine:
+
+00401692    mov     eax, dword_403330           <-- [4..7] of serial
+00401697    xor     ebx, ebx
+00401699    mov     bl, byte ptr dword_403330+1 <-- GET serial[5]
+0040169F    cmp     bl, 2Dh                     <-- is it a dash? "-"
+004016A2    jnz     short loc_4016C7
+004016A4    cmp     al, 31h                     <-- is SERIAL[4] a "1" ?
+004016A6    jz      short loc_4016AD
+004016A8    cmp     ah, 2Dh                     <-- REDUNDANT?
+004016AB    jnz     short loc_4016C7
+
+004016AD    bswap   eax
+004016AF    cmp     al, 53h                     <-- is SERIAL[7] 'S' ?
+004016B1    jz      short loc_4016B8
+004016B3    cmp     ah, 38h                     <-- is SERIAL[6] '8' ?
+004016B6    jnz     short loc_4016C7
+004016B8    mov     dword_403330, 0             <-- difficult to reach 
+004016C2    jmp     loc_401598
+
+It's kind of sloppy code, but for us  to  make  the  program  flow  land  at
+4016B8:
+
+serial[5] is required to be a dash character, in every case if serial[7]  is
+an 'S', serial[6] can be anything otherwise serial[6] needs  to  be  an  '8'
+character
+
+So  to  test  this,  try  some  serials  that  exercise  the  above   rules:
+
+aji3h-8S
+kfjeo-3S
+1029g-8e
+3oife-8j
+
+Hit register.  This will place the last four characters  into  dword_403330.
+The timer will then come pick it up, process it, and  place  the  registered
+message into the text field.
+
+All serials work.
+
+[--------------------------------------------------------------------------]
+  KEYGEN
+[--------------------------------------------------------------------------]
+
+char serial[8];
+
+FillWithRandomCharacters(serial);
+
+serial[5] = '-';
+
+if(CoinFlip())
+   serial[7] = 'S';
+else
+   serial[6] = '8';
+
+printf("Serial: %s\n", serial);
+
+See keygen.cpp for details.
+
+
+
+
+
+

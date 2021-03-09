@@ -1,0 +1,231 @@
+quick solution for death's "Saddam" protection!
+
+scheme:
+
+           +------+
+  name --> | hash | ------------------------+
+           +------+                         |
+                                            |
+               +-------------+              |   +-----+
+               | DES DECRYPT |              +-> | xor |
+               |             |  right block |   |     |
+               |             | ---------------> |     | --> must equal "Smrk" (0x6b726d53)
+ challenge --> |>key         |              |   +-----+
+               |             |              |
+               |             |              |   +-----+
+               |             |              +-> | xor |
+               |             |  left block      |     |
+         +---> |>block       | ---------------> |     | --> used to permute function table
+         |     +-------------+                  +-----+     located at 00417004
+         |
+     +--------+
+     | Base64 |
+     | Decode |
+     +--------+
+         ^
+         |
+ serial -+
+
+we can find the right block easy by encrypting (using the challenge) the value:
+
+  hash(name) ^ 0x6b726d53
+
+the hash is slightly modified sha1 - if you break at 00403D03 and inspect the
+expanded message words, you'll see that their endianness is opposite that of
+a reference implementation
+
+but finding the left block more difficult! check out the function table at 4017004
+and look at the xref's - we're in for some work to make the table right again.....
+
+the code to permute is bloated c++ code for templated vector, see getorder() in
+search.cpp for a simpler recreation of how the table is permuted given the output
+of the left block xor - so we are stuck matching up functions.... our first clue
+comes from the first call that goes thru the function table:
+
+  .text:0040312E         call    off_41702C              ; <- HERE!
+  .text:00403134         cmp     al, 1
+  .text:00403136         jnz     short loc_403174
+  .text:00403138         push    40h                     ; uType
+  .text:0040313A         push    offset ClassName        ; lpCaption
+  .text:0040313F         push    offset aSmirkIsAlready  ; "Smirk is already running"
+  .text:00403144         push    edi                     ; hWnd
+  .text:00403145         call    ds:MessageBoxW
+
+41702C holds pointer to sub_4015F0, but this looks like a dialog function, not something
+that determines if Smirk is running... looking at other functions in this table, we see:
+
+  .text:00401980         push    ebx
+  .text:00401981         push    offset aSmirkWindow     ; "Smirk Window"
+  .text:00401986         push    offset ClassName        ; lpClassName
+  .text:0040198B         xor     bl, bl
+  .text:0040198D         call    ds:FindWindowW
+  .text:00401993         test    eax, eax
+  .text:00401995         mov     al, 1
+  .text:00401997         jnz     short loc_40199B
+  .text:00401999         mov     al, bl
+  .text:0040199B         pop     ebx
+  .text:0040199C         retn
+
+thus we can reason that 41702C should instead hold a pointer to sub_401980 ... now you
+have to apply the same type of detective work to guess at the other functions - the
+following tables may be useful:
+
+  address   orig.ptr  WTF                                                                   
+  --------  --------  ----------------------------------------------------------------------
+  00417004  00401c50  main window proc? displays about box, etc?                            
+  00417008  00401170  lstrcpyW, Shell_NotifyIconW                                           
+  0041700c  004011e0  Dialog proc                                                           
+  00417010  00402090  SwitchDesktop                                                        
+  00417014  004013a0  RegCreateKeyExW/RegSetValueExW under Software\\Execution\\Smirk    
+  00417018  00401400  message pump stuff                                                 
+  0041701c  00401470  OpenDesktopW, CreateDesktopW, CreateThread                        
+  00417020  004014e0  query registry, shell, explorer                                  
+  00417024  00402100  SetThreadDesktop, CloseDesktop, quit function?                    
+  00417028  004015c0  creates a dialog                                                 
+  0041702c  004015f0  dialog proc                                                      
+  00417030  004016d0  GetCurrentProcess, GetExitCodeProcess, ExitProcess, CreateRemoteThread
+  00417034  004017d0  invokes explorer                                                      
+  00417038  00402210  create popup and menu stuff                                          
+  0041703c  004018a0  calls CreateWindowExW                                               
+  00417040  004018e0  LoadIconW, Shell_NotifyIconW                                       
+  00417044  004022f0  creates a dialog                                                   
+  00417048  00401980  FindWindow of "Smirk Window"                                        
+  0041704c  004019a0  OpenProcess on given procid, returns handle                         
+  00417050  004019e0  RegCreateKeyExW/RegQueryValueExW under "Software\\Execution\\Smirk" 
+  00417054  00401a50  enumerates processes                                               
+
+and:
+
+  address   orig.ptr  IDA prototype
+  --------  --------  -------------
+  00417004  00401c50  int __stdcall sub_401C50(HWND lpParam, UINT Msg, WPARAM wParam, LPARAM lParam)
+  00417008  00401170  int __cdecl sub_401170(int, LPCWSTR lpString2)
+  0041700c  004011e0  int __stdcall sub_4011E0(HWND hDlg, int, int, LONG dwNewLong)
+  00417010  00402090  N/A, >= 1 arg 
+  00417014  004013a0  int __cdecl sub_4013A0(LPCWSTR lpValueName, char)
+  00417018  00401400  int __cdecl sub_401400(HWND hWnd)
+  0041701c  00401470  int __cdecl sub_401470(LPVOID ThreadId)
+  00417020  004014e0  N/A, 0 args
+  00417024  00402100  int __cdecl sub_402100(LPARAM dwInitParam)
+  00417028  004015c0  int __cdecl sub_4015C0(LPARAM dwInitParam)
+  0041702c  004015f0  int __stdcall sub_4015F0(HWND hDlg, int, int, LONG dwNewLong)
+  00417030  004016d0  int __cdecl sub_4016D0(HANDLE hSourceHandle, LPVOID lpParameter)
+  00417034  004017d0  N/A, >= 1 arg
+  00417038  00402210  N/A, 3 args
+  0041703c  004018a0  int __cdecl sub_4018A0(LPVOID lpParam)
+  00417040  004018e0  N/A, 1 arg
+  00417044  004022f0  int __cdecl sub_4022F0(LPARAM dwInitParam)
+  00417048  00401980  N/A, 0 args
+  0041704c  004019a0  int __stdcall sub_4019A0(DWORD dwProcessId)
+  00417050  004019e0  int __cdecl sub_4019E0(LPCWSTR lpValueName, HKEY hKey)
+  00417054  00401a50  N/A, 2 args
+
+I used this IDC script to produce some breakpoints to monitor execution that went
+through the table:
+
+  auto addr;
+  auto i;
+  auto t;
+  auto fname;
+  auto hFile;
+  fname="c:\\temp.txt";
+  hFile=fopen(fname,"w+");
+  addr=0x417004;
+  for(i=0; i<21; ++i)
+  {
+    auto curr;
+    curr=RfirstB(addr);
+    if(curr!=-1)
+    {
+       do
+       {
+         t=form("bp %08X\n",curr);
+         Message(t);
+         fprintf(hFile,t);
+         curr = RnextB(addr, curr);
+       } while(curr!=-1);
+    }
+    curr=DfirstB(addr);
+    if(curr!=-1)
+    {
+       do
+       {
+         t=form("bp %08X\n",curr);
+         Message(t);
+         fprintf(hFile,t);
+         curr = DnextB(addr, curr);
+       } while(curr!=-1);
+    }
+    addr=addr+4;
+  }
+
+It is much more difficult than expected to guess what functions should be linked
+from which calls - these are the only guesses I could make:
+
+  address   orig ptr   i  correct ptr    new i
+  --------  --------  --  -----------    ----
+  00417004  00401c50  00  00401c50       00
+  00417008  00401170  01  
+  0041700c  004011e0  02                 12 or 10 (dlg)
+  00417010  00402090  03  00402210
+  00417014  004013a0  04                 14
+  00417018  00401400  05 
+  0041701c  00401470  06
+  00417020  004014e0  07                 0B
+  00417024  00402100  08 
+  00417028  004015c0  09   
+  0041702c  004015f0  0A  00401980       12 or 10 (dlg)
+  00417030  004016d0  0B  004014E0
+  00417034  004017d0  0C 
+  00417038  00402210  0D                 03
+  0041703c  004018a0  0E 
+  00417040  004018e0  0F 
+  00417044  004022f0  10  004015F0
+  00417048  00401980  11                 0A
+  0041704c  004019a0  12  004011e0
+  00417050  004019e0  13  004019e0       13 
+  00417054  00401a50  14  004013A0
+
+now I wanted to see how many inputs would produce a permutation that fit this
+pattern, see main() in search.cpp - there are many results, but actually only 9
+are unique:
+
+  00,0E,10,04,14,02,06,0B,07,11,12,08,09,03,01,0D,0F,0A,05,13,0C
+  00,06,10,04,14,0C,01,0B,0E,11,12,09,07,03,02,0D,05,0A,08,13,0F
+  00,0E,10,04,14,02,06,0B,08,11,12,07,09,03,01,0D,0F,0A,05,13,0C
+  00,06,10,04,14,0C,01,0B,0F,11,12,09,07,03,02,0D,05,0A,08,13,0E
+  00,0E,10,04,14,02,06,0B,09,11,12,07,08,03,01,0D,0F,0A,05,13,0C
+  00,0E,10,04,14,02,06,0B,05,11,12,08,09,03,01,0D,0F,0A,07,13,0C <-- WORKS!
+  00,06,12,04,14,0C,01,0B,11,0F,10,09,07,03,02,0D,05,0A,08,13,0E
+  00,06,10,04,14,0C,01,0B,11,0F,12,09,07,03,02,0D,05,0A,08,13,0E
+  00,06,10,04,14,0C,01,0B,0D,11,12,09,07,03,02,0E,05,0A,08,13,0F
+
+the values that produce the working permutation are:
+
+  0x0A20D521, 0x1800F711, 0x25E11901, 0x33C13AF1, 
+  0x41A15CE1, 0x4F817ED1, 0x5D61A0C1, 0x6B41C2B1, 
+  0x7921E4A1, 0x87020691, 0x94E22881, 0xA2C24A71, 
+  0xB0A26C61, 0xBE828E51, 0xCC62B041, 0xDA42D231, 
+  0xE822F421, 0xF6031611
+
+we can keygen very easily now:
+
+  left block = hash(name) ^ table[rand()%18];
+  right block = hash(name) ^ 0x6b726d53;
+  DES_Encrypt(block, challenge)
+  Base64_Encode()
+
+see keygen.cpp for details - the challenge code is obviously different for
+every computer, otherwise I would list some example serials here
+
+Hello to death (thanks for crackme!), all friends, and my little EL, BL!
+
+--
+andrewl
+Dec20_2009
+crackmes.de
+
+
+
+
+

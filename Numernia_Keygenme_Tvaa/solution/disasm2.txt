@@ -1,0 +1,325 @@
+.text:00401050 BlockCipher     proc near               ; CODE XREF: ReadSerial+F1p
+.text:00401050
+.text:00401050 var_8           = byte ptr -8
+.text:00401050 var_7           = byte ptr -7
+.text:00401050 var_6           = byte ptr -6
+.text:00401050 var_5           = byte ptr -5
+.text:00401050 var_4           = byte ptr -4
+.text:00401050 var_3           = byte ptr -3
+.text:00401050 var_2           = byte ptr -2
+.text:00401050 var_1           = byte ptr -1
+.text:00401050 our_dwords      = dword ptr  4
+.text:00401050 their_dwords    = dword ptr  8
+.text:00401050
+.text:00401050                 sub     esp, 8
+.text:00401053                 push    ebx
+.text:00401054                 push    ebp
+.text:00401055                 push    esi
+.text:00401056                 mov     esi, [esp+14h+their_dwords]
+.text:0040105A                 push    edi
+.text:0040105B                 mov     edi, [esp+18h+our_dwords]
+.text:0040105F                 mov     ecx, edi
+.text:00401061                 mov     [esp+18h+var_8], 19h ; these are like VM instructions???
+.text:00401066                 mov     [esp+18h+var_7], 85h
+.text:0040106B                 mov     [esp+18h+var_6], 44h
+.text:00401070                 mov     [esp+18h+var_5], 99h
+.text:00401075                 mov     [esp+18h+var_4], 23h
+.text:0040107A                 mov     [esp+18h+var_3], 87h
+.text:0040107F                 mov     [esp+18h+var_2], 0D1h
+.text:00401084                 mov     [esp+18h+var_1], 88h
+.text:00401089                 mov     eax, esi
+.text:0040108B                 sub     ecx, esi
+.text:0040108D                 mov     edx, 4
+.text:00401092
+.text:00401092 loc_401092:                             ; CODE XREF: BlockCipher+5Fj
+.text:00401092                 mov     ebp, [ecx+eax]  ; ours_1
+.text:00401095                 add     eax, 4
+.text:00401098                 and     ebp, 7FFFFh
+.text:0040109E                 mov     [ecx+eax-4], ebp ; ours_1 = ours_1 & 0x7FFFF
+.text:0040109E                                         ;
+.text:004010A2                 mov     ebx, [eax-4]
+.text:004010A5                 and     ebx, 7FFFFh
+.text:004010AB                 dec     edx
+.text:004010AC                 mov     [eax-4], ebx
+.text:004010AF                 jnz     short loc_401092 ; theirs_1 = theirs_1 & 0x7FFFF
+.text:004010AF                                         ;
+.text:004010B1                 mov     eax, offset _29C3B
+.text:004010B6                 xor     ebp, ebp
+.text:004010B8                 sub     esi, offset _29C3B
+.text:004010BE                 sub     eax, edi
+.text:004010C0                 mov     [esp+18h+our_dwords], esi
+.text:004010C4                 mov     [esp+18h+their_dwords], eax
+.text:004010C8
+.text:004010C8 start_loop_8:                           ; CODE XREF: BlockCipher+2B8j
+.text:004010C8                 mov     esi, edi        ; <-- ours
+.text:004010CA                 mov     ebx, 4
+.text:004010CF
+.text:004010CF more:                                   ; CODE XREF: BlockCipher+AAj
+.text:004010CF                 mov     eax, [esp+18h+their_dwords]
+.text:004010D3                 mov     ecx, [esp+18h+our_dwords] ;
+.text:004010D3                                         ;
+.text:004010D7                 lea     edx, [eax+esi]  ; get hard_knap[i] (hard knap @00406070)
+.text:004010D7                                         ;  = {00029c3b 00068723 0002a198 00045b82}
+.text:004010D7                                         ;
+.text:004010DA                 mov     eax, [edx+ecx]  ; theirs_1
+.text:004010DA                                         ;
+.text:004010DD                 mov     ecx, [esi]      ; ours_1
+.text:004010DF                 push    eax
+.text:004010E0                 push    ecx
+.text:004010E1                 call    FieldAdd
+.text:004010E6                 mov     [esi], eax      ; ours_1 = ours_1 ^ theirs_1
+.text:004010E6                                         ;
+.text:004010E8                 mov     edx, [edx]      ; get hard knap 1
+.text:004010EA                 push    edx
+.text:004010EB                 push    eax             ; and xor result
+.text:004010EC                 call    FieldMultiply
+.text:004010F1                 mov     [esi], eax      ; ours_i = ours_i * hard_knap_i
+.text:004010F1                                         ;
+.text:004010F3                 add     esp, 10h
+.text:004010F6                 add     esi, 4
+.text:004010F9                 dec     ebx
+.text:004010FA                 jnz     short more      ;
+.text:004010FA                                         ;
+.text:004010FC                 xor     eax, eax
+.text:004010FE                 mov     al, [esp+ebp+18h+var_8] ; gets the next VM instruction...
+.text:004010FE                                         ; {19 85 44 99 23 87 d1 88}
+.text:00401102                 add     eax, 0FFFFFFE7h ;
+.text:00401102                                         ; {0, 6C, 2B, 80, A, 6E, B8, 6F}
+.text:00401105                 cmp     eax, 0B8h       ; switch 185 cases
+.text:0040110A                 ja      next_8_         ; default
+.text:0040110A                                         ; jumptable 00401118 cases 1-9,11-42,44-107,109,112-127,129-183
+.text:00401110                 xor     ecx, ecx
+.text:00401112                 mov     cl, ds:jump_indices[eax]
+.text:00401118                 jmp     ds:jump_offsets[ecx*4] ; switch jump
+.text:0040111F
+.text:0040111F loc_40111F:                             ; DATA XREF: .text:jump_offsetso
+.text:0040111F                 mov     edx, [edi+ebp*4] ; jumptable 00401118 case 43 ... 0x44
+.text:00401122                 push    0A96h
+.text:00401127                 push    edx
+.text:00401128                 call    FieldMultiply   ; ours_3 *= 0xA96
+.text:0040112D                 add     esp, 8
+.text:00401130                 mov     [edi+ebp*4], eax
+.text:00401133                 jmp     next_8_         ; default
+.text:00401133                                         ; jumptable 00401118 cases 1-9,11-42,44-107,109,112-127,129-183
+.text:00401138 ; ---------------------------------------------------------------------------
+.text:00401138
+.text:00401138 loc_401138:                             ; CODE XREF: BlockCipher+C8j
+.text:00401138                                         ; DATA XREF: .text:jump_offsetso
+.text:00401138                 mov     eax, _2A198     ; jumptable 00401118 case 0
+.text:0040113D                 jmp     short loc_40115D ; get ours_i
+.text:0040113F ; ---------------------------------------------------------------------------
+.text:0040113F
+.text:0040113F loc_40113F:                             ; CODE XREF: BlockCipher+C8j
+.text:0040113F                                         ; DATA XREF: .text:jump_offsetso
+.text:0040113F                 mov     edx, [edi+ebp*4] ; 0x6C
+.text:00401142                 push    987h
+.text:00401147                 push    edx
+.text:00401148                 call    FieldMultiply   ; ours_2 *= 0x987;
+.text:0040114D                 add     esp, 8
+.text:00401150                 mov     [edi+ebp*4], eax
+.text:00401153                 jmp     next_8_         ; default
+.text:00401153                                         ; jumptable 00401118 cases 1-9,11-42,44-107,109,112-127,129-183
+.text:00401158 ; ---------------------------------------------------------------------------
+.text:00401158
+.text:00401158 loc_401158:                             ; CODE XREF: BlockCipher+C8j
+.text:00401158                                         ; DATA XREF: .text:jump_offsetso
+.text:00401158                 mov     eax, _29C3B     ; jumptable 00401118 case 128 (0x99)
+.text:0040115D
+.text:0040115D loc_40115D:                             ; CODE XREF: BlockCipher+EDj
+.text:0040115D                 mov     ecx, [edi+ebp*4] ; get ours_i
+.text:00401160                 push    eax
+.text:00401161                 push    ecx
+.text:00401162                 call    FieldAdd        ; ours_1 += 0x2A198
+.text:00401162                                         ;
+.text:00401162                                         ; for opcode 0x99,
+.text:00401162                                         ;
+.text:00401162                                         ; ours_4 += 29C3B
+.text:00401167                 add     esp, 8
+.text:0040116A                 mov     [edi+ebp*4], eax
+.text:0040116D                 jmp     next_8_         ; default
+.text:0040116D                                         ; jumptable 00401118 cases 1-9,11-42,44-107,109,112-127,129-183
+.text:00401172 ; ---------------------------------------------------------------------------
+.text:00401172
+.text:00401172 block1:                                 ; CODE XREF: BlockCipher+C8j
+.text:00401172                                         ; DATA XREF: .text:jump_offsetso
+.text:00401172                 mov     edx, _45B82     ; jumptable 00401118 case 10 (0x23)
+.text:00401178                 mov     eax, _2A198
+.text:0040117D                 mov     ecx, _68723
+.text:00401183                 push    edx
+.text:00401184                 mov     edx, _29C3B
+.text:0040118A                 push    eax
+.text:0040118B                 push    ecx
+.text:0040118C                 push    edx
+.text:0040118D                 call    FieldMultiply   ; result: 000268f8
+.text:00401192                 add     esp, 8
+.text:00401195                 push    eax
+.text:00401196                 call    FieldMultiply   ; result: 0007e993
+.text:0040119B                 add     esp, 8
+.text:0040119E                 push    eax
+.text:0040119F                 call    FieldMultiply   ; result: 0007d2f9
+.text:004011A4                 add     esp, 8
+.text:004011A7                 mov     esi, eax
+.text:004011A9                 mov     edx, 3
+.text:004011AE
+.text:004011AE loc_4011AE:                             ; CODE XREF: BlockCipher+17Ej
+.text:004011AE                 lea     eax, [edx+164h]
+.text:004011B4                 push    eax
+.text:004011B5                 push    esi             ; + 7d2f9 (third result)
+.text:004011B6                 call    FieldAdd        ; result: 0007d39e
+.text:004011B6                                         ;
+.text:004011BB                 mov     ecx, [edi+edx*4] ; get plain[edx]
+.text:004011BE                 mov     esi, eax
+.text:004011C0                 push    esi
+.text:004011C1                 push    ecx
+.text:004011C2                 call    FieldAdd
+.text:004011C7                 add     esp, 10h
+.text:004011CA                 mov     [edi+edx*4], eax ;
+.text:004011CA                                         ;
+.text:004011CD                 dec     edx
+.text:004011CE                 jns     short loc_4011AE ;
+.text:004011CE                                         ;
+.text:004011D0                 jmp     next_8_         ; default
+.text:004011D0                                         ; jumptable 00401118 cases 1-9,11-42,44-107,109,112-127,129-183
+.text:004011D5 ; ---------------------------------------------------------------------------
+.text:004011D5
+.text:004011D5 block2:                                 ; CODE XREF: BlockCipher+C8j
+.text:004011D5                                         ; DATA XREF: .text:jump_offsetso
+.text:004011D5                 mov     edx, _45B82     ; jumptable 00401118 case 184
+.text:004011DB                 mov     eax, _2A198
+.text:004011E0                 mov     ecx, _68723
+.text:004011E6                 push    edx
+.text:004011E7                 mov     edx, _29C3B
+.text:004011ED                 push    eax
+.text:004011EE                 push    ecx
+.text:004011EF                 push    edx
+.text:004011F0                 call    FieldAdd
+.text:004011F5                 add     esp, 8
+.text:004011F8                 push    eax
+.text:004011F9                 call    FieldAdd
+.text:004011FE                 add     esp, 8
+.text:00401201                 push    eax
+.text:00401202                 call    FieldAdd        ; result -> 0002e102
+.text:00401207                 add     esp, 8
+.text:0040120A                 mov     ebx, eax        ; into ebx
+.text:0040120C                 xor     esi, esi
+.text:0040120E
+.text:0040120E loc_40120E:                             ; CODE XREF: BlockCipher+1E1j
+.text:0040120E                 lea     eax, [esi+0E2h]
+.text:00401214                 push    eax
+.text:00401215                 push    ebx
+.text:00401216                 call    FieldMultiply
+.text:0040121B                 mov     ecx, [edi+esi*4]
+.text:0040121E                 mov     ebx, eax
+.text:00401220                 push    ebx
+.text:00401221                 push    ecx
+.text:00401222                 call    FieldMultiply
+.text:00401227                 add     esp, 10h
+.text:0040122A                 mov     [edi+esi*4], eax
+.text:0040122D                 inc     esi
+.text:0040122E                 cmp     esi, 4
+.text:00401231                 jl      short loc_40120E
+.text:00401233                 jmp     next_8_         ; default
+.text:00401233                                         ; jumptable 00401118 cases 1-9,11-42,44-107,109,112-127,129-183
+.text:00401238 ; ---------------------------------------------------------------------------
+.text:00401238
+.text:00401238 block3:                                 ; CODE XREF: BlockCipher+C8j
+.text:00401238                                         ; DATA XREF: .text:jump_offsetso
+.text:00401238                 mov     edx, _45B82     ; jumptable 00401118 case 110
+.text:00401238                                         ; case 0x6E
+.text:0040123E                 mov     eax, _2A198
+.text:00401243                 mov     ecx, _68723
+.text:00401249                 push    edx
+.text:0040124A                 mov     edx, _29C3B
+.text:00401250                 push    eax
+.text:00401251                 push    ecx
+.text:00401252                 push    edx
+.text:00401253                 call    FieldAdd
+.text:00401258                 add     esp, 8
+.text:0040125B                 push    eax
+.text:0040125C                 call    FieldMultiply
+.text:00401261                 add     esp, 8
+.text:00401264                 push    eax
+.text:00401265                 call    FieldAdd        ; result -> 0000fbf2
+.text:0040126A                 add     esp, 8
+.text:0040126D                 mov     esi, eax
+.text:0040126F                 xor     edx, edx
+.text:00401271
+.text:00401271 loc_401271:                             ; CODE XREF: BlockCipher+244j
+.text:00401271                 lea     eax, [edx+97h]
+.text:00401277                 push    eax
+.text:00401278                 push    esi
+.text:00401279                 call    FieldAdd
+.text:0040127E                 mov     ecx, [edi+edx*4]
+.text:00401281                 mov     esi, eax
+.text:00401283                 push    esi
+.text:00401284                 push    ecx
+.text:00401285                 call    FieldAdd
+.text:0040128A                 add     esp, 10h
+.text:0040128D                 mov     [edi+edx*4], eax
+.text:00401290                 inc     edx
+.text:00401291                 cmp     edx, 4
+.text:00401294                 jl      short loc_401271
+.text:00401296                 jmp     short next_8_   ; default
+.text:00401296                                         ; jumptable 00401118 cases 1-9,11-42,44-107,109,112-127,129-183
+.text:00401298 ; ---------------------------------------------------------------------------
+.text:00401298
+.text:00401298 block4:                                 ; CODE XREF: BlockCipher+C8j
+.text:00401298                                         ; DATA XREF: .text:jump_offsetso
+.text:00401298                 mov     edx, _2A198     ; jumptable 00401118 case 111
+.text:0040129E                 mov     eax, _68723
+.text:004012A3                 mov     ecx, _45B82
+.text:004012A9                 push    edx
+.text:004012AA                 mov     edx, _29C3B
+.text:004012B0                 push    eax
+.text:004012B1                 push    ecx
+.text:004012B2                 push    edx
+.text:004012B3                 call    FieldAdd
+.text:004012B8                 add     esp, 8
+.text:004012BB                 push    eax
+.text:004012BC                 call    FieldMultiply
+.text:004012C1                 add     esp, 8
+.text:004012C4                 push    eax
+.text:004012C5                 call    FieldAdd        ; result -> 00070e8d
+.text:004012CA                 add     esp, 8
+.text:004012CD                 mov     edx, eax
+.text:004012CF                 xor     esi, esi
+.text:004012D1
+.text:004012D1 loc_4012D1:                             ; CODE XREF: BlockCipher+2B2j
+.text:004012D1                 lea     eax, [esi+41h]
+.text:004012D4                 push    eax
+.text:004012D5                 push    edx
+.text:004012D6                 call    FieldMultiply
+.text:004012DB                 mov     ecx, esi
+.text:004012DD                 mov     edx, eax
+.text:004012DF                 and     ecx, 80000003h
+.text:004012E5                 jns     short loc_4012EC
+.text:004012E7                 dec     ecx
+.text:004012E8                 or      ecx, 0FFFFFFFCh
+.text:004012EB                 inc     ecx
+.text:004012EC
+.text:004012EC loc_4012EC:                             ; CODE XREF: BlockCipher+295j
+.text:004012EC                 mov     eax, [edi+ecx*4]
+.text:004012EF                 lea     ebx, [edi+ecx*4]
+.text:004012F2                 push    edx
+.text:004012F3                 push    eax
+.text:004012F4                 call    FieldAdd
+.text:004012F9                 add     esp, 10h
+.text:004012FC                 inc     esi
+.text:004012FD                 cmp     esi, 8
+.text:00401300                 mov     [ebx], eax
+.text:00401302                 jl      short loc_4012D1
+.text:00401304
+.text:00401304 next_8_:                                ; CODE XREF: BlockCipher+BAj
+.text:00401304                                         ; BlockCipher+C8j ...
+.text:00401304                 inc     ebp             ; default
+.text:00401304                                         ; jumptable 00401118 cases 1-9,11-42,44-107,109,112-127,129-183
+.text:00401305                 cmp     ebp, 8
+.text:00401308                 jl      start_loop_8    ;
+.text:00401308                                         ;
+.text:0040130E                 pop     edi
+.text:0040130F                 pop     esi
+.text:00401310                 pop     ebp
+.text:00401311                 pop     ebx
+.text:00401312                 add     esp, 8
+.text:00401315                 retn
+.text:00401315 BlockCipher     endp

@@ -1,0 +1,91 @@
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Keygenning HappyTown's CrackME_0009
+
+tools: WinDBG,IDA,PEiD
+ date: May 26,2009
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+start
+-----
+PEiD Kanal says: BLOWFISH [sbox] :: 00059FEC :: 0045ADEC
+                  Referenced at 00458659
+
+This is referenced from IDA identified "_TfrmMain_txtSerialChange". XREF up!
+
+Crackme appears to do nothing on "Register" button, but rather checks serial when
+text changes in serial text field.
+
+recognising stuff
+-----------------
+
+identify blowfish: use kanal and work up - compare to Paul Kocher's source from Bruce
+                   Schneier's website:
+                   http://www.schneier.com/code/bfsh-koc.zip
+
+identify CRC-32: in sub_4581C4, notice XOR/SHIFT of value using lookup table at
+                 45DBE0... to determine which CRC is being used, try input to:
+                 http://www.lammertbies.nl/comm/info/crc-calculation.html
+
+identify MD5: didn't show up in PEiD! in sub_00457FAC just notice that same length
+              thing is returned everytime... try input to this website which lists many
+              hashes per one input:
+              http://hashkiller.com
+
+identify SHA1: PEiD misses this too! follow same steps for identifying MD5 to identify
+               SHA1 in sub_004561C0!
+
+algorithm
+---------
+
+see disassembly.txt for details... 
+
+                                                              +----------+
+                     dword                                    | BLOWFISH |
+             +-------+                                        | ENCRYPT  |
+       name->| CRC32 |---+    qword                           |          |
+    *string  +-------+   |      +---------------------------->|>block    |--> never used! 
+                         V      |                             |          |    we got decoyed!
+             +-------+  +-----+ |       +-----+  +------+     |          |
+ *productid->| CRC32 |->| XOR |-+------>| MD5 |->| SHA1 |---->|>key      |
+     string  +-------+  +-----+ |       +-----+  +------+     +----------+
+                     dword      | string     string      string
+                                |
+                                |
+                                |
+                +----------+    |
+                | BLOWFISH |    |
+                | DECRYPT  |    V
+          qword |          |   +---------+
+   serial------>|>block    |-->| COMPARE |-->"GOOD BOY!"
+                |          |   +---------+
+                |          |
+"kernel32.dll"->|>key      |
+                +----------+
+
+
+* assume all strings are made uppercase
+
+* where productid is the string value from your registry key:
+  HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\ProductId
+
+keygenning
+----------
+As you can see, only half of the algorithm is used. Inverting,
+for the serial:
+
+serial = BLOWFISH_ENCRYPT(CRC(name) ^ CRC(productid), key="kernel32.dll")
+
+The product keys are obviously specific to a certain computer so I can't list any examples
+here. See keygen.cpp for the implementation.
+
+conclusion
+----------
+Pretty cool! Delphi's a pain but IDA luckily identifies alot of the functions and makes the
+filler code easier to identify.
+
+"Hello" "Greets" whatever goes to all crackmes.de mods and members and my little E.L.!
+
+andrewl
+crackmes.de
+
+

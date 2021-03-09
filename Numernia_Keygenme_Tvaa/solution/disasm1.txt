@@ -1,0 +1,183 @@
+.text:004015B0 ; int __cdecl ReadSerial(HWND hDlg)
+.text:004015B0 ReadSerial      proc near               ; CODE XREF: DialogFunc+4Ap
+.text:004015B0
+.text:004015B0 _decoded_serial_dword1= dword ptr -25Ch
+.text:004015B0 _decoded_serial_dword2= dword ptr -258h
+.text:004015B0 _decoded_serial_dword3= dword ptr -254h
+.text:004015B0 _decoded_serial_dword4= dword ptr -250h
+.text:004015B0 init_3196E9D1   = dword ptr -24Ch
+.text:004015B0 init_A6838B29   = dword ptr -248h
+.text:004015B0 init_223E7B78   = dword ptr -244h
+.text:004015B0 init_10B36420   = dword ptr -240h
+.text:004015B0 decoded_serial_dword1= dword ptr -23Ch
+.text:004015B0 decoded_serial_dword2= dword ptr -238h
+.text:004015B0 decoded_serial_dword3= dword ptr -234h
+.text:004015B0 decoded_serial_dword4= dword ptr -230h
+.text:004015B0 name            = byte ptr -208h
+.text:004015B0 serial          = byte ptr -104h
+.text:004015B0 hDlg            = dword ptr  4
+.text:004015B0
+.text:004015B0                 sub     esp, 25Ch
+.text:004015B6                 push    ebx
+.text:004015B7                 push    esi
+.text:004015B8                 push    edi
+.text:004015B9                 mov     ecx, 0Ch
+.text:004015BE                 xor     eax, eax
+.text:004015C0                 lea     edi, [esp+268h+decoded_serial_dword1+1]
+.text:004015C4                 mov     byte ptr [esp+268h+decoded_serial_dword1], 0
+.text:004015C9                 mov     esi, [esp+268h+hDlg]
+.text:004015D0                 rep stosd
+.text:004015D2                 stosb
+.text:004015D3                 mov     edi, ds:GetDlgItemTextA
+.text:004015D9                 lea     eax, [esp+268h+name]
+.text:004015DD                 push    104h            ; cchMax
+.text:004015E2                 push    eax             ; lpString
+.text:004015E3                 push    3EAh            ; nIDDlgItem
+.text:004015E8                 push    esi             ; hDlg
+.text:004015E9                 mov     [esp+278h+init_3196E9D1], 3196E9D1h
+.text:004015F1                 mov     [esp+278h+init_A6838B29], 0A6838B29h
+.text:004015F9                 mov     [esp+278h+init_223E7B78], 223E7B78h
+.text:00401601                 mov     [esp+278h+init_10B36420], 10B36420h
+.text:00401609                 call    edi ; GetDlgItemTextA ;
+.text:00401609                                         ;
+.text:0040160B                 lea     ecx, [esp+268h+serial]
+.text:00401612                 push    104h            ; cchMax
+.text:00401617                 push    ecx             ; lpString
+.text:00401618                 push    3E9h            ; nIDDlgItem
+.text:0040161D                 push    esi             ; hDlg
+.text:0040161E                 call    edi ; GetDlgItemTextA ;
+.text:0040161E                                         ;
+.text:00401620                 mov     ebx, eax        ; len(serial)
+.text:00401622                 xor     esi, esi
+.text:00401624                 test    ebx, ebx
+.text:00401626                 jle     short loc_40165F ;
+.text:00401626                                         ;
+.text:00401626                                         ;
+.text:00401626                                         ;
+.text:00401628                 lea     edi, [esp+268h+decoded_serial_dword1] ; decode serial into 4 dwords
+.text:0040162C
+.text:0040162C loc_40162C:                             ; CODE XREF: ReadSerial+ADj
+.text:0040162C                 mov     cl, [esp+esi+268h+serial]
+.text:00401633                 lea     eax, [esp+esi+268h+serial]
+.text:0040163A                 cmp     cl, 26h         ; '&'
+.text:0040163D                 jnz     short not_ampt  ;
+.text:0040163D                                         ;
+.text:0040163F                 mov     byte ptr [edi], 0
+.text:00401642                 inc     edi
+.text:00401643                 inc     esi
+.text:00401644                 jmp     short next      ; esi is counter
+.text:00401646 ; ---------------------------------------------------------------------------
+.text:00401646
+.text:00401646 not_ampt:                               ; CODE XREF: ReadSerial+8Dj
+.text:00401646                 push    eax
+.text:00401647                 call    Base60DecodeFirstFourChars
+.text:0040164C                 push    eax
+.text:0040164D                 call    Powmod_Then_Encode_Factors
+.text:00401652                 add     esp, 8
+.text:00401655                 mov     [edi], al
+.text:00401657                 inc     edi
+.text:00401658                 add     esi, 4
+.text:0040165B
+.text:0040165B next:                                   ; CODE XREF: ReadSerial+94j
+.text:0040165B                 cmp     esi, ebx        ; esi is counter
+.text:0040165D                 jl      short loc_40162C ;
+.text:0040165D                                         ;
+.text:0040165D                                         ;
+.text:0040165D                                         ;
+.text:0040165D                                         ;
+.text:0040165D                                         ;
+.text:0040165D                                         ;
+.text:0040165D                                         ;
+.text:0040165D                                         ;
+.text:0040165F
+.text:0040165F loc_40165F:                             ; CODE XREF: ReadSerial+76j
+.text:0040165F                 mov     edx, [esp+268h+decoded_serial_dword1]
+.text:00401663                 mov     eax, [esp+268h+decoded_serial_dword2]
+.text:00401667                 mov     ecx, [esp+268h+decoded_serial_dword3]
+.text:0040166B                 mov     [esp+268h+_decoded_serial_dword1], edx
+.text:0040166F                 mov     edx, [esp+268h+decoded_serial_dword4]
+.text:00401673                 mov     [esp+268h+_decoded_serial_dword2], eax
+.text:00401677                 mov     [esp+268h+_decoded_serial_dword3], ecx
+.text:0040167B                 mov     [esp+268h+_decoded_serial_dword4], edx
+.text:0040167F                 xor     eax, eax
+.text:00401681
+.text:00401681 loc_401681:                             ; CODE XREF: ReadSerial+E5j
+.text:00401681                 mov     esi, [esp+eax+268h+init_3196E9D1]
+.text:00401685                 add     eax, 4
+.text:00401688                 xor     esi, 16D578AEh
+.text:0040168E                 cmp     eax, 10h
+.text:00401691                 mov     [esp+eax+268h+_decoded_serial_dword4], esi ; this is the area AFTER the decoded serial copy
+.text:00401695                 jl      short loc_401681 ; always writes {2743917f b056f387 34eb03d6 06661c8e}
+.text:00401695                                         ;
+.text:00401697                 lea     eax, [esp+268h+init_3196E9D1] ; <--- key
+.text:0040169B                 lea     ecx, [esp+268h+_decoded_serial_dword1]
+.text:0040169F                 push    eax
+.text:004016A0                 push    ecx
+.text:004016A1                 call    BlockCipher     ;
+.text:004016A1                                         ;
+.text:004016A6                 lea     edi, [esp+270h+name]
+.text:004016AA                 or      ecx, 0FFFFFFFFh
+.text:004016AD                 xor     eax, eax
+.text:004016AF                 lea     edx, [esp+270h+name]
+.text:004016B3                 repne scasb
+.text:004016B5                 not     ecx
+.text:004016B7                 dec     ecx             ; just strlen
+.text:004016B8                 push    ecx             ; len
+.text:004016B9                 push    edx             ; name
+.text:004016BA                 call    CRC32           ; CRC32("andrewl") -> 45b18416
+.text:004016BA                                         ;
+.text:004016BF                 mov     esi, eax
+.text:004016C1                 mov     eax, [esp+278h+_decoded_serial_dword1]
+.text:004016C5                 push    7FFFFh          ; prime also :)
+.text:004016CA                 push    2665h           ; exponent prime
+.text:004016CF                 push    eax             ; base is decoded dword
+.text:004016D0                 and     esi, 7FFFFh
+.text:004016D6                 call    POWMOD
+.text:004016DB                 add     esp, 1Ch        ;
+.text:004016DB                                         ;
+.text:004016DE                 cmp     eax, esi
+.text:004016E0                 jnz     short fail      ; mixed dword1 must equal CRC
+.text:004016E0                                         ;
+.text:004016E2                 mov     ecx, [esp+268h+_decoded_serial_dword2]
+.text:004016E6                 xor     edx, edx
+.text:004016E8                 mov     eax, ecx
+.text:004016EA                 shl     eax, 5          ; dw2 * 32
+.text:004016ED                 add     eax, ecx        ; dw2 * 33
+.text:004016EF                 mov     ecx, 7FFBBh     ; prime
+.text:004016F4                 lea     eax, [eax+eax*2] ; dw2 * 99
+.text:004016F7                 div     ecx             ; (dw2 * 99) % 524219
+.text:004016F9                 mov     ecx, 9
+.text:004016FE                 mov     eax, edx
+.text:00401700                 xor     edx, edx
+.text:00401702                 div     ecx             ; remainder must be divisible by 9
+.text:00401704                 test    edx, edx
+.text:00401706                 jnz     short fail      ;
+.text:00401706                                         ;
+.text:00401708                 mov     edx, [esp+268h+_decoded_serial_dword4]
+.text:0040170C                 mov     edi, [esp+268h+_decoded_serial_dword3]
+.text:00401710                 mov     eax, dword ptr [esp+268h+name]
+.text:00401714                 xor     edx, edi        ; last two dwords must xor to give
+.text:00401714                                         ; the *(dword *)name
+.text:00401716                 and     eax, 7FFFFh
+.text:0040171B                 cmp     edx, eax
+.text:0040171D                 jnz     short fail      ;
+.text:0040171D                                         ;
+.text:0040171F
+.text:0040171F succeed:
+.text:0040171F                 pop     edi
+.text:00401720                 pop     esi
+.text:00401721                 mov     eax, 1
+.text:00401726                 pop     ebx
+.text:00401727                 add     esp, 25Ch
+.text:0040172D                 retn
+.text:0040172E ; ---------------------------------------------------------------------------
+.text:0040172E
+.text:0040172E fail:                                   ; CODE XREF: ReadSerial+130j
+.text:0040172E                                         ; ReadSerial+156j ...
+.text:0040172E                 pop     edi
+.text:0040172F                 pop     esi
+.text:00401730                 xor     eax, eax
+.text:00401732                 pop     ebx
+.text:00401733                 add     esp, 25Ch
+.text:00401739                 retn
+.text:00401739 ReadSerial      endp

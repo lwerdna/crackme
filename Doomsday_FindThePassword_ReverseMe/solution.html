@@ -1,0 +1,566 @@
+<html>
+
+<head>
+
+<style type="text/css">
+pre.code {background-color: #C0C0C0}
+pre.fact {background-color: #FFCCFF}
+pre.dos {color: white; background-color: #000000}
+pre.equations {background-color: skyblue}
+</style>
+
+</head>
+
+</body>
+
+<h1>Crackme Solution</h1>
+
+<pre>
+Author: andrewl
+  Date: April 03, 2009
+Target: DoomsDay's "ReverseMe"
+ Tools: IDA, WinDBG, calc, Wikipedia
+</pre>
+
+<h2>Introduction</h2>
+Dust off your digital logic books (or warm up your connection to Wikipedia), this crackme performs some math
+non-trivially using bitwise operations.
+
+<h2>High level analysis</h2>
+
+<p>
+The serial consists of 12 characters, each quartet representing a 32-bit number
+directly from its ascii values. Example: "AAAABBBBCCCC" results in {0x41414141, 0x42424242, 0x43434343}.
+I'll refer to these as {serial_dword0, serial_dword1, serial_dword2} or {dw0, dw1, dw2}
+or {a, b, c}.
+</p>
+
+<p>
+Here is the top level view of crackme execution:
+</p>
+
+<pre class=code>
+// (omitted) create thread to show rotating slash
+
+.text:004012F4     push serial_dword2
+.text:004012FA     push serial_dword0
+.text:00401300     call mixA
+.text:00401305     mov thread_param, 0
+.text:0040130F     cmp eax, 0E7DADED6h
+.text:00401314     jnz fail
+
+// (omitted) create thread to show rotating slash
+
+.text:0040135D
+.text:00401362     push serial_dword1
+.text:00401368     push serial_dword0
+.text:0040136E     call mixB
+.text:00401373     mov thread_param, 0
+.text:0040137D     cmp ebx, 169322Fh
+.text:00401383     jnz fail
+.text:00401389     cmp regX, 8663B090h
+.text:0040138F     jnz fail
+
+// (omitted) create thread to show rotating slash
+
+.text:004013DD     push serial_dword1
+.text:004013E3     push serial_dword2
+.text:004013E9     call mixB
+.text:004013EE     mov thread_param, 0
+.text:004013F8     cmp ebx, 141EF87h
+.text:004013FE     jnz short fail
+.text:00401400     cmp regX, 57407024h
+.text:00401406     jnz short fail
+
+// (omitted) sleep a little
+
+.text:00401419     push 20h
+.text:0040141B     push offset strPhase
+.text:00401420     call WriteConsole
+.text:00401425     push 3Ch
+.text:00401427     push offset aCongratulation         ; "\n Congratulations! You found it!\n\n Pres"...
+.text:0040142C     call WriteConsole
+</pre>
+
+<p>
+So there are two calls, mixA() and mixB(), requiring:
+</p>
+
+<pre class=equations>
+mixA(dw0, dw2) == 0xE7DADED6
+mixB(dw0, dw1) == 0x0169322F`0x8663B090
+mixB(dw1, dw2) == 0x0141EF87`0x57407024
+</pre>
+
+<h2>Logic tricks</h2>
+
+<p>
+Before analyzing the mix functions, we must build an understanding of a few non-obvious ways that logic
+operations can be used.
+</p>
+
+<h3>Assignment</h3>
+
+<pre class=code>
+or  regA, regB            ; equivalent to regA = regB
+and regA, regB
+</pre>
+
+<p>
+The order of these operations is unimportant.
+</p>
+
+<h3>Xor</h3>
+
+<p>
+Using the assignment trick, a temporary register (here, regX) is used to hold ~(A &amp; B). Then
+it can be and'd with A | B. Read in English, the resulting A is "true when A or B is true, but
+not with both A and B are true". This is exclusive-or.
+</p>
+
+<pre class=code>
+or  regX, regA
+and regX, regA            ; regX = regA
+and regX, regB
+not regX                  ; regX = nand(regA, regB)
+or  regA, regB            ; regA = or(regA, regB)
+and regA, regX            ; regA = and(or(regA,regB), nand(regA,regB))
+                          ;      = xor(regA,regB)
+</pre>
+
+<p>
+There may be small variations: different ordering of instructions that are not dependent.
+</p>
+
+<h3>Subtraction from 2^32</h3>
+
+<pre class=code>
+not eax
+</pre>
+
+Note that eax + ~eax is 0xFFFFFFFF. Thus complementing the register alone is equivalent
+to subtracting from 2^32-1. Incrementing results in a difference from 2^32.
+
+<pre class=code>
+not edi
+inc edi
+</pre>
+
+This is called <b>"two's complement"</b> convention (use Google!). Notice that addition with a value that has been transformed
+this way effectively subtracts the value, since addition with (2^32 - value) will
+"wrap around" the 2^32 boundary.
+
+<h3>Adder</h3>
+
+<p>
+Note:
+</p>
+
+<pre class=equations>
+sum(A,B) = carry(A,B) + sum_no_carry(A,B)
+</pre>
+
+For example, let A=0101 and B=0111
+
+We know that the sum is 1100 by our pencil-and-paper methods, let us try the above equation:
+</p>
+
+<pre>
+   A|      B| sum_no_carry| positions that produce carry|  carry
+----+-------+-------------+-----------------------------+-------
+0101|   0111|         0010|                         0101|   1010
+</pre>
+
+<p>
+Verified, 0010 + 1010 == 1100. We now desire a way to do this using logic operations. Note:
+</p>
+
+<pre class=fact>
+sum_no_carry == xor(A, B)
+positions that produce carry == and(A, B)
+carry = and(A, B)&lt;&lt;1
+</pre>
+
+<p>
+This is called a <b>half adder</b> in digital electronics (use Google!). The "half" is because it has no carry input.
+However, we can recursively apply the half adder until the carry is 0, resulting in the true sum:
+</p>
+
+<pre>
+iteration|    A|    B| sum_no_carry| carry
+---------+-----+-----+-------------+------
+        0| 0101| 0111|         0010|  1010
+        1| 0010| 1010|         1000|  0100
+        2| 1000| 0100|         1100|  0000
+        3| 1100| 0000 ..DONE!
+</pre>
+
+<p>
+At every iteration, the formula held true, that sum_no_carry + carry = sum(A, B) == 1100. The exit condition is when the
+carry is 0.
+</p>
+
+<p>
+Now, using the digital versions of assignment and xor, we are ready to see the crackme's adder circuit.
+In the below example, the calculation is A + B where (A, B) = (ebx, ecx).
+</p>
+
+<pre class=code>
+recur:
+and eax, ebx    ;
+or  eax, ebx    ; make copy of A
+
+or  edx, ebx
+and edx, ebx
+and edx, ecx
+or  ebx, ecx
+not edx
+and ebx, edx    ; A = sum_no_carry = xor(A, B)
+
+and ecx, eax
+shl ecx, 1      ; B = carry
+
+jnz recur
+</pre>
+
+<p>
+When identifying this pattern in the code, the shl ecx, 1 can be replaced with add ecx, ecx. The variations already noted
+on assignment and xor still apply.
+</p>
+
+<h3>Subtraction, decrement</h3>
+
+<p>
+This is just a combination of the 2's complement transformation and the adder.
+</p>
+
+<h2>Analyzing MixA</h2>
+
+<p>
+We know enough now to comment the code effectively:
+</p>
+
+<pre class=code>
+.text:00401000     push ebp
+.text:00401001     mov ebp, esp
+.text:00401003     mov esi, [ebp+serial_dword0]        ; esi = dw0
+.text:00401006     mov ebx, [ebp+serial_dword1]        ; ebx = dw1
+.text:00401006                                         ;
+.text:00401009     dec esi
+.text:0040100A     not esi                             ; esi = 2^N - dw0
+.text:0040100A                                         ;
+.text:0040100C     or  ecx, esi
+.text:0040100E     and ecx, esi                        ; ecx = 2^N - dw0
+.text:0040100E                                         ;
+.text:00401010     and edi, ebx
+.text:00401012     or  edi, ebx                        ; edi = dw1
+.text:00401012                                         ;
+.text:00401014     dec ecx
+.text:00401015     not ecx                             ; ecx = dw0
+.text:00401015                                         ;
+.text:00401017     and edi, esi
+
+.text:00401019 more:
+.text:00401019     and eax, ebx
+.text:0040101B     or  eax, ebx
+.text:0040101D     or  edx, ebx
+.text:0040101F     and edx, ebx
+.text:00401021     and edx, ecx
+.text:00401023     or  ebx, ecx
+.text:00401025     not edx
+.text:00401027     and ebx, edx
+.text:00401029     and ecx, eax
+.text:0040102B     shl ecx, 1
+.text:0040102D     jnz short more                      ; ebx = eax + ebx
+
+.text:0040102F     add edi, edi
+.text:00401031     and edi, eax
+.text:00401033     or  edi, eax
+.text:00401035     and edi, eax
+.text:00401037     not edi
+.text:00401039     or  eax, eax
+.text:0040103B     and eax, edi                        ; eax = xor(eax, eax) = 0
+
+.text:0040103D     or  ecx, ebx
+.text:0040103F     and ecx, ebx                        ; ecx = ebx (the sum)
+
+.text:00401041     and esi, eax
+.text:00401043     or  esi, eax                        ;
+.text:00401045     and esi, ebx                        ; esi = eax = 0
+
+.text:00401047 more_:
+.text:00401047     and edx, eax
+.text:00401049     or  edx, eax
+.text:0040104B     or  edi, eax
+.text:0040104D     and edi, eax
+.text:0040104F     and edi, ecx
+.text:00401051     or  eax, ecx
+.text:00401053     not edi
+.text:00401055     and eax, edi
+.text:00401057     and ecx, edx
+.text:00401059     or  esi, ecx
+.text:0040105B     add ecx, ecx
+.text:0040105D     jnz short more_                     ; eax = eax + ecx = 0 + sum = sum
+
+.text:0040105F     shl esi, 1
+.text:00401061     pop ebp
+.text:00401062     retn 8
+</pre>
+
+<p>
+Some not-completely-minimized pseudocode for this function is:
+</p>
+
+<pre class=code>
+function(A, B)
+{
+   EBX = A + B
+   ECX = EBX
+   EAX = 0
+   EAX = EAX + ECX
+}
+</pre>
+
+<p>
+The function returns the sum of the two arguments. I'm not sure why there's an extra addition
+of zero at the end.
+</p>
+
+<h2>Analyzing MixB</h2>
+
+<p>
+This one is longer and initially seems more confusing, but it uses not much more than everything seen in MixA.
+</p>
+
+<pre class=code>
+.text:00401065     push ebp
+.text:00401066     mov ebp, esp
+.text:00401068     mov saved_ebp, ebp
+.text:0040106E     mov esi, [ebp+arg_0]                ; esi = A
+.text:00401071     mov edx, [ebp+arg_4]                ; edx = B
+.text:00401074     and esp, esi
+.text:00401076     or  esp, esi                        ;
+.text:00401076                                         ;
+.text:00401078     and edi, edx
+.text:0040107A     or  edi, edx
+.text:0040107C     not edi
+.text:0040107E     inc edi
+.text:0040107F     and esp, edx                        ; edi = -B
+.text:00401081
+.text:00401081 _more:
+.text:00401081     or  ebx, esi
+.text:00401083     and ebx, esi
+.text:00401085     and ebp, esi
+.text:00401087     or  ebp, esi
+.text:00401089     and esi, edi
+.text:0040108B     or  ebp, edi
+.text:0040108D     not esi
+.text:0040108F     and esi, ebp
+.text:00401091     and edi, ebx
+.text:00401093     shl edi, 1
+.text:00401095     jnz short _more                     ; esi = esi + edi = A - B
+.text:00401095                                         ;
+.text:00401097     add esp, esp
+.text:00401099     and ecx, esi
+.text:0040109B     or  ecx, esi                        ; ecx = esi = A - B
+.text:0040109D     and ebx, edx
+.text:0040109F     or  ebx, edx
+.text:004010A1     and ebx, edx
+.text:004010A3     not ebx
+.text:004010A5     or  edx, edx
+.text:004010A7     and edx, ebx                        ; edx = edx ^ edx = 0
+.text:004010A9     and ebx, edx
+.text:004010AB     or  ebx, edx                        ; ebx = 0
+.text:004010AD
+.text:004010AD add_another_difference:
+.text:004010AD     or  eax, ecx
+.text:004010AF     and eax, ecx                        ; eax = A - B
+.text:004010B1     and esp, edx
+.text:004010B3     or  esp, edx
+.text:004010B5     and esp, ecx                        ; esp = edx &amp; ecx
+.text:004010B7
+.text:004010B7 more:
+.text:004010B7     and edi, edx
+.text:004010B9     or  edi, edx
+.text:004010BB     or  ebp, edx
+.text:004010BD     and ebp, edx
+.text:004010BF     and ebp, eax
+.text:004010C1     or  edx, eax
+.text:004010C3     not ebp
+.text:004010C5     and edx, ebp
+.text:004010C7     and eax, edi
+.text:004010C9     or  esp, eax                        ; !!! esp tracks if carry spills over b31
+.text:004010CB     add eax, eax
+.text:004010CD     jnz short more                      ; edx = edx + eax
+.text:004010CD                                         ;
+.text:004010CF     shl esp, 1                          ; !!! if overflow, add 1 to ebx
+.text:004010D1     jnb short test_continue
+.text:004010D3
+.text:004010D3 increment_ebx:
+.text:004010D3     or  esp, 0FFFFFFFFh
+.text:004010D6     and eax, esp
+.text:004010D8     or  eax, esp
+.text:004010DA     not eax
+.text:004010DC     inc eax                             ; eax = 1
+.text:004010DD
+.text:004010DD more_:
+.text:004010DD     or  edi, ebx
+.text:004010DF     and edi, ebx
+.text:004010E1     and ebp, ebx
+.text:004010E3     or  ebp, ebx
+.text:004010E5     and ebx, eax
+.text:004010E7     or  ebp, eax
+.text:004010E9     not ebx
+.text:004010EB     and ebx, ebp
+.text:004010ED     and eax, edi
+.text:004010EF     add eax, eax
+.text:004010F1     jnz short more_                     ; ebx = ebx + eax = ebx+1
+.text:004010F3
+.text:004010F3 test_continue:
+.text:004010F3     or  eax, 0FFFFFFFFh
+.text:004010F6     or  esp, eax
+.text:004010F8     and esp, eax                        ; esp = -1
+.text:004010FA
+.text:004010FA more__:
+.text:004010FA     and ebp, esi
+.text:004010FC     or  ebp, esi
+.text:004010FE     or  edi, esi
+.text:00401100     and edi, esi
+.text:00401102     and edi, esp
+.text:00401104     or  esi, esp
+.text:00401106     not edi
+.text:00401108     and esi, edi
+.text:0040110A     and esp, ebp
+.text:0040110C     add esp, esp
+.text:0040110E     jnz short more__                    ; esi = esi + esp = esi - 1
+.text:0040110E                                         ;
+.text:00401110     or  eax, esi
+.text:00401112     and eax, esi
+.text:00401114     jnz short add_another_difference    ; keep going?
+.text:00401114                                         ;
+.text:00401116     or  edi, ecx
+.text:00401118     and edi, ecx
+.text:0040111A     and edi, ecx
+.text:0040111C     or  ecx, ecx
+.text:0040111E     not edi
+.text:00401120     and ecx, edi                        ; ecx = ecx ^ ecx = 0
+.text:00401120                                         ;
+.text:00401122     and eax, edi
+.text:00401124     or  eax, edi
+.text:00401126     and eax, edx
+.text:00401128     not eax
+.text:0040112A     or  edi, edx
+.text:0040112C     and edi, eax                        ; edi = edi ^ edx
+.text:0040112C                                         ;
+.text:0040112E     mov ebp, saved_ebp
+.text:00401134     mov esp, ebp
+.text:00401136     pop ebp
+.text:00401137     retn 8
+</pre>
+
+<p>
+Some not-quite-minimized pseudocode of this function is:
+</p>
+
+<pre class=code>
+function(A, B)
+{
+    ESI = A - B
+
+    ECX = A - B
+    EDX = 0
+
+    do
+    {
+        EAX = ECX = A - B
+        EDX = EDX + EAX
+
+        if(overflow)
+           EBX = EBX + 1
+
+        ESI = ESI - 1
+    }
+    while(ESI)
+}
+</pre>
+
+<p>
+It adds (A - B) exactly (A - B) times, so this computes (A - B)^2. The result
+is stored in the 64-bit register pair EBX:EDX.
+<p>
+
+<h2>Finding the key</h2>
+
+<p>
+We know now that mixA implements a simple sum, and mixB implements a square of the difference of the two
+arguments. The equations are now:
+</p>
+
+<pre class=equations>
+a + c = 0xE7DADED6
+(a - b)^2 = 0x169322F'8663B090
+(c - b)^2 = 0x141EF87'57407024
+</pre>
+
+<p>
+Take the square root of the second two equations gives us a new set to satisfy:
+</p>
+
+<pre class=equations>
+a + c = 0xE7DADED6
+a - b = 0x1301520C
+c - b = 0x11F14BFA
+</pre>
+
+<p>
+Three equations and three unknowns; we easily solve:
+</p>
+
+<pre class=equations>
+a = 0x74757274
+b = 0x61742068
+c = 0x73656C62
+</pre>
+
+<p>
+Using an ascii table and noting little-endianness, we must enter:
+</p>
+
+<pre class=equations>
+0x74 == 't'
+0x72 == 'r'
+0x75 == 'u'
+0x74 == 't'
+0x68 == 'h'
+0x20 == ' '
+0x74 == 't'
+0x61 == 'a'
+0x62 == 'b'
+0x6C == 'l'
+0x65 == 'e'
+0x73 == 's'
+</pre>
+
+"truth tables" :)
+
+<h2>Conclusion</h2>
+
+<p>
+That was pretty neat, though truth tables alone couldn't help anyone here :)
+Imagine your CPU going through processes like this everytime you casually invoke the
+add or mul instruction!
+</p>
+
+<p>
+Thank you DoomsDay for a fun original crackme! The code is very small and efficient.
+</p>
+
+<p>
+Hello to E.L. and all crackmes.de ++Cyclops ++Numernia!!
+</p>
+
+</html>
+
+</body>
+
+</html>

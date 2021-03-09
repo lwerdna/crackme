@@ -1,0 +1,78 @@
+Keygenning "Calculator by Ilay"
+crackme.exe MD5:0c482a3d17ef78464dcdf5853c7830d1
+--------------------------------------------------------------------------------
+to get to check, enter text, hit "Check RN", then hit "Sin"
+crackme uses old OpenSSL:
+  .rdata:004492FC aRsaPartOfOpens db 'RSA part of OpenSSL 0.9.8e 23 Feb 2007',0
+thus visit:
+  http://openssl.sourcearchive.com/documentation/0.9.8e/files.html
+  http://openssl.sourcearchive.com/documentation/0.9.8e/rsa__eay_8c-source.html
+  http://openssl.sourcearchive.com/documentation/0.9.8e/crypto_2rsa_2rsa_8h-so \
+  urce.html
+and identify and set:
+  bp 00411100 ".echo rsa_pub_enc"
+  bp 00411D00 ".echo rsa_pub_dec"
+  bp 004115C0 ".echo rsa_priv_enc"
+  bp 00411970 ".echo rsa_priv_dec"
+  bp 00411FC0 ".echo rsa_mod_exp"
+  bp 00419F30 ".echo bn_mod_exp"
+  bp 00412340 ".echo rsa_method_init"
+  bp 00412350 ".echo rsa_method_finish"
+--------------------------------------------------------------------------------
+input text must be 64 characters long
+input[63] is assigned '='
+input is then base64 decoded and must result in 32 bytes (rsa message size)
+those 32 bytes are decrypted using RSA parameters given above
+bytes [1,10] of resulting ciphertext should be "VitaGuard"
+keygen strategy is:
+  - gen 32 byte random buffer
+  - copy string "VitaGuard" to bytes [1,10]
+  - RSA encrypt the 32-byte buffer
+  - base64 encode
+--------------------------------------------------------------------------------
+# Python 2.7 keygen source
+# example keys:
+# pO0XTGQKFnM7IEeCz5ZSgvKwtSBkl1fzxXJLyXE0oho=
+# LySFZZ50im27cdupp7VxhDg9xzbm2WBYDb/fHkqN3UA=
+# 0qo+MRPoSzTLD2KHjOPzNCMkfGZg4usM+jgAzdAogw0=
+# 1Q2vCiPLQ6sBasytf5+pQ76lidJCTp8RARqiROnktn0=
+from binascii import b2a_hex, a2b_hex, b2a_base64
+from random import randint
+from array import array
+d = 3
+e = 0x930AC2AE7FB620E8978771D67C301EFDFBDD72DBCB0F9204EE7FA8EA1A7DCC8B
+n = 0xDC902405BF91315CE34B2AC1BA482E7ED62166C9F9203FCB45DD8B8034237793
+p = 0xDE11B4F73BB568811777B772E327CA89
+q = 0xFE4385890CD37C42C8A656AE293EFA3B
+m = array('B', [randint(0,0x98)])
+m += array('B', 'VitaGuard\x00')
+for i in range(21):
+    m.append(randint(0,255))
+print "m=", b2a_hex(m)
+m = long(b2a_hex(m), 16)
+c = pow(m,e,n)
+print "c=", '%x' % c
+c_hex_str = '%x' % c
+if(len(c_hex_str) % 2):
+    c_hex_str = 0 + c_hex_str
+print "key=", b2a_base64(a2b_hex(c_hex_str))
+--------------------------------------------------------------------------------
+hello to:
+  /who #crackmesde
+  05:37 -!- #crackmesd cacao_    H   0  ~cacao@cev75-4-82-247-118-210.fbx.proxad
+  05:37 -!- #crackmesd NWMonster H   4  ~NWMonster@p14014-ipngn100203sizuokaden.
+  05:37 -!- #crackmesd manizzle  H   3  ~manizzle@pcp046485pcs.pcv.reshall.calpo
+  05:37 -!- #crackmesd numerni^  H   4  chrono@80.67.5.13 [numm]
+  05:37 -!- #crackmesd simonzack H   6  simonzack@88.80.13.92 [simonzack]
+  05:37 -!- #crackmesd kilobyte_ H   6  kilobyte@bbis.us [= John fouris]
+  05:37 -!- #crackmesd ex0a      H   6  znc@AudioSlut.net [ex0a]
+  05:37 -!- #crackmesd tS^       H   6  tS@no-fucking.info.tm [tS]
+  05:37 -!- #crackmesd Ilay      H   2  ~ilya@92-243-122-058.nts.su [Ilya]
+  05:37 -!- #crackmesd faffi     H+  4  ~pwn@jmpesp.net [Unknown]
+  05:37 -!- #crackmesd Dcoder_   H+  4  ~dcoder@deadbsd.org [dcoder]
+  05:37 -!- #crackmesd anicona   H   4  ~anicona@pc-freaks.net [anicona]
+  05:37 -!- #crackmesd cyclo     H   3  ~cyclops@pc-freaks.net [Cyclops]
+--------------------------------------------------------------------------------
+andrewl
+oct07_2010
+http://crackmes.de

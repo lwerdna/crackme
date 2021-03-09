@@ -1,0 +1,482 @@
+.text:00404787 loc_404787:                                           ; CODE XREF: main+1A2j
+.text:00404787         push    offset aPleaseEnterSer                ; "Please enter serial:"
+.text:0040478C         call    cout_something
+.text:00404791         add     esp, 4                                ;
+.text:00404791                                                       ;
+.text:00404794         lea     eax, [ebp-0C0h]
+.text:0040479A         push    eax
+.text:0040479B         push    offset dword_47D144
+.text:004047A0         call    cin_something                         ; serial -> 0047E040
+.text:004047A5         add     esp, 8                                ;
+.text:004047A5                                                       ;
+.text:004047A8         push    12h
+.text:004047AA         xor     ecx, ecx
+.text:004047AC         lea     esi, [ebp-0A4h]                       ; <-- receives serial[0..12h)
+.text:004047B2         lea     edx, [ebp-0C0h]
+.text:004047B8         call    substring_something                   ;
+.text:004047B8                                                       ;
+.text:004047BD         push    12h
+.text:004047BF         mov     ecx, 12h
+.text:004047C4         lea     esi, [ebp-6Ch]                        ; <-- receives serial[12h..24h)
+.text:004047C7         lea     edx, [ebp-0C0h]
+.text:004047CD         mov     byte ptr [ebp-4], 8
+.text:004047D1         call    substring_something                   ;
+.text:004047D1                                                       ;
+.text:004047D6         lea     ecx, [ebp-0A4h]
+.text:004047DC         push    ecx
+.text:004047DD         push    offset dword_47D0B8
+.text:004047E2         mov     byte ptr [ebp-4], 9
+.text:004047E6         call    ostream_printstring
+.text:004047EB         add     esp, 8
+.text:004047EE         mov     esi, eax
+.text:004047F0         push    0Ah
+.text:004047F2         mov     ecx, esi
+.text:004047F4         call    ostream_printbyte
+.text:004047F9         mov     ecx, esi
+.text:004047FB         call    ostream_cleanup                       ; print first half
+.text:004047FB                                                       ;
+.text:00404800         lea     edx, [ebp-6Ch]
+.text:00404803         push    edx
+.text:00404804         push    esi
+.text:00404805         call    ostream_printstring
+.text:0040480A         add     esp, 8
+.text:0040480D         mov     esi, eax
+.text:0040480F         push    0Ah
+.text:00404811         mov     ecx, esi
+.text:00404813         call    ostream_printbyte
+.text:00404818         mov     ecx, esi
+.text:0040481A         call    ostream_cleanup                       ; print second half
+.text:0040481A                                                       ;
+.text:0040481F         sub     esp, 1Ch
+.text:00404822         mov     ecx, esp
+.text:00404824         xor     eax, eax
+.text:00404826         mov     [ebp-190h], esp
+.text:0040482C         push    0FFFFFFFFh
+.text:0040482E         mov     [ecx+14h], eax
+.text:00404831         mov     dword ptr [ecx+18h], 0Fh
+.text:00404838         push    eax
+.text:00404839         mov     [ecx+4], al
+.text:0040483C         lea     eax, [ebp-0A4h]
+.text:00404842         push    eax
+.text:00404843         call    string_copy                           ; argument is probably copied?
+.text:00404848         lea     ecx, [ebp-1F4h]
+.text:0040484E         push    ecx
+.text:0040484F         call    DecodeStringToCryptoPPInteger
+.text:00404854         add     esp, 4                                ; returns: serialA
+.text:00404854                                                       ;
+.text:00404857         mov     ecx, esp
+.text:00404859         mov     byte ptr [ebp-4], 0Ah
+.text:0040485D         mov     [ebp-190h], esp
+.text:00404863         xor     eax, eax
+.text:00404865         push    0FFFFFFFFh
+.text:00404867         push    eax
+.text:00404868         lea     edx, [ebp-6Ch]
+.text:0040486B         mov     dword ptr [ecx+18h], 0Fh
+.text:00404872         mov     [ecx+14h], eax
+.text:00404875         push    edx
+.text:00404876         mov     [ecx+4], al
+.text:00404879         call    string_copy
+.text:0040487E         lea     eax, [ebp-1A4h]
+.text:00404884         push    eax
+.text:00404885         call    DecodeStringToCryptoPPInteger
+.text:0040488A         add     esp, 0Ch                              ; returns: serialB
+.text:0040488A                                                       ;
+.text:0040488D         mov     byte ptr [ebp-4], 0Bh
+.text:00404891         mov     edi, esp
+.text:00404893         mov     [ebp-190h], esp
+.text:00404899         lea     ecx, [ebp-1F4h]                       ; push serialA
+.text:0040489F         push    ecx
+.text:004048A0         call    sub_42A590                            ; make copy of first dude
+.text:004048A5         mov     ecx, [ebp-18Ch]                       ; ECP
+.text:004048AB         lea     edx, [ebp-1CCh]
+.text:004048B1         push    edx
+.text:004048B2         call    EvaluateCurveGetYFromX
+.text:004048B7         add     esp, 18h                              ;
+.text:004048B7                                                       ;
+.text:004048BA         push    eax                                   ; Y coord of serialA
+.text:004048BB         lea     eax, [ebp-1F4h]
+.text:004048C1         push    eax                                   ; serialA
+.text:004048C2         lea     ecx, [ebp-264h]                       ; <-- this receives the new ECPPoint
+.text:004048C8         push    ecx
+.text:004048C9         mov     byte ptr [ebp-4], 0Ch
+.text:004048CD         call    ECPPoint_Constructor                  ;
+.text:004048CD                                                       ;
+.text:004048D2         mov     byte ptr [ebp-4], 0Eh
+.text:004048D6         mov     esi, [ebp-1C4h]
+.text:004048DC         mov     eax, [ebp-1C0h]
+.text:004048E2         add     esi, esi
+.text:004048E4         add     esi, esi
+.text:004048E6         push    esi                                   ; Size
+.text:004048E7         push    0                                     ; Val
+.text:004048E9         push    eax                                   ; Dst
+.text:004048EA         mov     edi, eax
+.text:004048EC         call    _memset
+.text:004048F1         add     esp, 0Ch
+.text:004048F4         push    edi                                   ; Memory
+.text:004048F5         cmp     esi, 10h
+.text:004048F8         jb      short loc_404901
+.text:004048FA         call    calls_free
+.text:004048FF         jmp     short loc_404906                      ; ECP
+.text:00404901 ; ---------------------------------------------------------------------------
+.text:00404901
+.text:00404901 loc_404901:                                           ; CODE XREF: main+348j
+.text:00404901         call    _free
+.text:00404906
+.text:00404906 loc_404906:                                           ; CODE XREF: main+34Fj
+.text:00404906         mov     edi, [ebp-18Ch]                       ; ECP
+.text:0040490C         add     esp, 4
+.text:0040490F         push    edi
+.text:00404910         lea     ecx, [ebp-264h]                       ; ECPPoint
+.text:00404916         call    VerifyIsOnCurve
+.text:0040491B         test    al, al
+.text:0040491D         jnz     short loc_404945                      ;
+.text:0040491D                                                       ;
+.text:0040491F         push    offset aWrongSerial                   ; "Wrong serial"
+.text:00404924         call    cout_something
+.text:00404929         add     esp, 4
+.text:0040492C         mov     esi, eax
+.text:0040492E         push    0Ah
+.text:00404930         mov     ecx, esi
+.text:00404932         call    ostream_printbyte
+.text:00404937         mov     ecx, esi
+.text:00404939         call    ostream_cleanup
+.text:0040493E         push    0                                     ; uExitCode
+.text:00404940         call    QuitProgram
+.text:00404945
+.text:00404945 loc_404945:                                           ; CODE XREF: main+36Dj
+.text:00404945         push    offset a45498348536255                ; "45498348536255073500854"
+.text:0040494A         lea     edx, [ebp-208h]
+.text:00404950         push    edx
+.text:00404951         call    constructor_CryptoPP_Integer          ;
+.text:00404951                                                       ;
+.text:00404956         lea     ecx, [ebp-264h]
+.text:0040495C         push    ecx                                   ; ECPPoint(inX, inY)
+.text:0040495D         mov     edx, eax                              ; G
+.text:0040495F         lea     esi, [ebp-0ECh]                       ; <-- result
+.text:00404965         mov     ecx, edi                              ; ECP
+.text:00404967         mov     byte ptr [ebp-4], 0Fh
+.text:0040496B         call    MultiplyPointByScalar                 ;
+.text:0040496B                                                       ;
+.text:00404970         add     eax, 4                                ; -> point to X member of ECPPoint
+.text:00404973         push    eax
+.text:00404974         lea     edi, [ebp-1B8h]
+.text:0040497A         mov     byte ptr [ebp-4], 10h
+.text:0040497E         call    sub_42A590                            ; (copied of X member)
+.text:0040497E                                                       ;
+.text:00404983         mov     eax, esi
+.text:00404985         call    Clear_ECPPoint
+.text:0040498A         mov     byte ptr [ebp-4], 13h
+.text:0040498E         mov     esi, [ebp-200h]
+.text:00404994         mov     eax, [ebp-1FCh]
+.text:0040499A         add     esi, esi
+.text:0040499C         add     esi, esi
+.text:0040499E         push    esi                                   ; Size
+.text:0040499F         push    0                                     ; Val
+.text:004049A1         mov     edi, eax
+.text:004049A3         push    eax                                   ; Dst
+.text:004049A4
+.text:004049A4 loc_4049A4:                                           ; CODE XREF: main+4DFj
+.text:004049A4         call    _memset
+.text:004049A9         add     esp, 0Ch
+.text:004049AC         push    edi                                   ; Memory
+.text:004049AD         cmp     esi, 10h
+.text:004049B0         jb      short loc_4049B9
+.text:004049B2         call    calls_free
+.text:004049B7         jmp     short loc_4049BE
+.text:004049B9 ; ---------------------------------------------------------------------------
+.text:004049B9
+.text:004049B9 loc_4049B9:                                           ; CODE XREF: main+400j
+.text:004049B9         call    _free
+.text:004049BE
+.text:004049BE loc_4049BE:                                           ; CODE XREF: main+407j
+.text:004049BE         mov     eax, 1
+.text:004049C3         add     esp, 4
+.text:004049C6         cmp     [ebp-1A8h], eax
+.text:004049CC         jz      short loc_4049ED
+.text:004049CE         cmp     [ebp-194h], eax
+.text:004049D4         jz      Different                             ;
+.text:004049D4                                                       ;
+.text:004049DA         lea     edx, [ebp-1A4h]                       ; serialB
+.text:004049E0         lea     eax, [ebp-1B8h]                       ; X coordinate of G*ECPoint(inX, inY)
+.text:004049E6         call    Compare_Integer
+.text:004049EB         jmp     short loc_404A08
+.text:004049ED ; ---------------------------------------------------------------------------
+.text:004049ED
+.text:004049ED loc_4049ED:                                           ; CODE XREF: main+41Cj
+.text:004049ED         cmp     [ebp-194h], eax
+.text:004049F3         jnz     short loc_404A10
+.text:004049F5         lea     edx, [ebp-1A4h]
+.text:004049FB         lea     eax, [ebp-1B8h]
+.text:00404A01         call    Compare_Integer
+.text:00404A06         neg     eax
+.text:00404A08
+.text:00404A08 loc_404A08:                                           ; CODE XREF: main+43Bj
+.text:00404A08         test    eax, eax
+.text:00404A0A         jg      Different                             ; X coordinate of G*ECPoint(inX, inY)
+.text:00404A10
+.text:00404A10 loc_404A10:                                           ; CODE XREF: main+443j
+.text:00404A10         push    2
+.text:00404A12         lea     edi, [ebp-1E0h]
+.text:00404A18         call    CryptoPP_Integer_Constructor
+.text:00404A1D         lea     eax, [ebp-1B8h]
+.text:00404A23         lea     esi, [ebp-1CCh]
+.text:00404A29         mov     byte ptr [ebp-4], 14h
+.text:00404A2D         call    Integer_Multiply
+.text:00404A32         lea     edx, [ebp-1B8h]
+.text:00404A38         push    edx
+.text:00404A39         mov     edi, eax
+.text:00404A3B         mov     byte ptr [ebp-4], 15h
+.text:00404A3F         call    Integer_Copy
+.text:00404A44         mov     esi, [ebp-1C4h]
+.text:00404A4A         mov     eax, [ebp-1C0h]
+.text:00404A50         add     esi, esi
+.text:00404A52         add     esi, esi
+.text:00404A54         push    esi                                   ; Size
+.text:00404A55         push    0                                     ; Val
+.text:00404A57         push    eax                                   ; Dst
+.text:00404A58         mov     edi, eax
+.text:00404A5A         call    _memset
+.text:00404A5F         add     esp, 0Ch
+.text:00404A62         push    edi                                   ; Memory
+.text:00404A63         cmp     esi, 10h
+.text:00404A66         jb      short loc_404A6F
+.text:00404A68         call    calls_free
+.text:00404A6D         jmp     short loc_404A74
+.text:00404A6F ; ---------------------------------------------------------------------------
+.text:00404A6F
+.text:00404A6F loc_404A6F:                                           ; CODE XREF: main+4B6j
+.text:00404A6F         call    _free
+.text:00404A74
+.text:00404A74 loc_404A74:                                           ; CODE XREF: main+4BDj
+.text:00404A74         mov     byte ptr [ebp-4], 13h
+.text:00404A78         mov     esi, [ebp-1D8h]
+.text:00404A7E         mov     edi, [ebp-1D4h]
+.text:00404A84         add     esp, 4
+.text:00404A87         add     esi, esi
+.text:00404A89         add     esi, esi
+.text:00404A8B         push    esi
+.text:00404A8C         push    0
+.text:00404A8E         push    edi
+.text:00404A8F         jmp     loc_4049A4
+.text:00404A94 ; ---------------------------------------------------------------------------
+.text:00404A94
+.text:00404A94 Different:                                            ; CODE XREF: main+424j
+.text:00404A94                                                       ; main+45Aj
+.text:00404A94         lea     eax, [ebp-1B8h]                       ; X coordinate of G*ECPoint(inX, inY)
+.text:00404A9A         push    eax
+.text:00404A9B         lea     ecx, [ebp-1CCh]                       ; <--- result?
+.text:00404AA1         push    ecx
+.text:00404AA2         lea     ecx, [ebp-1A4h]                       ; serialB
+.text:00404AA8         call    Integer_InverseMod                    ; serialB ^ -1 (mod X coord of G*ECPoint(inX, inY))
+.text:00404AA8                                                       ;
+.text:00404AAD         lea     edx, [ebp-1A4h]
+.text:00404AB3         push    edx                                   ; serial_b again
+.text:00404AB4         mov     edi, eax                              ; the inverse
+.text:00404AB6         mov     byte ptr [ebp-4], 16h
+.text:00404ABA         call    Integer_Copy                          ; so [ebp-1CCh] == modular inverse
+.text:00404ABA                                                       ;
+.text:00404ABF         mov     byte ptr [ebp-4], 13h
+.text:00404AC3         mov     esi, [ebp-1C4h]
+.text:00404AC9         mov     eax, [ebp-1C0h]
+.text:00404ACF         add     esi, esi
+.text:00404AD1         add     esi, esi
+.text:00404AD3         push    esi                                   ; Size
+.text:00404AD4         push    0                                     ; Val
+.text:00404AD6         push    eax                                   ; Dst
+.text:00404AD7         mov     edi, eax
+.text:00404AD9         call    _memset
+.text:00404ADE         add     esp, 0Ch
+.text:00404AE1         push    edi                                   ; Memory
+.text:00404AE2         cmp     esi, 10h
+.text:00404AE5         jb      short loc_404AEE
+.text:00404AE7         call    calls_free
+.text:00404AEC         jmp     short loc_404AF3
+.text:00404AEE ; ---------------------------------------------------------------------------
+.text:00404AEE
+.text:00404AEE loc_404AEE:                                           ; CODE XREF: main+535j
+.text:00404AEE         call    _free
+.text:00404AF3
+.text:00404AF3 loc_404AF3:                                           ; CODE XREF: main+53Cj
+.text:00404AF3         add     esp, 4
+.text:00404AF6         lea     esi, [ebp-320h]
+.text:00404AFC         call    sub_405FD0                            ; clear whirlpool object?
+.text:00404AFC                                                       ;
+.text:00404B01         mov     dword ptr [ebp-320h], offset ??_7Whirlpool@CryptoPP@@6B@ ; const CryptoPP::Whirlpool::`vftable'
+.text:00404B0B         sub     esp, 14h
+.text:00404B0E         mov     byte ptr [ebp-4], 17h
+.text:00404B12         lea     eax, [ebp-1A4h]
+.text:00404B18         mov     edi, esp
+.text:00404B1A         mov     [ebp-190h], esp
+.text:00404B20         push    eax
+.text:00404B21         mov     dword ptr [ebp-18Ch], 0
+.text:00404B2B         lea     esi, [ebp-18Ch]
+.text:00404B31         call    sub_42A590                            ;
+.text:00404B31                                                       ;
+.text:00404B36         mov     ecx, esi
+.text:00404B38         call    HashTheThing                          ;
+.text:00404B38                                                       ;
+.text:00404B3D         mov     eax, [ebp-18Ch]
+.text:00404B43         mov     ecx, [eax]
+.text:00404B45         mov     [ebp-34h], ecx
+.text:00404B48         mov     edx, [eax+4]
+.text:00404B4B         mov     [ebp-30h], edx
+.text:00404B4E         mov     ecx, [eax+8]
+.text:00404B51         mov     [ebp-2Ch], ecx
+.text:00404B54         mov     edx, [eax+0Ch]
+.text:00404B57         mov     [ebp-28h], edx
+.text:00404B5A         mov     ecx, [eax+10h]
+.text:00404B5D         mov     [ebp-24h], ecx
+.text:00404B60         mov     edx, [eax+14h]
+.text:00404B63         add     esp, 14h
+.text:00404B66         lea     eax, [ebp-24h]
+.text:00404B69         push    eax
+.text:00404B6A         lea     ecx, [ebp-34h]
+.text:00404B6D         mov     [ebp-20h], edx
+.text:00404B70         push    ecx
+.text:00404B71         lea     edx, [ebp-13D0h]
+.text:00404B77         push    edx
+.text:00404B78         call    BlowfishInit                          ;
+.text:00404B78                                                       ;
+.text:00404B7D         lea     eax, [ebp-210h]
+.text:00404B83         push    eax
+.text:00404B84         lea     ecx, [ebp-13D0h]
+.text:00404B8A         mov     byte ptr [ebp-4], 18h
+.text:00404B8E         call    sub_406BB0                            ;
+.text:00404B8E                                                       ;
+.text:00404B93         push    eax
+.text:00404B94         push    offset dword_47D0B8
+.text:00404B99         mov     byte ptr [ebp-4], 19h
+.text:00404B9D         call    ostream_printstring                   ; "Blowfish/CFB"
+.text:00404BA2         add     esp, 8
+.text:00404BA5         mov     esi, eax
+.text:00404BA7         push    0Ah
+.text:00404BA9         mov     ecx, esi
+.text:00404BAB         call    ostream_printbyte
+.text:00404BB0         mov     ecx, esi
+.text:00404BB2         call    ostream_cleanup
+.text:00404BB7         cmp     dword ptr [ebp-1F8h], 10h
+.text:00404BBE         jb      short loc_404BCF
+.text:00404BC0         mov     ecx, [ebp-20Ch]
+.text:00404BC6         push    ecx
+.text:00404BC7         call    calls_free_
+.text:00404BCC         add     esp, 4
+.text:00404BCF
+.text:00404BCF loc_404BCF:                                           ; CODE XREF: main+60Ej
+.text:00404BCF         xor     eax, eax
+.text:00404BD1         mov     ecx, 0Fh
+.text:00404BD6         mov     [ebp-70h], ecx
+.text:00404BD9         mov     [ebp-74h], eax
+.text:00404BDC         mov     [ebp-84h], al
+.text:00404BE2         mov     [ebp-38h], ecx
+.text:00404BE5         mov     [ebp-3Ch], eax
+.text:00404BE8         mov     [ebp-4Ch], al
+.text:00404BEB         lea     edx, [ebp-158h]
+.text:00404BF1         push    edx
+.text:00404BF2         mov     byte ptr [ebp-4], 1Bh
+.text:00404BF6         call    Base64EncoderTextThing                ;
+.text:00404BF6                                                       ;
+.text:00404BFB         push    5Ch
+.text:00404BFD         mov     byte ptr [ebp-4], 1Dh
+.text:00404C01         call    AllocatorMaybe                        ;
+.text:00404C01                                                       ;
+.text:00404C06         mov     edi, eax
+.text:00404C08         add     esp, 4
+.text:00404C0B         mov     [ebp-190h], edi
+.text:00404C11         mov     byte ptr [ebp-4], 1Eh
+.text:00404C15         test    edi, edi
+.text:00404C17         jz      short loc_404C8A                      ; not taken on success
+.text:00404C17                                                       ;
+.text:00404C19         push    108h
+.text:00404C1E         call    AllocatorMaybe                        ;
+.text:00404C1E                                                       ;
+.text:00404C23         mov     esi, eax
+.text:00404C25         add     esp, 4
+.text:00404C28         mov     [ebp-18Ch], esi
+.text:00404C2E         mov     byte ptr [ebp-4], 1Fh
+.text:00404C32         test    esi, esi
+.text:00404C34         jz      short loc_404C73                      ; not taken on good key
+.text:00404C34                                                       ;
+.text:00404C36         push    10h
+.text:00404C38         call    AllocatorMaybe
+.text:00404C3D         add     esp, 4                                ;
+.text:00404C3D                                                       ;
+.text:00404C40         mov     [ebp-188h], eax
+.text:00404C46         mov     byte ptr [ebp-4], 20h
+.text:00404C4A         test    eax, eax
+.text:00404C4C         jz      short loc_404C64                      ; not taken on good key
+.text:00404C4C                                                       ;
+.text:00404C4E         push    eax
+.text:00404C4F         lea     ecx, [ebp-50h]
+.text:00404C52         call    StringSinkTemplateThing               ;
+.text:00404C52                                                       ;
+.text:00404C57         push    eax
+.text:00404C58         push    esi
+.text:00404C59         mov     byte ptr [ebp-4], 1Fh
+.text:00404C5D         call    GunzipCryptoCRC
+.text:00404C62         jmp     short loc_404C75
+.text:00404C64 ; ---------------------------------------------------------------------------
+.text:00404C64
+.text:00404C64 loc_404C64:                                           ; CODE XREF: main+69Cj
+.text:00404C64         xor     eax, eax
+.text:00404C66         push    eax
+.text:00404C67         push    esi
+.text:00404C68         mov     byte ptr [ebp-4], 1Fh
+.text:00404C6C         call    GunzipCryptoCRC
+.text:00404C71         jmp     short loc_404C75
+.text:00404C73 ; ---------------------------------------------------------------------------
+.text:00404C73
+.text:00404C73 loc_404C73:                                           ; CODE XREF: main+684j
+.text:00404C73         xor     eax, eax
+.text:00404C75
+.text:00404C75 loc_404C75:                                           ; CODE XREF: main+6B2j
+.text:00404C75                                                       ; main+6C1j
+.text:00404C75         push    eax
+.text:00404C76         push    edi
+.text:00404C77         lea     esi, [ebp-13D0h]
+.text:00404C7D         mov     byte ptr [ebp-4], 1Eh
+.text:00404C81         call    CryptoFileStreamStuff                 ;
+.text:00404C81                                                       ;
+.text:00404C86         mov     edi, eax
+.text:00404C88         jmp     short loc_404C8C
+.text:00404C8A ; ---------------------------------------------------------------------------
+.text:00404C8A
+.text:00404C8A loc_404C8A:                                           ; CODE XREF: main+667j
+.text:00404C8A         xor     edi, edi
+.text:00404C8C
+.text:00404C8C loc_404C8C:                                           ; CODE XREF: main+6D8j
+.text:00404C8C         lea     eax, [ebp-110h]
+.text:00404C92         push    eax
+.text:00404C93         mov     byte ptr [ebp-4], 1Dh
+.text:00404C97         call    source_sample_dll                     ; EH exception here if dll not found -> "invalid serial"
+.text:00404C9C         mov     byte ptr [ebp-4], 21h
+.text:00404CA0         mov     ecx, [ebp-3Ch]
+.text:00404CA3         push    ecx
+.text:00404CA4         call    sub_43C6C8
+.text:00404CA9         add     esp, 4
+.text:00404CAC         lea     edx, [ebp-110h]
+.text:00404CB2         push    edx
+.text:00404CB3         mov     byte ptr [ebp-4], 1Dh
+.text:00404CB7         call    sub_403A00
+.text:00404CBC         mov     dword ptr [ebp-4], 1Ch
+.text:00404CC3         cmp     dword ptr [ebp-38h], 10h
+.text:00404CC7         mov     eax, [ebp-4Ch]
+.text:00404CCA         jnb     short loc_404CCF
+.text:00404CCC         lea     eax, [ebp-4Ch]
+.text:00404CCF
+.text:00404CCF loc_404CCF:                                           ; CODE XREF: main+71Aj
+.text:00404CCF         push    eax
+.text:00404CD0         call    VirtualAllocAndCallShit
+.text:00404CD5         add     esp, 4
+.text:00404CD8         test    eax, eax
+.text:00404CDA         jnz     short loc_404CF0                      ;
+.text:00404CDA                                                       ;
+.text:00404CDC         push    offset aWrongSerial_0                 ; "Wrong serial\n"
+.text:00404CE1         call    sub_43D2B8
+.text:00404CE6         add     esp, 4
+.text:00404CE9         push    0                                     ; uExitCode
+.text:00404CEB         call    QuitProgram
+.text:00404CF0
+.text:00404CF0 loc_404CF0:                                           ; CODE XREF: main+72Aj
+.text:00404CF0         mov     ecx, eax
+.text:00404CF2         call    GetAddressOfMyFunc
+.text:00404CF7         call    eax                                   ; "thank you, serial is valid..."

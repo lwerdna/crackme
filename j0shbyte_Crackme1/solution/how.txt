@@ -1,0 +1,95 @@
+How to keygen j0sh's_Crackme1 (google for j0shbyte crackme to download crackme)
+8/31/2007 andrewl
+
+break on user32!GetDlgItemTextA
+
+.text:004018FE                 push    14h
+.text:00401900                 lea     edx, [ebp-2Ch] <---- receives name
+.text:00401903                 push    edx
+.text:00401904                 push    3E9h
+.text:00401909                 mov     eax, [ebp+8]
+.text:0040190C                 push    eax
+.text:0040190D                 call    ds:GetDlgItemTextA
+
+break again
+
+.text:00401944                 push    14h
+.text:00401946                 lea     edx, [ebp-40h] <---- receives ascii of serial
+.text:00401949                 push    edx
+.text:0040194A                 push    3EBh
+.text:0040194F                 mov     eax, [ebp+8]
+.text:00401952                 push    eax
+.text:00401953                 call    ds:GetDlgItemTextA
+
+step, you will jnz (jump if not error return 0 from GetDlgItemTextA) to here:
+
+.text:00401988 loc_401988:                     
+.text:00401988                 lea     edx, [ebp-2Ch] <---- load name
+.text:0040198B                 push    edx
+.text:0040198C                 call    sub_40103C <---- calculates (strlen(name)*2)^strlen(name)
+		                                  <---- upper dword result to 0x422A3C
+                                                  <----- lower dword result to 0x422A38
+.text:00401991                 add     esp, 4
+.text:00401994                 lea     eax, [ebp-2Ch] <---- load name
+.text:00401997                 push    eax
+.text:00401998                 call    sub_401014 <---- simple strlen
+.text:0040199D                 add     esp, 4
+.text:004019A0                 mov     dword_423658, eax <--- strlen stored here
+.text:004019A5                 lea     ecx, [ebp-2Ch]
+.text:004019A8                 push    ecx
+.text:004019A9                 call    sub_40100A <---- calculates 0x1337 * (name[0]+name[1]+...+name[N])
+.text:004019AE                 add     esp, 4
+.text:004019B1                 mov     dword_42365C, eax <---- store it here, let's call it "leetsum"
+.text:004019B6                 cmp     dword_422A38, 94538432h
+.text:004019C0                 jnz     short loc_4019EF
+.text:004019C2                 cmp     dword_422A3C, 412h
+.text:004019CC                 jnz     short loc_4019EF
+.text:004019CE                 mov     esi, esp
+.text:004019D0                 push    0
+.text:004019D2                 push    offset aWelldone ; "WellDone"
+.text:004019D7                 push    offset aGoodserial ; "GoodSerial!"
+.text:004019DC                 mov     edx, [ebp+8]
+.text:004019DF                 push    edx
+.text:004019E0                 call    ds:MessageBoxA
+
+here's the spoiler:
+the comparisons at 004019B6 and 004019C2 is a distraction - so is this WellDone/GoodSerial! message
+
+not only is it impossible to enter such a long string, but has the serial number even been accessed yet? no
+
+use hardware breakpoint on ebp-40h to be sure
+
+let the comparison fail, the fake success popup be skipped, and continue stepping down thru 4019EF
+
+.text:004019EF loc_4019EF:                             ; CODE XREF: .text:004019C0j
+.text:004019EF                                         ; .text:004019CCj
+.text:004019EF                 mov     eax, dword_42365C 
+.text:004019F4                 imul    eax, dword_423658
+.text:004019FB                 mov     dword_42365C, eax <---- leetsum = leetsum * strlen(name)
+.text:00401A00                 mov     ecx, dword_42365C
+.text:00401A06                 push    ecx
+.text:00401A07                 push    offset aI       ; "%i"
+.text:00401A0C                 lea     edx, [ebp-14h]
+.text:00401A0F                 push    edx
+.text:00401A10                 call    _sprintf <---- ebp-14h is now string version of leetsum
+.text:00401A15                 add     esp, 0Ch
+.text:00401A18                 lea     eax, [ebp-40h] <---- load ascii entered serial number
+.text:00401A1B                 push    eax
+.text:00401A1C                 lea     ecx, [ebp-14h] <---- load ascii leetsum
+.text:00401A1F                 push    ecx
+.text:00401A20                 call    sub_401005 <---- sets dword_423654 == 1 if strings are same
+.text:00401A25                 add     esp, 8
+.text:00401A28                 mov     edx, [ebp+8]
+.text:00401A2B                 push    edx
+.text:00401A2C                 call    sub_401023 <---- creates byte-by-byte message good or bad depending
+                                                   <---- on dword_423654 !!!!!
+.text:00401A31                 add     esp, 4
+.text:00401A34                 jmp     short loc_401A6C
+
+so dword_423654 must be set to 1
+
+so strlen(name)*leetsum must be string equal to name
+
+where leetsum == 0x1337 * (name[0] + name[1] + ... + name[N])
+
+then write keygen

@@ -1,0 +1,633 @@
+<html>
+
+<head>
+
+<style type="text/css">
+body {text-align: justify; margin:64; margin-top: 8}
+pre {padding:4}
+pre.fact {background-color: #FFCCFF; padding: 8}
+pre.dos {color: white; background-color: #000000}
+pre.math {font-weight:bold; background-color: skyblue; margin-left:64; margin-right:64; padding:4 }
+pre.small {background-color: #E0E0E0; font-size: 10px}
+</style>
+
+</head>
+
+</body>
+
+<h2>Crackme Solution - andrewl - May 4th, 2009</h2>
+
+<pre>
+    Target: CrackMe #10 by WiteG
+     Tools: WinDBG, BigCalto
+</pre>
+
+<h2>The problem</h2>
+
+<p>
+This crackme is open source. It's built on miracl (see manual at http://www.shamus.ie). WiteG included comments:
+</p>
+
+<pre class=small>
+xgcd(s,secp160r1_n,s,s,s);                            // s = s^(-1) mod secp160r1_n
+
+mad(e1,s,s,secp160r1_n,secp160r1_n,u1);               // u1= s*e1 mod secp160r1_n
+mad(r,s,s,secp160r1_n,secp160r1_n,u2);                // u2= s*r mod secp160r1_n
+
+ecurve_mult2(u2,pointH,u1,pointG,pointJ);             // J = u1*G + u2*H
+
+if (point_at_infinity(pointJ)==FALSE)
+{
+    epoint_get(pointJ,x,x);                           // x = J.x
+
+    if ((compare(x,z)!=0) &amp;&amp; (compare(x,r)==0))
+    {
+        mad(e2,s,s,secp160r1_n,secp160r1_n,u1);       // u1= s*e2 mod secp160r1_n
+        mad(r,s,s,secp160r1_n,secp160r1_n,u2);        // u2= s*r mod secp160r1_n
+        ecurve_mult2(u2,pointH,u1,pointG,pointJ);     // J = u1*G + u2*H
+
+        if (point_at_infinity(pointJ)==FALSE)
+        {
+            epoint_get(pointJ,x,x);                   // x = J.x
+
+            if ((compare(x,z)!=0) &amp;&amp; (compare(x,r)==0))
+                MessageBox(hDlg, szName, "Done!", (MB_OK | MB_ICONEXCLAMATION));
+        }
+    }
+}
+</pre>
+
+<p>
+Conveniently, he uses the same convention as the Wikipedia article on ECDSA when
+choosing variable names. The e1 and e2 are the messages, big numbers derived from the
+sha1 hashes of the username and the username concatenated with a hardcoded string.
+</p>
+
+<p>
+The names starting with "secp160r1" refer to recommended parameters published by the
+Standards for Efficient Cryptography Group in "SEC 2: Recommended Elliptic Curve Domain
+Parameters". The "secp160r1" is a nickname that denotes a 160-bit curve with verified
+random parameters (non-Koblitz) and sequence number 1. In other words, this is robust
+curve from which we can't expect shortcuts.
+</p>
+
+<p>
+The crackme is checking that the signature of both messages is the same. Is this
+possible? We get to choose the public key, and the s and r components of the
+signature.
+</p>
+
+<h2>
+Trying to grasp ECDSA
+</h2>
+
+<p>
+Obviously a familiarity with ECDSA must be established before even imagining ways to
+attack this problem. The DSA approach to signatures is definitely more complicated than
+the RSA's method of EncryptWithPrivateKey(Hash(M)). Here is how I've attempted to make
+some sense of all of those equations in ECDSA. Some stuff in here is probably totally
+wrong, so read with skepticism. Reader is assumed to know what the DLP and ECDLP is.
+</p>
+
+<p>
+The ECDSA algorithm operates in two groups: the curve group and a small cyclic
+multiplicative group of integers. This is analagous to the large prime group
+and its small prime subgroup (Schnorr group) in normal DSA. I will omit all the "(mod N)"
+garbage: just assume all operations that do not involve a curve point to be in
+the small group.
+</p>
+
+<p>
+The signer chooses some random coefficient k in the subgroup. He then multiplies
+the generator point G by it to produce a value in the curve group. He then uses
+its x-coordinate as a member in the subgroup, arriving at r. What has happened here? A 
+one-time-use puzzle for this particular signature instance has been crafted. You can't
+arrive at the output point (and thus r) again without knowing k (ECDLP).
+The signature is verified by arriving again at this output point r.
+</p>
+
+<p>
+The signer will not transmit k. Rather, he will transmit a value s that will
+allow the signature verifier arrive at k in an indirect way. You can imagine what
+this value will rely on: the message hash H(m) and the private key
+d<sub>A</sub>. Intuition won't help you in knowing that ECDSA also makes the
+value rely on r itself. I have no explanation of this. I can see why it would make
+the equation harder to solve but I don't know why its necessary.
+</p>
+
+<pre class=math>
+k = s (op?) H(M) (op?) d<sub>A</sub> (op?) r
+</pre>
+
+<p>
+What operations should be put here? How should these elements be combined? Well it's nearly
+arbitrary. This is called the signing equation and it seems that almost anything you imagine
+will works. Menezes's <u>Handbook of Applied Cryptography</u> chapter 11 (11.52) and Schneier's
+<u>Applied Cryptography</u> chapter 20 (20.4) address how varied the signing equation can be.
+Anyways, most everything works, but here's the one that ECDSA settled upon:
+</p>
+
+<pre class=math>
+k = s * H(m) + s * r * d<sub>A</sub>
+</pre>
+
+Solving for s we get:
+
+<pre class=math>
+s = k<sup>-1</sup> * (H(m) + r * d<sub>A</sub>)
+</pre>
+
+<p>
+The verifier receives the puzzle r and the s value, which is like one of the ingredients
+for solving the puzzle.
+Notice that s alone is insufficient; the verifier is missing d<sub>A</sub>.
+We think again of how the output point of
+the puzzle r must be arrived at by the verifier (let's ignore the detail about
+taking the x-coordinate into the smaller group for a moment):
+</p>
+
+<pre class=math>
+r = k * G
+</pre>
+
+<p>
+Again, the verifier doesn't have k, but k expressed in terms of s
+can be substituted:
+</p>
+
+<pre class=math>
+r = (s * H(m) + s * r * d<sub>A</sub>) * G
+</pre>
+
+<p>
+Again, the verifier doesn't have d<sub>A</sub>. But here is where the magic happens. Distribute
+G and you get:
+</p>
+
+<pre class=math>
+r = s * H(m) * G + s * r * d<sub>A</sub> * G
+</pre>
+
+<p>
+Though the verifier is without d<sub>A</sub>, he does have d<sub>A</sub> * G because
+this is the public key Q<sub>A</sub>! We can now re-write the equation:
+</p>
+
+<pre class=math>
+r = s * H(m) * G + s * r * Q<sub>A</sub>
+</pre>
+
+<p>
+The verifier is fully equipped now to test that the puzzle is solved using H(m) and
+Q<sub>A</sub>. Most importantly, only someone with knowledge of d<sub>A</sub>
+could have created such an s that solves the puzzle r in this way. You may notice that
+the above equations don't exactly match Wikipedia's description of ECDSA.
+Simply re-label s as s<sup>-1</sup> and visa versa
+and make several temporary variables: e = H(m), w = s<sup>-1</sup>,
+u1 = e * w, u2 = r * w and the verification equation
+will look more familiar:
+</p>
+
+<pre class=math>
+r = u1 * G + u2 * Q<sub>A</sub>
+</pre>
+
+<p>
+If further help is needed, Stallings's <u>Cryptography and Network Security 2ed</u> appendix
+10a contains the most detailed proof of normal (non-ECC) DSA's correctness I can find.
+</p>
+
+<h2>What do we do now?</h2>
+
+<p>
+I don't know. We have the most exact description possible for how signatures are created and verified
+right in front of us. Just study and study and try and try. We control the random parameter k and the
+private key d<sub>A</sub>. These two choices then choose for us r and public key Q<sub>A</sub>. What
+hypothetical situations are there that the signature would be valid for two separate inputs of H(M)?
+</p>
+
+<h2>Approach #1: Try to equate s and r for different hashes</h2>
+
+<p>
+This is the first thing that comes to mind: if the signer can produce the same signature components for
+two different messages, then the verifier will simply verify the same signature twice. Keep in
+mind that both r and s are computed mod N.
+</p>
+
+<pre class=math>
+r = k * G
+s = k<sup>-1</sup> * (H(M) + r * d<sub>A</sub>)
+</pre>
+
+<p>
+The r component doesn't rely on the message at all, so it is always equal, no matter the choice of k. we
+split H(M) into two hashes H1 and H2, one for each of the two messages and examine just s:
+</p>
+
+<pre class=math>
+s = k<sup>-1</sup> * (H1 + r * d<sub>A</sub>)
+s = k<sup>-1</sup> * (H2 + r * d<sub>A</sub>)
+</pre>
+
+<p>
+Is there some choice of k and d<sub>A</sub> so that this would work out true? These are equations
+for the same line with some slope k<sup>-1</sup>. We see that the two hashes would need to be
+such that the line evaluated at them would have a difference divisible by N. What does the
+algebra say? Equating around s and multiplying by k, we get:
+</p>
+
+<pre class=math>
+H1 + r * d<sub>A</sub> = H2 + r * d<sub>A</sub>
+</pre>
+
+<p>
+Subtracting the r * d<sub>A</sub> term shows that this is only possible when H1 and H2 are equal which,
+by nature of a desirable hash function, occurs only when the two messages are equal.
+</p>
+
+<h2>Approach #2: Try to equate u1 and u2 for different hashes</h2>
+
+<p>
+This is kind of the same story as the previous approach, but we were on the verification side now. Note
+again that u1 and u2 calculates are (mod N).
+</p>
+
+<pre class=math>
+u1 = s<sup>-1</sup> * H(M)
+u2 = s<sup>-1</sup> * r
+</pre>
+
+<p>
+The u2 is always equal, so we examine u1 for hashes of two different messages:
+</p>
+
+<pre class=math>
+u1 = s<sup>-1</sup> * H1
+u1 = s<sup>-1</sup> * H2
+</pre>
+
+<p>
+This repeats the requirement that H1 and H2 must be equal.
+</p>
+
+<h2>Approach #3: Try to equate the full coefficient on G for different hashes</h2>
+
+<p>
+At the final verification, G is multiplied by some coefficient u1 + u2 * d<sub>A</sub> that must produce the same
+point as r = k * G.
+</p>
+
+<pre class=math>
+r = u1 * G + u2 * Q<sub>A</sub>
+  = u1 * G + u2 * d<sub>A</sub> * G
+  = (u1 + u2 * d<sub>A</sub>) * G
+</pre>
+
+<p>
+Obviously if we could make u1 + u2 * d<sub>A</sub> equal to k, then everything is solved. 
+Expanding the definitions of u1 and u2, and splitting H(M) into H1 and H2, we have:
+</p>
+
+<pre class=math>
+k = s<sup>-1</sup> * H1 + s<sup>-1</sup> * r * d<sub>A</sub> (mod N);
+k = s<sup>-1</sup> * H2 + s<sup>-1</sup> * r * d<sub>A</sub> (mod N);
+</pre>
+
+<p>
+We may equate around k, and subtract identical terms, yielding:
+</p>
+
+<pre class=math>
+s<sup>-1</sup> * H1 = s<sup>-1</sup> * H2 (mod N);
+</pre>
+
+<p>
+Multiplying by s shows that this is only possible when the hashes are congruent mod N. We are
+doing the same crap over and over again!
+</p>
+
+<h2>What to do next?</h2>
+
+<p>
+Even with choice of the random k and private key d<sub>A</sub>, we were unable to make any of the approaches
+work because the condition reduced to a required relationship between the hashes of the two messages, which
+we cannot rely on.
+At this point there is no choice but to keep re-reading the tutorials, trying to develop a stronger and
+stronger familiarity with the behavior of this scheme until another approach is thought of.
+</p>
+
+<p>
+In the ECC tutorial by Certicom, there is an example of an elliptic curve group over the prime field Fp with
+p = 23 (http://www.certicom.com/index.php/31-example-of-an-elliptic-curve-group-over-fp). The text says:
+</p>
+
+<pre class=fact>
+Note that there is two points for every x value. Even though the graph seems random, there is still symmetry
+about y = 11.5. Recall that elliptic curves over real numbers, there exists a negative point for each point
+which is reflected through the x-axis. Over the field of F23, the negative components in the y-values are
+taken modulo 23, resulting in a positive number as a difference from 23. Here -P = (xP, (-yP Mod 23)) 
+</pre>
+
+<p>
+The negative of a point has an identical x coordinate, and a negated (mod P) y coordinate. Recall that the
+point computed from k * G and u1 * H(M) and u2 * Q<sub>A</sub> is tested for equality by extracting (via epoint_get())
+just the x coordinate. Could we get signatures k * G and -(k * G) with the two different messages?
+</p>
+
+<p>
+First, it is necessary to ensure that given some k * G, we could find a k' so that k * G and k' * G share
+the same x coordinate without the difficulty of the ECDLP. I tried using every point from the Certicom
+example as a potential generator in experiment1.cpp:
+</p>
+
+<pre class="small">
+point    *2    *3    *4    *5    *6    *7    *8    *9   *10   *11   *12   *13   *14   *15   *16   *17   *18   *19   *20   *21   *22   *23   *24
+----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- 
+00,00 (inf) 00,00 (inf) 00,00 (inf) 00,00 (inf) 00,00 (inf) 00,00 (inf) 00,00 (inf) 00,00 (inf) 00,00 (inf) 00,00 (inf) 00,00 (inf) 00,00 (inf)
+01,05 00,00 01,18 (inf) 01,05 00,00 01,18 (inf) 01,05 00,00 01,18 (inf) 01,05 00,00 01,18 (inf) 01,05 00,00 01,18 (inf) 01,05 00,00 01,18 (inf)
+01,18 00,00 01,05 (inf) 01,18 00,00 01,05 (inf) 01,18 00,00 01,05 (inf) 01,18 00,00 01,05 (inf) 01,18 00,00 01,05 (inf) 01,18 00,00 01,05 (inf)
+09,05 18,10 00,00 18,13 09,18 (inf) 09,05 18,10 00,00 18,13 09,18 (inf) 09,05 18,10 00,00 18,13 09,18 (inf) 09,05 18,10 00,00 18,13 09,18 (inf)
+09,18 18,13 00,00 18,10 09,05 (inf) 09,18 18,13 00,00 18,10 09,05 (inf) 09,18 18,13 00,00 18,10 09,05 (inf) 09,18 18,13 00,00 18,10 09,05 (inf)
+11,10 13,18 15,20 09,18 19,22 01,05 17,10 18,13 20,19 16,08 21,17 00,00 21,06 16,15 20,04 18,10 17,13 01,18 19,01 09,05 15,03 13,05 11,13 (inf)
+11,13 13,05 15,03 09,05 19,01 01,18 17,13 18,10 20,04 16,15 21,06 00,00 21,17 16,08 20,19 18,13 17,10 01,05 19,22 09,18 15,20 13,18 11,10 (inf)
+13,05 09,05 01,18 18,10 16,15 00,00 16,08 18,13 01,05 09,18 13,18 (inf) 13,05 09,05 01,18 18,10 16,15 00,00 16,08 18,13 01,05 09,18 13,18 (inf)
+13,18 09,18 01,05 18,13 16,08 00,00 16,15 18,10 01,18 09,05 13,05 (inf) 13,18 09,18 01,05 18,13 16,08 00,00 16,15 18,10 01,18 09,05 13,05 (inf)
+15,03 01,18 20,04 00,00 20,19 01,05 15,20 (inf) 15,03 01,18 20,04 00,00 20,19 01,05 15,20 (inf) 15,03 01,18 20,04 00,00 20,19 01,05 15,20 (inf)
+15,20 01,05 20,19 00,00 20,04 01,18 15,03 (inf) 15,20 01,05 20,19 00,00 20,04 01,18 15,03 (inf) 15,20 01,05 20,19 00,00 20,04 01,18 15,03 (inf)
+16,08 09,05 01,05 18,10 13,18 00,00 13,05 18,13 01,18 09,18 16,15 (inf) 16,08 09,05 01,05 18,10 13,18 00,00 13,05 18,13 01,18 09,18 16,15 (inf)
+16,15 09,18 01,18 18,13 13,05 00,00 13,18 18,10 01,05 09,05 16,08 (inf) 16,15 09,18 01,18 18,13 13,05 00,00 13,18 18,10 01,05 09,05 16,08 (inf)
+17,10 16,15 15,03 09,18 21,17 01,18 11,10 18,13 20,04 13,05 19,22 00,00 19,01 13,18 20,19 18,10 11,13 01,05 21,06 09,05 15,20 16,08 17,13 (inf)
+17,13 16,08 15,20 09,05 21,06 01,05 11,13 18,10 20,19 13,18 19,01 00,00 19,22 13,05 20,04 18,13 11,10 01,18 21,17 09,18 15,03 16,15 17,10 (inf)
+18,10 18,13 (inf) 18,10 18,13 (inf) 18,10 18,13 (inf) 18,10 18,13 (inf) 18,10 18,13 (inf) 18,10 18,13 (inf) 18,10 18,13 (inf) 18,10 18,13 (inf)
+18,13 18,10 (inf) 18,13 18,10 (inf) 18,13 18,10 (inf) 18,13 18,10 (inf) 18,13 18,10 (inf) 18,13 18,10 (inf) 18,13 18,10 (inf) 18,13 18,10 (inf)
+19,01 16,15 20,19 09,18 11,13 01,18 21,06 18,13 15,20 13,05 17,13 00,00 17,10 13,18 15,03 18,10 21,17 01,05 11,10 09,05 20,04 16,08 19,22 (inf)
+20,04 01,05 15,03 00,00 15,20 01,18 20,19 (inf) 20,04 01,05 15,03 00,00 15,20 01,18 20,19 (inf) 20,04 01,05 15,03 00,00 15,20 01,18 20,19 (inf)
+20,19 01,18 15,20 00,00 15,03 01,05 20,04 (inf) 20,19 01,18 15,20 00,00 15,03 01,05 20,04 (inf) 20,19 01,18 15,20 00,00 15,03 01,05 20,04 (inf)
+21,06 13,18 20,04 09,18 17,13 01,05 19,01 18,13 15,03 16,08 11,13 00,00 11,10 16,15 15,20 18,10 19,22 01,18 17,10 09,05 20,19 13,05 21,17 (inf)
+21,17 13,05 20,19 09,05 17,10 01,18 19,22 18,10 15,20 16,15 11,10 00,00 11,13 16,08 15,03 18,13 19,01 01,05 17,13 09,18 20,04 13,18 21,06 (inf)
+</pre>
+
+<p>
+Notice that the generators are {(11,10), (11,13), (17,10), (17,13), (21,06), (21,17)} as they require the full order 24 as a
+coefficient before the reach the identity.
+</p>
+
+<pre class=small>
+point    *2    *3    *4    *5    *6    *7    *8    *9   *10   *11   *12   *13   *14   *15   *16   *17   *18   *19   *20   *21   *22   *23   *24
+----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- 
+11,10 13,18 15,20 09,18 19,22 01,05 17,10 18,13 20,19 16,08 21,17 00,00  21,06 16,15 20,04 18,10 17,13 01,18 19,01 09,05 15,03 13,05 11,13 (inf)
+11,13 13,05 15,03 09,05 19,01 01,18 17,13 18,10 20,04 16,15 21,06 00,00  21,17 16,08 20,19 18,13 17,10 01,05 19,22 09,18 15,20 13,18 11,10 (inf)
+
+17,10 16,15 15,03 09,18 21,17 01,18 11,10 18,13 20,04 13,05 19,22 00,00  19,01 13,18 20,19 18,10 11,13 01,05 21,06 09,05 15,20 16,08 17,13 (inf)
+17,13 16,08 15,20 09,05 21,06 01,05 11,13 18,10 20,19 13,18 19,01 00,00  19,22 13,05 20,04 18,13 11,10 01,18 21,17 09,18 15,03 16,15 17,10 (inf)
+
+21,06 13,18 20,04 09,18 17,13 01,05 19,01 18,13 15,03 16,08 11,13 00,00  11,10 16,15 15,20 18,10 19,22 01,18 17,10 09,05 20,19 13,05 21,17 (inf)
+21,17 13,05 20,19 09,05 17,10 01,18 19,22 18,10 15,20 16,15 11,10 00,00  11,13 16,08 15,03 18,13 19,01 01,05 17,13 09,18 20,04 13,18 21,06 (inf)
+
+                                                              ^            ^ 
+                                                              |            |
+                                                          ... +- inverses -+ ...
+</pre>
+
+<p>
+Notice the symmetry length-wise! There's a pattern between the order of a point, its coefficient, and its inverse point:
+</p>
+
+<pre class=fact>
+c * P = -((N-c) * P)
+</pre>
+
+<p>
+The result of a point multiplied by c can have its inverse found by multiplying the point instead by (O - c)!
+</p>
+
+<p>
+But will it also work with the crackme's curve and generator and generator's order? See experiment2.cpp to get this output:
+</p>
+
+<pre class=small>
+                                        1 * G = (4A96B5688EF573284664698968C38BB913CBFC82,23A628553168947D59DCC912042351377AC5FB32)
+100000000000000000001F4C8F927AED3CA752256 * G = (4A96B5688EF573284664698968C38BB913CBFC82,DC59D7AACE976B82A62336EDFBDCAEC8053A04CD)
+
+                                      123 * G = (49D75A33B27BDACB6D417576524EE624F50C252A,6C897C04E4449F1DE94E2735AE3988D1467D18AF)
+100000000000000000001F4C8F927AED3CA752134 * G = (49D75A33B27BDACB6D417576524EE624F50C252A,937683FB1BBB60E216B1D8CA51C6772E3982E750)
+
+                                 DEADBEEF * G = (E0339B3160311F83273CC1C108D126347876909E,719561E79BE28CDE632A795D02C33F2935924D2A)
+100000000000000000001F4C8F927AED2EBC76368 * G = (E0339B3160311F83273CC1C108D126347876909E,8E6A9E18641D73219CD586A2FD3CC0D64A6DB2D5)
+
+100000000000000000001F4C8F927AED3CA000000 * G = (856F9135BEAF1E8B702A1C64A46AEC5AC2316486,584484D9122106EE867BDDD4D107D75615689331)
+                                   752257 * G = (856F9135BEAF1E8B702A1C64A46AEC5AC2316486,A7BB7B26EDDEF9117984222B2EF828A96A976CCE)
+</pre>
+
+<p>
+We got the inverse points very easily! I'm not sure how general a result this is, but it worked for the Certicom
+example and for secp160r1 parameters.
+</p>
+
+<h2>Approach 4: Aiming the two signatures at inverse points</h2>
+
+<p>
+Remember why this would work: inverse points share their x coordinate, which is all that ECDSA checks after the final
+point multiplication. Also remember that the inverse of k * G is (N - k) * G. Continuing from approach 3:
+</p>
+
+<pre class=math>
+    k = s<sup>-1</sup> * H1 + s<sup>-1</sup> * r * d<sub>A</sub>
+N - k = s<sup>-1</sup> * H2 + s<sup>-1</sup> * r * d<sub>A</sub>
+</pre>
+
+<p>
+Factor s<sup>-1</sup> on the right side and isolate it, then multiply by s to get:
+</p>
+
+<pre class=math>
+    s = k<sup>-1</sup> * (H1 + r * d<sub>A</sub>)
+    s = (N-k)<sup>-1</sup> * (H2 + r * d<sub>A</sub>)
+</pre>
+
+<p>
+The unkowns here are s and d<sub>A</sub>. The k variable is chosen at random and dictates what r will be (via point
+multiplication r = k * G). Equate around s:
+</p>
+
+<pre class=math>
+  k<sup>-1</sup> * (H1 + r * d<sub>A</sub>) = (N-k)<sup>-1</sup> * (H2 + r * d<sub>A</sub>)
+</pre>
+
+<p>
+With s gone, try to isolate d<sub>A</sub>:
+</p>
+
+<pre class=math>
+      (N-k) * (H1 + r * d<sub>A</sub>) = k * (H2 + r * d<sub>A</sub>)
+(N-k) * H1 + (N-k) * r * d<sub>A</sub> = k * H2 + k * r * d<sub>A</sub>
+(N-k) * r * d<sub>A</sub> - k * r * d<sub>A</sub> = k * H2 - (N-k) * H1
+   d<sub>A</sub> * ((N-k) * r - k * r) = k * H2 - (N-k) * H1
+                         d<sub>A</sub> = (k * H2 - (N-k) * H1) * ((N-k) * r - k * r)<sup>-1</sup>
+</pre>
+
+<p>
+This is damn nasty looking, but I can't find a reason it won't work!
+Once d<sub>A</sub> is found, we can back-substitute to get s<sup>-1</sup>.
+</p>
+
+<h2>Testing approach #4</h2>
+
+<p>
+Choose k = 1 because then r is just the x-coordinate of G. Get H1 and H2 by entering
+"witeg" into the crackme and reading its memory after the hashing() calls.
+</p>
+
+<pre class=fact>
+N   = 100000000000000000001F4C8F927AED3CA752257
+N-1 = 100000000000000000001F4C8F927AED3CA752256
+r   = 4A96B5688EF573284664698968C38BB913CBFC82
+H1  = c56db9aae9ae1eeefbcc87e7ab6cfaedbf59b925
+H2  = 295A2E9E17137204FAC2476A38A2B2110F2B957C
+</pre>
+
+<p>
+Calculate the private key using the nasty equation we found:
+</p>
+
+<pre class=math>
+d<sub>A</sub> = (k * H2 - (N-k) * H1) * ((N-k) * r - k * r)<sup>-1</sup>
+  = (H2 - (N-1) * H1) * ((N-1) * r - r)<sup>-1</sup>
+  = (H2 - 3A9246551651E11104356CE14DBAB3E60B1B6932) * (B5694A97710A8CD7B99D8B3F9064231AB6A925D5 - r)<sup>-1</sup>
+  = EEC7E84900C190F3F68ECF51E40FACFECE854EA1 * (6AD2952EE21519AF733921B627A09761A2DD2953)<sup>-1</sup>
+  = EEC7E84900C190F3F68ECF51E40FACFECE854EA1 * 63289582AD9622157490E17C99C5305CB4EF58FC
+  = 7E72DF1F05BD304CB5F827255B40CE5CCF076C23
+</pre>
+
+<p>
+Solve for the second unknown s<sup>-1</sup>:
+</p>
+
+<pre class=math>
+s<sup>-1</sup> = (H1 + r * dA)^-1
+   = (H1 + 89C0BDB7F9F378604B992BB8A8C00EA7DF7E9DB)^-1
+   = CE09C586694D567500861AA335F8FBD83D51A300^-1
+   = 9F665AC59C436AF04CFC2C40DAC17A8625FBCE3B
+</pre>
+
+<p>
+S by inverting:
+</p>
+
+<pre class=math>
+s = (s<sup>-1</sup>)<sup>-1</sup>
+  = CE09C586694D567500861AA335F8FBD83D51A300
+</pre>
+
+<p>
+Test that for the first message, the coefficient of G is 1
+</p>
+
+<pre class=math>
+= s<sup>-1</sup> * H1 + s<sup>-1</sup> * r * dA
+= F6F13F1143994A7D162C04BE51E81B2CF1A617A4 + s<sup>-1</sup> * 89C0BDB7F9F378604B992BB8A8C00EA7DF7E9DB
+= F6F13F1143994A7D162C04BE51E81B2CF1A617A4 + 90EC0EEBC66B582E9D5F00AA73F93A6D8CF0AB4
+= 100000000000000000001F4C8F927AED3CA752258
+= 1
+</pre>
+
+<p>
+Test that for the second message, the coefficient of G is N-k
+</p>
+
+<pre class=math>
+= s<sup>-1</sup> * H2 + s<sup>-1</sup> * r * dA = 1
+= F6F13F1143994A7D162C04BE51E81B2CF1A617A2 + s<sup>-1</sup> * 89C0BDB7F9F378604B992BB8A8C00EA7DF7E9DB
+= F6F13F1143994A7D162C04BE51E81B2CF1A617A2 + 90EC0EEBC66B582E9D5F00AA73F93A6D8CF0AB4
+= 100000000000000000001F4C8F927AED3CA752256
+= N-1
+</pre>
+
+<p>
+Finally, point multiply G by d<sub>A</sub> to get public key Q<sub>A</sub> (had to write quick miracl prog here)
+</p>
+
+<pre class=math>
+Q<sub>A</sub> = d<sub>A</sub> * G
+  = 7E72DF1F05BD304CB5F827255B40CE5CCF076C23 * G
+  = (F334697B7A0E57AC7D23C40BFA23EE5EB29DAF89, A072524E7EB37A8487D9609A6232BBE839C3DEDE)
+</pre>
+
+<p>
+The signature is complete. It's just the tuple (x-coordinate of Q<sub>A</sub>, r, s):
+</p>
+
+<pre class=fact>
+user: "witeg"
+x: F334697B7A0E57AC7D23C40BFA23EE5EB29DAF89
+r: 4A96B5688EF573284664698968C38BB913CBFC82
+s: CE09C586694D567500861AA335F8FBD83D51A300
+</pre>
+
+<p>
+And yes, the crackme accepts it!
+</p>
+
+<h2>Keygenning</h2>
+
+<p>Here I'll repeat the steps taken in the example all math like:</p>
+
+<ul>
+<li>k = random
+<li>r = k * G
+<li>d<sub>A</sub> = (k * H2 - (N-k) * H1) * ((N-k) * r - k * r)<sup>-1</sup>
+<li>s = H1 + r * dA
+<li>Q<sub>A</sub> = d<sub>A</sub> * G
+</ul>
+
+<p>
+The implementation is included keygen.cpp.
+</p>
+
+<h2>One Last Headache</h2>
+
+<p>
+In the source, you'll notice that our public key Q<sub>A</sub> is labelled "pointH" and
+we enter just its X-coordinate in the crackme. The crackme converts this to a full
+(X,Y) point by solving for Y in the curve equation. But there are two solutions,
+so it is forced to pick one. It chooses the Y that shares its least significant bit with r.
+If k is chosen at random, you must calculate r and Q<sub>A</sub> until their LSB's match.
+</p>
+
+<h2>Summary</h2>
+
+<p>
+This tutorial makes it look easy to dream up methods to try, and quickly rule out ones
+that won't work, arriving at one that does. Don't be fooled. There were alot of dead
+ends not shown here, and many, MANY early morning hours spent. Thanks WiteG!
+</p>
+
+<p>
+Hello to E.L. and all people I know ++cyclops, ++numernia, ++artif.
+</p>
+
+<p>
+Contact me if you want to talk crypto crackmes sometimes.
+</p>
+
+<p>
+http://rcejunk.blogspot.com
+</p>
+
+<pre>
+Example Keys:
+
+user: WiteG
+FD16812F4CE26F5460078AAB1F5F7172F3F3E388
+D2AF50A6402B29E9192C368B8FE4A3CB557E3E32
+52E46FBBAEC02D5532569E6D078116CD8F9A4A74
+
+user: crackmes.de
+6CB517EFA6BC099BF7353484BA4C81960742D00A
+456862907643E0EFA4DA9F827AAE400D6241F104
+C986239C4661331C8216B94BECCCFB1AFB6263D8
+</pre>
+
+</html>
+
+

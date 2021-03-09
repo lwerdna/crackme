@@ -1,0 +1,54 @@
+quick guide:
+1) see file offset 40351: "?AVException@CryptoPP@@" -> uses crypto++ lib
+2) crackme "about" says "Electric Camel crackme by DEATH of Execution in 2001" ->
+   look at dates of old crypto++ versions: 4.1 released 1/13/2000 and 4.2 11/5/2001
+3) download MSVC6, SP5 patch, compile both versions in debug/release
+4) use IDA flair/flirt 4.9 to make signatures, ignore collisions, load in IDA, release 4.1 matches the most
+5) reverse!
+   - biggest clue @00401AD0: instantiates ElGamalDecrypter object with params:
+
+        base16               base10
+        -------------------- ---------------
+     P: cc7346a8b4ffb3f2393b 965489229592273293031739
+     G: 00000000000000000003 000000000000000000000003
+     Y: 3e2cb006ad3961beda9d 293611062693023723739805
+     X: <from user input>
+
+     solve the DLP to find:
+     X: 000000000792A1952223 000000000008326357525027
+
+     substitute this value using debugging and step to see message decrypted:
+
+     004451ec  43 6f 6e 67 72 61 74 75-6c 61 74 69 6f 6e 73 2c  Congratulations,
+     004451fc  20 79 6f 75 20 64 69 64-20 69 74 21 20 53 65 6e   you did it! Sen
+     0044520c  64 20 6d 65 20 79 6f 75-72 20 6b 65 79 67 65 6e  d me your keygen
+     0044521c  2e 2e 2e 00 00 00 00 00-00 00 00 00 00 00 00 00  ................
+
+   - rest of the crackme is getting the two user inputs so that this X value is arrived at, the algo is:
+     1) blowfish_key = first_six_bytes(sub_00401D70(tiger(partA)))
+     2) X = blowfish_encrypt(decode64(partB), blowfish_key)
+     3) X = xor with some constant bytes and the sha1 of the unique system code (see keygen for details)
+
+   - here is small recreation of algorithm:
+
+     Blowfish fish(tiger_hash, 6, (CipherDir)0);
+     fish.ProcessBlock(privateKey, privateKey);
+     privateKey[8]^=0x67;
+     privateKey[9]^=0x4F;
+     SHA1 hash2;
+     BYTE sha1_hash[SHA1::DIGESTSIZE];
+     hash2.CalculateDigest(sha1_hash, (PBYTE)systemid, strlen(systemid));
+     for(i=0; i<10; ++i)
+         privateKey[i]^=(sha1_hash[i]+sha1_hash[i+10]);
+     and at this point, the ten bytes privateKey should be the el-gamal X: 00 00 00 00 07 92 A1 95 22 23
+
+   - to reverse this, partA can be chosen randomly, and the 6 byte key computed forward: then the
+     private el-gamal X can be DEcrypted using this key, and this output can be base64 encoded
+       
+thanks to Dcoder of EFNET #cryptography who showed me very fast way to solve DLP (Bye bye alpertron!)
+thanks to Denis Bider's Crypto++ User's Guide - it's almost as hard to write crypto++ code as it is to reverse it! 
+
+--
+andrewl
+nov12_2009
+crackmes.de

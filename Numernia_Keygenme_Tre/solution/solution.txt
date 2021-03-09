@@ -1,0 +1,210 @@
+Quick tutorial for Numernia's "Keygenme Tvaa"
+
+- @401000 serial verify routine
+- @4010A8 GetDlgItemTextA() and checks on len: len must be 37 chars
+  - serial form: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+- @40110F array is built: {6,11,16,20,25,30,34}
+- @401119 loop checks for 0x2d '-' at each array index
+  - serial form: XXXXXX-XXXX-XXXX-XXX-XXXX-XXXX-XXX-XX
+- @401182, first bignum A read from serial
+  - serial form: AAAAAA-XXXX-XXXX-XXX-XXXX-XXXX-XXX-XX
+  - @4011B1 BSR and subsequent logic means A's MSB must be on odd bit
+    index (ordered from 0 at lsb)
+- @40121F bignum B read from serial
+  - serial form: AAAAAA-BBBB-BBBB-BBB-XXXX-XXXX-XXX-XX
+- @401261 bignum C read from serial
+  - serial form: AAAAAA-BBBB-BBBB-BBB-CCCC-CCCC-CCC-XX
+- @401269 ascii values of last two chars are made into bignum
+  - serial form: AAAAAA-BBBB-BBBB-BBB-CCCC-CCCC-CCC-ZZ
+  - all the way until 401428, there is some math done with hardcoded
+    numbers and the ZZ
+  - the result of the math fill out a table of 14 values on the stack
+  - these values later reference this table @4018BB:
+
+    0x00, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, // ........
+    0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, // ........
+    0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x01, 0x0E, // ........
+    0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, // ........
+    0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x02, // ........
+    0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, // ........
+    0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, // ........
+    0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x03, 0x0E, 0x0E, // ........
+    0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, // ........
+    0x04, 0x05, 0x0E, 0x0E, 0x0E, 0x0E, 0x06, 0x0E, // ........
+    0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, // ........
+    0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, // ........
+    0x0E, 0x0E, 0x0E, 0x0E, 0x07, 0x0E, 0x0E, 0x0E, // ........
+    0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, // ........
+    0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x08, 0x0E, 0x0E, // ........
+    0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, // ........
+    0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, // ........
+    0x0E, 0x0E, 0x0E, 0x09, 0x0E, 0x0E, 0x0E, 0x0E, // ........
+    0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, // ........
+    0x0E, 0x0E, 0x0E, 0x0E, 0x0A, 0x0E, 0x0E, 0x0E, // ........
+    0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, // ........
+    0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, // ........
+    0x0E, 0x0E, 0x0B, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, // ........
+    0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, // ........
+    0x0E, 0x0E, 0x0E, 0x0C, 0x0E, 0x0E, 0x0E, 0x0E, // ........
+    0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, // ........
+    0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, // ........
+    0x0E, 0x0D                                      // ..   
+
+  - notice that all values are 0x0E, except the 14 values at indices
+    {0x0,0x16,0x27,0x3D,0x48,0x49,0x4E,0x64,0x75,0x8B,0x9C,0xB2,0xC3,0xD9}
+  - looking ahead, 0x0E is the "NOP" code for some VM behavior
+  - may infer that the 14 values produced from ZZ should point to the
+    NON-0x0E entries in this table
+  - instead of investigating the math, be lazy and emulate it :)
+    - brute all 2-char strings for their table values
+    - see searcher.cpp
+    - reveals that ZZ = "NM" == "Numernia" ?? :)
+- VM time now
+  - @401450 fetch VM index (from 14-value table)
+  - @401463 sub 0x11 from VM index
+  - @40148A VM index references function number in our table @4018BB
+  - @401490 jmp to function number in function table @40187F
+  - VM only executes 14 instructions, and never executes the same instruction
+    twice, so tracing manually is necessary but not too difficult:
+    
+    loop function behavior
+    ---- -------- -----------------------------------------------------------------
+       0 004016bc init 31A04C6B84E = 3410284165198 (group order)
+       1 004014c7 init 1C9F5D
+                  add to 31A04C6B84E = 31A04E357AB = 3410286041003 (prime p)
+       2 00401733 init curve with three points
+                  414D94: bignum 0x026d         == 0000000000621 == a
+                  414D98: bignum 0x0285         == 0000000000645 == b
+                  414D9C: bignum 0x031a04e357ab == 3410286041003 == p
+       3 004014b0 new point A
+       4 0040154f new point B
+       5 0040178e new point C
+       6 004015dd pointB = [0x1C08985EE09, 0x1CE7C1306E7] 
+                  == [1926452604425, 1986356512487] (generator point)
+       7 004016a1 pointC = [0x043DA35440F, 0x065E9A84ED7] 
+                   == [0291423732751, 0437711818455] (some k*generator point)
+       8 00401497 pointB = bignumC * pointB 
+       9 00401749 pointC = bignumB * pointC 
+      10 00401656 pointA = pointB + pointC 
+      11 0040179f bignumB = bignumB - Xcoord(pointA)
+      12 004015c1 bignumB = bignumB % 31A04C6B84E (non prime, wtf? order of curve?)
+      13 00401523 if(bignumA == bignumB) pass!
+
+- how did I determine operations on bignums and points? the calls are very deep
+  and complicated
+- instead invest some time in quick access to the bignum values, here are their
+  structure in memory:
+
+  - bignums:
+    [+00]: -> dword data
+    [+04]: -> num dwords
+    [+08]: -> (num bits?)
+
+  - ecc points:
+    [+00]: -> pointer to x bignum
+    [+04]: -> pointer to y bignum
+
+- wrote WinDBG extension with command !bn and !point to read these guys very conveniently
+  with output in hex/decimal for quick pasting/testing in tools like BigCalto and PARI/GP
+  - see extension.zip for source and dll
+- now examine the values before and after the calls ... sometimes it is necessary to
+  substitute in values like 1 for the parameters that will cause minimal (and more
+  identifiable) effects on the output, then use inference to guess functions like:
+
+  0001:00000CF0       allocate_new_bignum_from_int
+  0001:00001570       bignum_INVMOD
+  0001:000017C0       destroy_bignum_maybe
+  0001:00001A40       ascii_to_bignum_maybe2
+  0001:00001AE0       bignum_to_asciiHex
+  0001:00001BB0       bignum_Add
+  0001:00001FA0       bignum_MUL
+  0001:00002830       bignum_MOD
+  0001:00000E50       ECC_PointAdd
+  0001:00001380       ECC_PointMultiply
+  0001:00001D90       ECC_SubXCoordFrom
+
+- that was IDA map format, those are offsets from segment 1 (.text)
+- not perfect and definitely not complete, but should be enough...
+- algorithm is Nyberg Rueppel
+  - works in cyclic groups, here the group of elliptic curves over the prime field Z_p
+
+  signing:
+  --------
+  r = x_coord(k*G) + message
+  s = k - x*r (mod order)
+
+  verification:
+  ------------
+  r - x_coord(s*G + r*Y) =
+  r - x_coord((k - x*r)*G + r*(x*G)) =
+  r - x_coord(k*G - x*r*G + r*x*G) =
+  r - x_coord(k*G) = 
+  (x_coord(k*G) + message) - x_coord(k*G) =
+  message
+
+- we are missing the private key x
+- enlist the help of MR.HAANDI ECDLP Solver v0.2a (aaah later versions use Python!!)
+  - config file:
+
+    GF := GF(3410286041003);
+    E := EllipticCurve([GF|621,645]);
+    G := E![1926452604425,1986356512487];
+    K := E![0291423732751,0437711818455];
+    /*
+    FactorCount:=4;
+    2
+    17
+    55009
+    1823383
+    */
+
+  - output:
+    Found k=2408408535581; time=125ms
+- that was fast! can it be right? verify in PARI:
+  E=ellinit([0,0,0,Mod(621,3410286041003),Mod(645,3410286041003)])
+  (01:00) gp > q=lift(ellpow(E,[1926452604425, 1986356512487],2408408535581))
+  %33 = [291423732751, 437711818455]
+- generating a key is just signing a random message
+- manual key generation example:
+  1) let us pick message 2 (note MSB is at b1, an odd index)
+  2) pick random k=1
+  3) r = x_coord(1*[1926452604425, 1986356512487]) + msg
+       = 1926452604427 = 1C08985EE0B
+  4) s = 1 - 2408408535581*1926452604427 (mod 3410284165198)
+       = 1565934967772 = 16C98FF5BDC
+  5) fit these numbers into serial format: AAAAAA-BBBB-BBBB-BBB-CCCC-CCCC-CCC-NM
+  6) final key: 000002-1C08-985E-E0B-16C9-8FF5-BDC-NM
+- it's accepted! we're done
+- for a change from typical miracl, wrote keygen in PARI/GP: see keygen.gp
+- example keys:
+
+  B9F3DC-06C9-A6B4-021-0FAE-5781-90B-NM
+  242C75-160E-BBEA-2D5-2D50-D5DD-709-NM
+  87BD70-0BC5-755D-ED4-2D24-6764-140-NM
+  2BD766-1CD3-4036-AD4-13E0-C39D-C1A-NM
+  C231C7-0E51-44CE-EF6-1E72-14AD-193-NM
+  B50F2F-0FB7-BEBF-C76-05EC-521B-6C5-NM
+  986B57-156C-6893-5B0-216B-098F-4FF-NM
+  203796-2431-E766-FD7-2DC8-C29A-A5D-NM
+  CD610B-303C-97E5-91A-1268-1B5A-F07-NM
+  3B5AF7-154F-7B36-D82-27E6-5279-92E-NM
+  857DC6-0252-38A9-920-2EF7-C0DE-7DD-NM
+  0C8E3F-2752-B7FC-29F-1D75-8ABA-D48-NM
+  37BA75-06FF-D780-C3C-1BFE-E1A7-B88-NM
+  F48662-099B-83E9-64A-049C-AD8E-36E-NM
+  CEF6F0-238A-65A2-645-1424-794E-0C8-NM
+  3DCF16-22EC-4E13-68B-133F-EC2B-290-NM
+
+- need more detail? see disassembly.txt
+- thanks to Numernia for another difficult-coded crackme!
+- Hello to my little EL,BL and all friends
+
+--
+andrewl
+jan27_2010
+crackmes.de
+http://andrewl.brainstemprojects.com
+
+
+
+

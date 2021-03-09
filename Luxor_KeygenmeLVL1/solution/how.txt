@@ -1,0 +1,312 @@
+How to keygen luxor's Keygenme I v1.0
+8/31/2007 andrewl and ilkhomd
+
+break on GetWindowTextA
+
+this chunk of code reads in the name/serial:
+
+.text:004010D0 loc_4010D0:                             ; CODE XREF: sub_40108F+38j
+.text:004010D0                 mov     esi, ds:GetDlgItem
+.text:004010D6                 push    51h             ; nMaxCount
+.text:004010D8                 lea     eax, [ebp-50h]
+.text:004010DB                 push    eax             ; lpString
+.text:004010DC                 push    3E9h            ; nIDDlgItem
+.text:004010E1                 push    dword ptr [ebp+70h] ; hDlg
+.text:004010E4                 call    esi ; GetDlgItem
+.text:004010E6                 mov     edi, ds:GetWindowTextA
+.text:004010EC                 push    eax             ; hWnd
+.text:004010ED                 call    edi ; GetWindowTextA <---- after breaking, go up to land here
+.text:004010EF                 push    51h             ; nMaxCount
+.text:004010F1                 lea     eax, [ebp+4]
+.text:004010F4                 push    eax             ; lpString
+.text:004010F5                 push    ebx             ; nIDDlgItem
+.text:004010F6                 push    dword ptr [ebp+70h] ; hDlg
+.text:004010F9                 call    esi ; GetDlgItem
+.text:004010FB                 push    eax             ; hWnd
+.text:004010FC                 call    edi ; GetWindowTextA
+.text:004010FE                 cmp     byte ptr [ebp-50h], 0 ; <---- is name empty?
+.text:00401102                 jz      loc_4012C8
+.text:00401108                 cmp     byte ptr [ebp+4], 0 ; <---- is serial empty?
+.text:0040110C                 jz      loc_4012C8
+.text:00401112                 or      dword ptr [ebp+60h], 0FFFFFFFFh
+.text:00401116                 or      dword ptr [ebp+64h], 0FFFFFFFFh <---- set some 64-bit number to -1
+.text:0040111A                 lea     edi, [ebp-50h]
+.text:0040111D                 xor     esi, esi
+
+Now it generates a table of 256 64-bit numbers:
+
+.text:0040111F 
+.text:0040111F loc_40111F:                             ; CODE XREF: sub_40108F+D0j
+.text:0040111F                 mov     eax, esi <---- esi is the counter from 0...255
+.text:00401121                 cdq
+.text:00401122                 mov     dword ptr [ebp+74h], 8 <---- sub counter (8 times)
+.text:00401129 
+.text:00401129 loc_401129:                             ; CODE XREF: sub_40108F+B9j
+.text:00401129                 mov     ecx, eax
+.text:0040112B                 shrd    eax, edx, 1
+.text:0040112F                 and     ecx, 1
+.text:00401132                 xor     ebx, ebx
+.text:00401134                 shr     edx, 1
+.text:00401136                 or      ecx, ebx
+.text:00401138                 jz      short loc_401145 <---- if number was even before shift, skip xor
+.text:0040113A                 xor     eax, 0AC4BC9B5h
+.text:0040113F                 xor     edx, 95AC9329h <----- xor by this
+.text:00401145 
+.text:00401145 loc_401145:                             ; CODE XREF: sub_40108F+A9j
+.text:00401145                 dec     dword ptr [ebp+74h] <----- is 8 count finished?
+.text:00401148                 jnz     short loc_401129
+.text:0040114A                 mov     [ebp+esi*8-850h], eax
+.text:00401151                 mov     [ebp+esi*8-84Ch], edx <---- store this value in table index esi
+.text:00401158                 inc     esi
+.text:00401159                 cmp     esi, 100h <---- esi is not finished until 256
+.text:0040115F                 jl      short loc_40111F
+
+the equivalent C code to this table generation is:
+
+int i, j;
+unsigned __int64 var = 0;
+
+for(i=0; i<256; ++i) {
+    var = i;
+
+    for(j=0; j<8; ++j) {
+        if(var % 2 == 0)
+            var = (var >> 1);
+        else
+            var = (var >> 1) ^ 0x95AC9329AC4BC9B5;
+    }
+
+    table[i] = var;
+}
+
+now it takes the name and uses the characters to reference the table of generated values and
+make a number out of it
+
+.text:00401161                 movzx   eax, byte ptr [ebp-50h]; <---- eax gets first character of name
+.text:00401165 
+.text:00401165 loc_401165:                             ; CODE XREF: sub_40108F+104j
+.text:00401165                 mov     ecx, [ebp+60h]
+.text:00401168                 mov     edx, [ebp+64h]	; <---- remember this was set to -1 at 00401116
+.text:0040116B                 xor     eax, [ebp+60h]
+.text:0040116E                 shrd    ecx, edx, 8
+.text:00401172                 and     eax, 0FFh
+.text:00401177                 xor     ecx, [ebp+eax*8-850h]
+.text:0040117E                 shr     edx, 8
+.text:00401181                 xor     edx, [ebp+eax*8-84Ch]
+.text:00401188                 inc     edi
+.text:00401189                 mov     al, [edi] <---- al gets next character of name
+.text:0040118B                 test    al, al <---- if end-of-string, quit
+.text:0040118D                 mov     [ebp+60h], ecx
+.text:00401190                 mov     [ebp+64h], edx
+.text:00401193                 jnz     short loc_401165
+
+the equivalent C code to this is:
+
+unsigned char * cur_char;
+unsigned int index;
+
+for(cur_char = name; *cur_char; ++cur_char)
+{
+    index = *cur_char ^ (unsigned char)hash_user;
+    hash_user = (hash_user >> 8) ^ table[index];
+}
+
+next it computes the length of the serial and ensures that it's 19 chars:
+
+.text:00401195                 lea     eax, [ebp+4]    ; <---- eax points to serial string
+.text:00401195                                         ; 
+.text:00401198                 lea     edx, [eax+1] <---- edx points to next char
+.text:0040119B 
+.text:0040119B loc_40119B:                             ; CODE XREF: sub_40108F+111j
+.text:0040119B                 mov     cl, [eax] <---- get char of serial
+.text:0040119D                 inc     eax
+.text:0040119E                 test    cl, cl <---- is it null?
+.text:004011A0                 jnz     short loc_40119B
+.text:004011A2                 sub     eax, edx        ; <---- eax = strlen of serial
+.text:004011A4                 cmp     eax, 13h
+.text:004011A7                 jnz     loc_40125E
+
+now it produces a number based on the serial, it keeps a running value starting at 0 and for
+every character in the serial, find out where this character is located in a lookup table and
+shift this location into the right side of the running value
+
+the lookup table is simply: "CDFHKMPQTVX23468"
+
+.text:004011AD                 mov     cl, [ebp+4]     ; <---- cl = serial[0]
+.text:004011B0                 xor     eax, eax        ; <---- eax = 0
+.text:004011B2                 lea     edi, [ebp+4]    ; <---- edi = serial
+.text:004011B5                 xor     esi, esi        ; <---- esi = 0
+.text:004011B7 
+.text:004011B7 loc_4011B7:                             ; CODE XREF: sub_40108F+158j
+.text:004011B7                 xor     ebx, ebx		; <----- ebx is index into lookup table
+.text:004011B9 
+.text:004011B9 loc_4011B9:                             ; CODE XREF: sub_40108F+136j
+.text:004011B9                 cmp     cl, ds:byte_401028[ebx] <---- is this in the table?
+.text:004011BF                 jz      short loc_4011C9
+.text:004011C1                 inc     ebx
+.text:004011C2                 cmp     ebx, 11h
+.text:004011C5                 jb      short loc_4011B9
+.text:004011C7                 jmp     short loc_4011E2
+.text:004011C9 ; ---------------------------------------------------------------------------
+.text:004011C9 
+.text:004011C9 loc_4011C9:                             ; CODE XREF: sub_40108F+130j
+.text:004011C9                 push    10h
+.text:004011CB                 pop     ecx
+.text:004011CC                 mul     ecx
+.text:004011CE                 mov     [ebp+58h], eax
+.text:004011D1                 mov     ecx, edx        ; <---- edx = 0 from mult
+.text:004011D3                 shl     esi, 4
+.text:004011D6                 mov     eax, ebx        ; <---- ebx = index in lookup table  that this char is
+.text:004011D8                 cdq
+.text:004011D9                 add     ecx, esi
+.text:004011DB                 add     eax, [ebp+58h]
+.text:004011DE                 adc     edx, ecx
+.text:004011E0                 mov     esi, edx
+.text:004011E2 
+.text:004011E2 loc_4011E2:                             ; CODE XREF: sub_40108F+138j
+.text:004011E2                 inc     edi             ; <---- end of string?
+.text:004011E3                 mov     cl, [edi]
+.text:004011E5                 test    cl, cl
+.text:004011E7                 jnz     short loc_4011B7 ; <---- done calculating hash_serial
+
+the equivalent C code to this is:
+
+unsigned char hash_serialdex[] = "CDFHKMPQTVX23468";
+int i, j;
+
+for(i=0; i<19; ++i)
+{
+    int index_hash_serialdex = -1;
+
+    for(j=0; j<17; ++j)
+        if(hash_serialdex[j] == serial[i])
+            index_hash_serialdex = j;
+
+    if(index_hash_serialdex >= 0)
+        hash_serial = hash_serial * 16 + index_hash_serialdex;
+}
+
+at this point there is number generated from username hash_user and number generated from serial hash_serial
+
+the code takes two different paths depending on whether hash_user is even or odd
+
+.text:004011E9                 mov     ecx, [ebp+60h] 
+.text:004011EC                 and     ecx, 1
+.text:004011EF                 xor     edx, edx
+.text:004011F1                 push    esi
+.text:004011F2                 or      ecx, edx
+.text:004011F4                 push    eax             ; 
+.text:004011F5                 mov     ecx, eax
+.text:004011F7                 mov     edx, esi
+.text:004011F9                 jz      short loc_401224 ; if lsb of hash_user is 0, go elsewhere
+
+notice that hash_serial was left over in esi:eax pair from when it was generated, and is pushed on the stack
+at this point
+
+and also that edx:ecx was assigned hash_serial
+
+here is the case for when hash_user is odd (lsb is non-zero)
+
+.text:004011FB                 add     ecx, [ebp+60h]
+.text:004011FE                 adc     edx, [ebp+64h]  ; <---- edx:ecx = hash_serial + hash_user
+.text:00401201                 push    edx
+.text:00401202                 push    ecx             ; 
+.text:00401203                 push    esi
+.text:00401204                 push    eax             ; <---- push hash_serial
+.text:00401205                 call    sub_401070      ; <---- multiplies two 64-bit numbers
+.text:0040120A                 add     esp, 10h        ; (remember that hash_serial still on stack)
+.text:0040120D                 push    edx
+.text:0040120E                 push    eax             ; <-----push edx:eax = hash_serial * (hash_serial + hash_user)
+.text:0040120F                 call    sub_401070      ; <---- multiply
+.text:00401214                 add     esp, 10h        <---- edx:eax = hash_serial * hash_serial * (hash_serial + hash_user)
+.text:00401217                 add     eax, 0D7870F42h
+.text:0040121C                 adc     edx, 0C96C5795h ;
+.text:00401222                 jmp     short loc_40124C
+
+the code at 40124c or's eax and edx and if they are zero, accepts the user/serial
+
+this is only possible when eax and edx are 0
+
+eax and edx are 0 when the result of the final multiplication, added with 0xC96C5795D7870F42 is 2^64, or numbers where the remainder after division of 2^64 is 0 - because the low 64-bits will be saved and the above truncated
+
+so hash_serial * hash_serial * (hash_serial + hash_user) + 0xC96C5795D7870F42 % 2^64 = 0
+
+or hash_serial^3 + hash_serial^2*hash_user + 0xC96C5795D7870F42 % 2^64 = 0
+
+hash_user is generated from input of username - so there is only one unknown left, hash_serial
+
+NTL library is used to solve this equation to find out what hash_serial should be
+
+ok here is code taken when hash_user is even (lsb is zero)
+
+.text:00401224 ; ---------------------------------------------------------------------------
+.text:00401224 
+.text:00401224 loc_401224:                             ; CODE XREF: sub_40108F+16Aj
+.text:00401224                 add     ecx, 0AC4BC9B5h ; hash_serial + 0x95ac9329ac4bc9b5h
+.text:0040122A                 adc     edx, 95AC9329h
+.text:00401230                 push    edx
+.text:00401231                 push    ecx             ; <---- push hash_serial
+.text:00401232                 push    esi
+.text:00401233                 push    eax
+.text:00401234                 call    sub_401070      ; <---- edx:eax = hash_serial * (hash_serial + 0x95ac9329ac4bc9b5)
+.text:00401239                 add     esp, 10h
+.text:0040123C                 push    edx
+.text:0040123D                 push    eax
+.text:0040123E                 call    sub_401070      ; <---- edx:eax = hash_serial * hash_serial * (hash_serial + 0x95ac9329ac4bc9b5)
+.text:00401243                 add     esp, 10h
+.text:00401246                 add     eax, [ebp+60h]
+.text:00401249                 adc     edx, [ebp+64h]  ; <---- add hash_user
+.text:0040124C 
+
+similarly, the equation needing to be solved now is:
+
+hash_serial^3 + hash_serial^2 * 0x95ac9329ac4bc9b5 + hash_user % 0 = 0
+
+NTL library finds a root easily
+
+and here's the final decision
+
+.text:0040124C loc_40124C:                             ; CODE XREF: sub_40108F+193j
+.text:0040124C                 or      eax, edx
+.text:0040124E                 jnz     short loc_40125E
+.text:00401250                 push    40h
+.text:00401252                 push    offset aCongratulation ; "Congratulations"
+.text:00401257                 push    offset dword_401054
+.text:0040125C                 jmp     short loc_40126A
+
+so when NTL library finds hash_serial, you then just work backwards to find a serial number that would have generated
+hash_serial
+
+here's the code in c:
+
+void de_hash_serial(__int64 serial_hash, char * result)
+{
+    char lookup[] = "CDFHKMPQTVX23468";
+
+    int i;
+
+    memset(result, 'Z', 19);
+    result[19] = '\0';
+
+    int char_loc = 18;
+
+    for(i=19; i>0; --i)
+    {
+        unsigned char nibble = 0;
+
+        nibble = serial_hash & 0x000000000000000F;
+
+        result[char_loc--] = lookup[nibble];
+
+        serial_hash >>= 4;
+    }
+
+    result[19] = '\0';
+}
+
+that is all
+
+here is example name/key:
+
+name: asdf
+ key: 888T42QPCXPPMM6CP4V

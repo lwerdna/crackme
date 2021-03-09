@@ -1,0 +1,81 @@
+Keygenning upb's "keygenme #3"/"keygenme sheg"
+
+The crackme uses your serial number as instructions to a stack-based
+VM with just a few instructions (AND,XOR,PUSH). See DoVM() in keygen.
+
+It then runs the VM 16 times, and ensures that the output matches
+16 bits generated from your username. See GenTargetBuffer() keygen.
+
+           +--------------------+
+ serial -> |base 16 decode with:| -+
+           |"OWNAGETHISPLZK7X"  |  |
+           +--------------------+  |       +----------+
+                                   +-----> | VM       |
+       +------------------------+          |          |
+       |for(i=0;i<16;++i)       | -------> |          |
+       |i, as array of 4 bits:  |          |          |
+       |[{0,0,0,0},{1,1,1,1}]   |          +----------+
+       +------------------------+                  |
+                                                   |
+         +----------------+    +------------+      |
+ name -> |generate 16 bits| -> |compare     | <----+
+         |target[0..15]   |    |VM output[i]|
+         +----------------+    |   target[i]|
+                               +------------+
+
+The VM must produce the correct bits on each of the 16 iterations.
+Here is an example:
+
+iteration input target
+--------- ----- ------
+        0 0000  0
+        1 0001  1       We can make a logic circuit for this truth
+        2 0010  0       table simply by reading off the input
+        3 0011  0       conditions when the target is true (row 1,
+        4 0100  0       row 6, row 14):
+        5 0101  0
+        6 0110  1       "target is true when input==0001 or when
+        7 0111  0       input==0110 or when input=1110"
+        8 1000  0
+        9 1001  0       Splitting input into bits b3b2b1b0 the
+       10 1010  0       circuit becomes:
+       11 1011  0
+       12 1100  0       target = /b3/b2/b1b0 + /b3b2b1/b0 + b3b2b1/b0
+       13 1101  0
+       14 1110  1
+       15 1111  0
+
+First challenge is that we do not have the operators "not" or "or".
+To get around this, we synthesize them using just "and", "xor":
+
+not(a) = xor(a,1)
+nand(a,b) = /and(a,b)
+or(a,b) = nand(/a,/b)
+
+The second challenge is that the stack machine can only address
+the calculation currently at the top of the stack. We cannot make
+two temporary calculations and use them in a third calculation
+unless they are neighboring each other and the third calculation
+doesn't need temporary results of its own (for instance our synthesis
+of or(a,b) must first calculate /a and /b before applying and, not.
+See keygen for how I took care of this.
+
+Example keys:
+
+       name serial
+       ---- ------
+        upb E7ZOOPGOEPOOSNONEOOWLHONSOWTIOPGOOEGOOXNONOTTSOWGIOPGOOEPOWGIOENOOHNNLOONSNGOEPOONSOWHAOGINWNSOOWEIOKZNOIEPGOOEGOOGPOWZIPKOOPGOENOIWOPGOE7ZONONKOOOSEGOOHNIALGOONGEOOWNIOEPOWGIOENOOGPOWPIOOON
+crackmes.de E7ZOOPGOEPOOSNONEOIWWGIOENOOHNIALGOONGOEPOONEOOPGOT7OENOIEPGOOEGOOGPOWZIOKENGIOPGOOEPOWGIOENOOXNONOTTSOWGIPOONSOWLPGOENOIWOPGONSOOLSWEIOWGWNPIOOSGONEOOPGOOEWO
+a@fF)*(FJ#W E7ZOOPGOEPOOSNONEOIWWGIOLZIOGWEPOOSNONEOOWZIOKKNONSOWGIOOPGOE7ZOOPGOOPGSOWPIOO7GETOOENGIOPGOOENONXTOSOGNENOONPOOLSGWOPGSOWPIOOSGONSOELOWGIOLGOONWEIOLZIOGWEPOOWNPIOOSGONSOWHLOONSOGNONWEIOKZOPGOOPOSEGOOGPOWNIOEPOONOI
+
+The crackme was quite difficult and fun at the same time, big thanks
+to upb. You may notice that this crackme is extremely close to
+Malfunction's "Digital Arithmetic" scheme, yet it predates it by some
+years. A level two it is not! :P Hello to all friends and those
+active in crackme world!
+
+andrewl
+nov3_2009
+crackmes.de
+
+

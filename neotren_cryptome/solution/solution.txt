@@ -1,0 +1,465 @@
+Keygenning Neotren's "Cryptome"
+
+-----------------------------------------------------------
+INTRO
+-----------------------------------------------------------
+
+The crackme parses a key file, decrypting (using RSA with
+2034 bit modulus) a signed license. The license scheme is
+is the Schnorr signature, but instead of using a
+Schnorr group, it uses the integers (mod n). This gives us
+both the generator of the group, and clues to the size of
+a subgroup. Using Pollard's p-1 algorithm, we can exploit
+this subgroup size information to factor the modulus.
+
+The key file also must contain one of the modulus's factors
+which is used as the AES key to decrypt a necessary part of
+the crackme to play the Skramble game.
+
+Disclosed here are some of the hints neotren gave on the
+crackme page that severely reduces its difficulty:
+
+sep15_2009:
+"Hint 2:
+ The modulo used in the RSA part is also used in the
+ signature algo. You can assume that the modulo n = p*q
+ where p and q is prime numbers. When you look at the
+ signature size you can also assume that the order of g !=
+ phi(n). Now since n is a multiplicative group you know
+ that Zn depends on Zp and Zq. Also g^(p-1) == 1 mod p and
+ g^(q-1) == 1 mod q and g^((p-1)*(q-1)) == 1 mod n. When
+ the order of g != phi(n) then there might be a subgroup 
+ to work in?? Perhaps you can use this info to factor n???
+ So when you have p and q you need to solve DLP in Zpq and
+ Zqq, use CRT and you should have all the info you need to
+ make a keygen to this crackme. Also using same p and q you
+ should be able to obtain rsa d."
+
+feb11_2010:
+"New hint: There is a factoring algo called p-1. Perhaps
+ modifying it might solve the problem."
+
+feb14_2010:
+"e is just the hash here and is not important. however s
+ is which is the signature. You can look at the sig to 
+ determine the size of the group. (sub group) So as you
+ say. sig size is 7 bytes max then you know the order of g
+ in N should be ~same size. So 7 bytes order gives you max
+ 56 bit. So now try to look at the problem in Zp and Zq.
+ The order of g in Zp or Zq can be like 56/2 bit. Using
+ the properties of g and the algo Pollard's p-1 might sole
+ the problem :) Look at the alog p-1 and you will see it 
+ all clear then. (oh and you should not need to search all
+ the way up to 32 bit :))
+
+-----------------------------------------------------------
+UNPACKING
+-----------------------------------------------------------
+
+.NEOpack:004F7001                 call    sub_4F7990
+.NEOpack:004F7006                 push    offset loc_40365A
+.NEOpack:004F700B                 retn
+
+OEP is obviously 40365A. Dump and fix dump with IMPREC.
+
+-----------------------------------------------------------
+KEY FILE FORMAT
+-----------------------------------------------------------
+
+keyfile.bin must be 0x190 bytes total:
+
+[0000...000F] ">Keygenme6  Key<"   (10 bytes)
+[0010...0010] 0xFF
+[0011...010F] encrypted_license    (FF bytes)  
+[0110...018F] factor_p/AES key     (80 bytes)  
+
+The encrypted_license must decrypt to <= 0x60 bytes:
+
+[0000...0003] 0xAA80AA80           (04 bytes)
+[0004...0007] e                    (04 bytes)
+[0008...000E] s                    (07 bytes)
+[000F...004F] message, the license (51 bytes)
+
+The message is really the license information:
+
+[0000...0040] string of license owner
+[0041...0050] feature flags? (string of ascii '1')
+
+Need >= 12 feature bits for the game to play!
+
+-----------------------------------------------------------
+RSA PARAMETERS
+-----------------------------------------------------------
+
+ n = 1040192043971585336188235544332548111867919317817007 \
+     5749638755212805344322611495596872526005886051517457 \
+     6966381064138390295434002611410611320225308926324020 \
+     0999780221358802499370324375354615080861998467839024 \
+     8618774301232032079867020721301017570535334876466052 \
+     6958052535275412933906866268255303421576401615662560 \
+     1675187976495745104589856448562835109148532922483676 \
+     2936682040430087001788842674122298513453905438373847 \
+     3906644269227593670164767849584844258553941648967467 \
+     9408906088184172430105314066211334464779889715775737 \
+     5665064507965218996361908083253043549702000857294482 \
+     70825713418001834000781910482870796505151
+
+p1 = 8659900789654913469567658198567758695469201478039994 \
+     9808157923833168510123802354224377951196582148062142 \
+     8554836635763612730639835187535315008616349955591744 \
+     6566711669651199392508717287375296894140680819630870 \
+     4744633505818073043091272400074484742556181263287650 \
+     96444847531784218358908620745278532582719520241
+
+p2 = 1201159307984446004256270537243388267594422130603410 \
+     3781876332275613203996898556023382219091623724976259 \
+     6905108683832203738212342493127042709121922880649339 \
+     3841729152460523416153095254102356033000648175622218 \
+     7034772464094828206366310370943761666066691253498392 \
+     0888699118132701735817060068643510025445982511
+
+ d = 65537
+
+ e = 8282237703667434580919863157355543520986887688226053 \
+     8744167344326809050985323262162748089176975745042339 \
+     0643407035547779482786383915746604194881833222979388 \
+     2626688971259751288911953027260101034460046088282343 \
+     6139109295037901947239097804130445224174869848139457 \
+     3710285395386056382978789936997153233242258428473660 \
+     8954935663623995824751328709889211678975196793707189 \
+     5220013004822683836131072633429173912214450421658335 \
+     3210418727097258857009675844941328518013227691833850 \
+     5196519386550563159835012885279826975953155500537498 \
+     8431215623931520852495344934975415818784797476710210 \
+     3192721864805968023445833236031319879873
+
+-----------------------------------------------------------
+SIGNATURE SCHEME/PARAMETERS
+-----------------------------------------------------------
+
+ g = 7283511727318109497583912725917181732435620216857531 \
+     2410834753687696801005873122691726853448831244356105 \
+     6687750318058885448302206899350570428447333793680471 \
+     8292224313076248830919717120505949230379857496000935 \
+     4788888480792595813305448765208592386322856067557358 \
+     0468349466834542219936702752191558333807500718616530 \
+     6493093716730180423516338625707275192375532642028284 \
+     5508465119476049767353323622870996505698390828444252 \
+     9478263383192365192285910916708540315646437086945218 \
+     4099294745554461520769170655722034506865768759160858 \
+     0376665393913776836341943319824664121807465915168724 \
+     3011335598645304904592682879346822461428
+
+ y = 6995290076141979004011258830237113409274452676132481 \
+     5903177713717855549278957826801937773946503166774373 \
+     9209812317153200641035640364012186132162160776062495 \
+     2078169413191015874386803294288652512873910604703888 \
+     7328798399028394906371484839937356196270817815164197 \
+     2480771432995245156654817335431696025023005315517311 \
+     3721843616139160473604904332777658397569686938703009 \
+     3899932546496962219879232996517254015217504971998085 \
+     2561661187031730996574154986761536512080313202439249 \
+     2923221144928305945322470719701245378508579873411121 \
+     2968151899713134811055272601014430378845049670052452 \
+     1630591891113341089290487972390058594433
+
+o1 = 0001014193 \\ order(g) in Z_p1
+
+o2 = 1057282879 \\ order(g) in Z_p2
+
+g^x = y (mod p1) has solutions x = 521694 (mod p1-1)
+g^x = y (mod p2) has solutions x = 90020326 (mod p2-1)
+
+~start~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Both pari and magma CRT fail to combine them, and I think
+this means g^x = y (mod n) has no solution.
+
+I PM'd neotren with this information about the CRT, and
+asked if his reduction of the hash % FABF1234 was intended
+to make brute forcing possible. He wrote back:
+
+"Now you have an equation to solve.
+ x == a1 % 1014193
+ x == a2 % 1057282879
+ x == a3 % 1014193*1057282879"
+
+The mistake is obvious now in my equations:
+ 
+x = 521694 (mod p1-1)
+x = 90020326 (mod p2-1)
+
+The x's produced from these work in the DLP equations, but
+they are actually producing only a fraction of the total
+solutions because the modulii are too restrictive. They
+can be reduced to the order of g within each respective
+subgroup, which is obvious now:
+
+x = 521694 (o1)
+x = 90020326 (o2)
+
+One line in pari gives us the result:
+lift(chinese(Mod(521694,1014193),Mod(90020326,1057282879)))
+= 564030902046214. So finally we can write our last
+important DLP equations:
+~end~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+o3 = o1 * o2
+   = 1072288894901647
+
+g^x = y (mod N) has solutions x = 564030902046214 (mod o3)
+
+-----------------------------------------------------------
+HOW TO FACTOR N
+-----------------------------------------------------------
+
+See Pollard's p-1 algorithm:
+http://en.wikipedia.org/wiki/Pollard's_p__-_1_algorithm
+
+Mod a prime p, we can find the order of any generator g
+by factoring p-1 (the order of the group) and then trial
+exponentiating g until the result is 1.
+
+Mod the product of primes, we lose that ability, because
+the product of primes kind of obscures/mixes the groups
+that were formed by the primes individually.
+
+For example, in Z_7, 3^4 = 4. Now if we involve a second
+prime 5, the operations are in Z_35, and 3^4 = 11.
+
+The main idea of Pollard's p-1 is that you can see through
+this obfuscation, kind of "x-ray" through the product of
+the primes with this simple test:
+
+g^x = 1 (mod p) -> p | gcd( g^x-1 (mod n), n )
+
+Remember, you don't know any factor p yet. What this says
+is that if you happen to discover the group size p-1 of
+one of the factors (by trial exponentiation of g as before),
+this can be detected by computing the gcd of the result.
+
+Since the group size wil be p-1, we have discovered the
+factor also.
+
+So what you do is go crazy exponentiating g. Suppose you do
+g^(k_1 * k_2 * ... * k_N). You cannot "overshoot" because,
+suppose that the group order is k_1 * k_2. Then the
+calculation is equivalent to (g^(k_1 * k_2))^(k_3,...,k_N)
+= 1^(k_3, ..., k_N) = 1.
+
+You can undershoot, however! Suppose we choose p=17 and
+q=257. Both groups Z_17 and Z_257 have factors only 2 (or
+subgroups with orders that factor into 2). Now suppose we
+take a generator 3 and compute:
+
+3^(2*2*2*3*3*3*3*3*5*5*5*5*7*7*7*11*11*11*13*13*13) (mod n)
+
+Notice I used five 3's, four 5's, three 7's, three 11's and
+three 13's because this is the number of each prime factor
+potentially needed to reach 257. We stop at 13 because we
+know 257's largest factor is 16.  
+
+The result is 1988. And gcd(1988-1, n)=1. Nothing divides 1!
+What went wrong? I did not use enough 2's. It takes four
+2's to reach the lowest subgroup order p-1 = 16. Correctly
+now:
+
+3^(2*2*2*2*3*3*3*3*3*5*5*5*5*7*7*7*11*11*11*13*13*13) (mod n)
+
+The result is 2568. And gcd(2568-1, n) = 17. This
+demonstrates that, while this feels like a shortcut, the
+order of the group formed by one of the factors
+individually MUST APPEAR IN THE TRIAL EXPONENT OF g IN ITS
+ENTIRETY! This is why a strong prime has the property that
+p-1 must have large prime factors.
+
+In this crackme, due to neo's clue posted, I assumed the s
+exponent (<= 7 bytes) holds the range of an order that is
+not a large prime around 7 bytes, but a large composite
+around this range. The largest factor then is the square
+root of the largest 56 bit number, a 28 bit number. I made
+a pari script to exponentiate g by l instances of every
+prime number less than 2^28, where l is the maximum
+exponent of the respective prime needed to reach 2^28. See
+factor.gp. The script took 8 hours on a 2.66Ghz Intel Core
+machine, finishing with the answer:
+
+ a = 3395629680079592059729171711042251880483653207068136 \
+     7191952089132549855897697607023461672709965214378670 \
+     4607058640526052750581378110451060938356396752894829 \
+     9717172458911970991018143999031858506791203183386690 \
+     9377149120277331826998608311313161172742671101320319 \
+     2606919791827034988350270443853608283327147849902082 \
+     9533348393073992857073437637073803089811916269122988 \
+     2905962260672338401987623359377885232285367213393892 \
+     9766019386065820508161808648959866272423601720693453 \
+     7446059900746602680099420660122706440117951143645473 \
+     7919582361962845580514012789607829881069981844143146 \
+     106219410828762818538744730985502378887
+
+p1 = gcd(a-1, n)
+
+   = 8659900789654913469567658198567758695469201478039994 \
+     9808157923833168510123802354224377951196582148062142 \
+     8554836635763612730639835187535315008616349955591744 \
+     6566711669651199392508717287375296894140680819630870 \
+     4744633505818073043091272400074484742556181263287650 \
+     96444847531784218358908620745278532582719520241
+
+Which happily divides n :)
+
+-----------------------------------------------------------
+HOW TO FIND GROUP ORDERS, DLP's
+-----------------------------------------------------------
+
+I used the online MAGMA tool:
+http://magma.maths.usyd.edu.au/calc/
+
+The order of g in Z_p1 came from using this script:
+
+p := 865990078965491346956765819856775869546920147803999...
+K := GF(p);
+g := K ! 85296024027029794421486148205106573156540375110...
+y := K ! 30948059950129344304901720421894760134072650147...
+x := Log(g, y);
+x;
+
+The order of g in Z_p2 is harder, because p2-1 is
+apparently hard to factor. Pari never returns, msieve
+whines about forming its polynomials, and MAGMA online tool
+times out. But with some verbosity options:
+
+SetVerbose("Factorization", true);
+SetVerbose("MPQS", true);
+p2 := 12011593079844460042562705372433882675944221306034...
+time Factorization(p2-1);
+
+We can get some partial results before the timeout:
+
+     2
+     5
+     41
+     3389
+     52081
+     61322323
+  -> 1057282879
+     144055998349
+     233631748553524108561
+     7606640075847796811055581636171751128743070589045169 \
+     9917471565002394072605734575522328739389583862508428 \
+     4600117345210763680766432987300556024274948770733119 \
+     8429642540808882312542241549433975406915099988005891 \
+     75998492637167321535013810106904659383
+
+I just exponentiated g in sequence by these factors until
+finding g^1057282879 = 1 (mod p2).
+
+These orders are so low relative to p1 and p2 that you can
+just brute to find what power g must be raised to in order
+to get y:
+
+result=1;
+g_mod_p2 = g % p2;
+y_mod_p2 = y % p2;
+for(i=1,1057282879,
+	result = (result * g_mod_p2) % q;
+	if(result == y_mod_p2,
+		print(i);
+		break;
+	);
+	if(!(i%1000000), print("on: ", i); );
+);
+
+-----------------------------------------------------------
+KEYGENNING
+-----------------------------------------------------------
+
+1) form the message m = (name || feature bits)
+2) sign the message using Schnorr (with parameters adapted
+   to Z_n instead of Z_p):
+
+   k = random [1,o3]
+   r = g^k (mod N)
+   e = sha1(name || r) % 0xFABF1234
+   s = (k - dlp*e) mod(o3)
+
+3) RSA encrypt:
+   
+   (sig||message)^e (mod n)
+
+4) fill this into the key file at appropriate locations,
+   write out file
+
+Example key file:
+
+unsigned char data[400] =
+{
+    0x3E, 0x4B, 0x65, 0x79, 0x67, 0x65, 0x6E, 0x6D,
+    0x65, 0x36, 0x20, 0x20, 0x4B, 0x65, 0x79, 0x3C,
+    0xFF, 0x01, 0x34, 0x25, 0xB8, 0x0E, 0x0A, 0x5D,
+    0x82, 0xD6, 0xE2, 0x49, 0x86, 0x60, 0x08, 0xC5,
+    0x50, 0x1F, 0xF4, 0x5E, 0xE9, 0xF9, 0x89, 0xC7,
+    0xAC, 0x92, 0xAD, 0x0D, 0xD7, 0x37, 0x4F, 0xA0,
+    0xE0, 0x0A, 0x0A, 0x50, 0x31, 0xA4, 0xA0, 0x78,
+    0xEA, 0xE3, 0x15, 0x30, 0x45, 0x52, 0xEF, 0x4D,
+    0xBE, 0x6F, 0x61, 0x7B, 0xA0, 0x05, 0xAA, 0x37,
+    0xDC, 0xED, 0x04, 0x91, 0x51, 0x78, 0x4E, 0xF4,
+    0x54, 0xC1, 0xDA, 0x16, 0x26, 0xC3, 0x7F, 0x10,
+    0x60, 0x3D, 0xA5, 0xDA, 0x64, 0x92, 0x05, 0xDE,
+    0xB4, 0x2E, 0xA9, 0xF0, 0x2E, 0xBA, 0xA2, 0x35,
+    0x27, 0xDC, 0xFA, 0x97, 0xE5, 0xD7, 0xAD, 0x7D,
+    0xAA, 0xC7, 0x48, 0x5B, 0xB1, 0x0B, 0xB9, 0x88,
+    0xAC, 0xA6, 0x91, 0x66, 0xA4, 0xA5, 0xAA, 0x5D,
+    0x11, 0x90, 0xFF, 0x99, 0x62, 0xBD, 0x91, 0xEC,
+    0xE6, 0x04, 0x96, 0x2B, 0xC9, 0xD6, 0x7F, 0x45,
+    0x36, 0x52, 0x2C, 0x30, 0xCF, 0x33, 0x12, 0x71,
+    0xFE, 0x72, 0xB5, 0xAA, 0x4B, 0x7C, 0x90, 0x6E,
+    0x52, 0x5D, 0xBC, 0x11, 0xBF, 0x4A, 0xBA, 0x31,
+    0xD8, 0x32, 0xD3, 0x62, 0x81, 0xF3, 0x27, 0x85,
+    0x04, 0x1C, 0x0B, 0x33, 0xCB, 0x5C, 0x57, 0xB4,
+    0x48, 0x77, 0x0F, 0x00, 0x18, 0x5F, 0x5A, 0xAD,
+    0x8A, 0xC1, 0x55, 0x4F, 0xD5, 0x7B, 0x4A, 0xC8,
+    0x73, 0x3F, 0x76, 0xB0, 0xD0, 0xE5, 0x37, 0x1F,
+    0x3B, 0x7A, 0xE2, 0x72, 0xF2, 0x0D, 0xD1, 0x06,
+    0x91, 0x2B, 0xEC, 0x5B, 0x00, 0x76, 0x6B, 0xEB,
+    0x8D, 0x35, 0xEC, 0x16, 0x34, 0x7E, 0x6D, 0x6E,
+    0xD8, 0xFB, 0x54, 0xB3, 0xFB, 0x49, 0xC2, 0xAB,
+    0xC6, 0xD7, 0xE9, 0x2B, 0x16, 0x17, 0x83, 0xDD,
+    0x41, 0x79, 0x76, 0xFC, 0xE1, 0xB7, 0x6F, 0xD3,
+    0x9C, 0x21, 0xF7, 0x69, 0x88, 0x0A, 0x1C, 0xAE,
+    0x35, 0xC3, 0x24, 0x92, 0xD1, 0x52, 0x02, 0x96,
+    0x0C, 0x55, 0x05, 0x08, 0xE0, 0xFF, 0xEB, 0x40,
+    0x96, 0xB8, 0xF8, 0xDD, 0x64, 0xDB, 0x54, 0xA3,
+    0x7B, 0x68, 0x2B, 0x78, 0x31, 0xE1, 0x35, 0xCB,
+    0x28, 0x30, 0x59, 0x80, 0xA5, 0xE9, 0x8D, 0xC0,
+    0x2C, 0x53, 0xBD, 0x79, 0xE9, 0x93, 0x77, 0xDB,
+    0xBD, 0x9D, 0x4F, 0xB2, 0x29, 0x8F, 0x71, 0x90,
+    0xF9, 0xCE, 0x68, 0xE3, 0x33, 0xD6, 0xBD, 0x33,
+    0xAD, 0x79, 0xA0, 0xAD, 0xF1, 0xEC, 0x02, 0x27,
+    0x6A, 0x45, 0x83, 0x7B, 0x0E, 0xD8, 0x3C, 0xA0,
+    0x61, 0xEE, 0x85, 0xB4, 0x2B, 0x28, 0x95, 0x1B,
+    0xC0, 0xDD, 0xC6, 0x0F, 0x96, 0x52, 0x9C, 0x0F,
+    0xD1, 0x20, 0xB6, 0xFE, 0x8A, 0xAD, 0xBD, 0x36,
+    0x3F, 0x3F, 0x5A, 0xF3, 0x4F, 0x3B, 0xF8, 0xA6,
+    0x17, 0x8E, 0xE8, 0x3B, 0xA5, 0xF8, 0x70, 0x1D,
+    0xCC, 0x66, 0xDE, 0x74, 0x84, 0x90, 0x83, 0x37,
+    0x61, 0x12, 0x3F, 0xBF, 0xCC, 0xE2, 0x7D, 0xF1 
+};
+
+-----------------------------------------------------------
+CONCLUSION
+-----------------------------------------------------------
+
+Now we have a better understanding of what it means to use
+safe primes, and what can happen when you don't.
+
+I never would have learned this stuff if not for this
+crackme, so big thanks to neotren, and please write more
+crackmes! BTW: The Vic-20 game is really neat!
+
+Greetings this time to #crackmesde: numernia, dcoder,
+anacona, kilobyte, encrypto! Hello from the past to EL&BL!
+
+--
+andrewl
+mar29_2010
+crackmes.de

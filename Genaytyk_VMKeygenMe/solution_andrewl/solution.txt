@@ -1,0 +1,460 @@
+Keygen solution by andrewl
+
+  Date: August 14th, 2008
+Target: Genayt's VM Keygen
+ Tools: IDA, WinDBG, PEID
+
+[----------------------------------------------------------------------------------]
+  CONVENTIONS
+[----------------------------------------------------------------------------------]
+
+Use context of discussion to discern between hex and decimal number.  An 'h'  suffix
+or '0x' prefix will definately indicate a hex number.
+
+Will use INTEL conventions when describing memory locations:
+
+lower/below/down refers to addresses of less quantity
+higher/above/up refers to address of greater quantity
+
+[----------------------------------------------------------------------------------]
+  INTRODUCTION
+[----------------------------------------------------------------------------------]
+
+This is a decent crackme with VM.  The  VM  is  of  enjoyable  difficulty,  but  the
+algorithm within the VM that verifies the  serial  is  somewhat  long  and  tedious.
+
+[----------------------------------------------------------------------------------]
+  UNPACKING
+[----------------------------------------------------------------------------------]
+
+PEID identifies the crackme as packed with "MEW 10 1.0  ->  NorthFox/HCC".   I  used
+Eloo's UnMEW 1.2 to unpack it.
+
+[----------------------------------------------------------------------------------]
+  VM BASICS
+[----------------------------------------------------------------------------------]
+
+The VM is executed immediately after getting the text from the field:
+
+_0.ELO:00401CED     call GetWindowTextA
+_0.ELO:00401CF2     test eax, eax
+_0.ELO:00401CF4     jz  short SerialLen0
+_0.ELO:00401CF6     mov ds:lenSerial, eax
+_0.ELO:00401CFB     pusha
+_0.ELO:00401CFC     push offset descBytecode            <-- VM description struct
+_0.ELO:00401D01     call VM_execute
+_0.ELO:00401D06     cmp ds:bSerialIsOk, 1               <-- in VM accessed mem
+_0.ELO:00401D0D     jz  short goodboy
+
+The VM description structure is used only initially and not that important, but here
+is what I could make of it:
+
+_0.ELO:004034A8 descBytecode dd 4034BEh                 <-- start address
+_0.ELO:004034AC     dd 7ACh                             <-- maybe length?
+_0.ELO:004034B0     dd 403C6Ah                          <-- end address
+_0.ELO:004034B4     dd 113h                             <-- number of instructions?
+_0.ELO:004034B8     dd 0
+
+So VM_Execute is where I labelled that the VM gets going. It allocates some memory
+for the VM to execute within and starts fetching instructions:
+
+_0.ELO:004017F6 VM_execute proc near                    
+_0.ELO:004017F6     push ebp
+_0.ELO:004017F7     mov ebp, esp
+...
+_0.ELO:0040184E     mov edx, 3Ch                        <-- space for context
+_0.ELO:00401853     add edx, ds:stack_size              <-- space for stack
+_0.ELO:00401853                                         
+_0.ELO:00401859     push 40h                            
+_0.ELO:0040185B     push 1000h                          
+_0.ELO:00401860     push edx                            
+_0.ELO:00401861     push 0                              
+_0.ELO:00401863     call VirtualAlloc
+_0.ELO:00401868     mov ds:context, eax  
+
+_0.ELO:0040186D     mov edi, ds:context
+_0.ELO:00401873     mov eax, ds:g_pcode_start
+_0.ELO:00401878     mov [edi], eax                      <-- set initial EIP
+
+_0.ELO:0040187A     mov eax, ds:stack_size
+_0.ELO:0040187F     sub eax, 4
+_0.ELO:00401882     mov [edi+14h], eax
+_0.ELO:00401885     mov [edi+18h], eax                  <-- set up stack
+
+_0.ELO:00401888     sub dword ptr [edi+14h], 4          <-- initial PUSH! 
+_0.ELO:0040188C     mov eax, [edi+14h]
+_0.ELO:0040188F     add eax, ds:context
+_0.ELO:00401895     mov edx, ds:[ebp+4]                 
+_0.ELO:00401899     mov [eax], edx                      <-- push of "00401d06"
+                                                            location of goodboy flag
+_0.ELO:0040189B FETCH:                                  
+_0.ELO:0040189B     mov edi, ds:context
+_0.ELO:004018A1     mov esi, [edi]                      <-- get EIP?
+_0.ELO:004018A3     mov eax, ds:g_pcode_start
+_0.ELO:004018A8     cmp esi, eax
+_0.ELO:004018AA     jb  short VMException2              <-- EIP before pcode bound?
+_0.ELO:004018AA                                         
+_0.ELO:004018AC     add eax, ds:pcode_bytelen
+_0.ELO:004018B2     cmp esi, eax
+_0.ELO:004018B4     ja  short VMException2              <-- EIP beyond pcode bound?
+_0.ELO:004018B4                                         
+_0.ELO:004018B6     mov al, [esi]                       <-- GET OPCODE!
+...
+
+Notice how the push is done.  Obviously offset +14h is acting as some type of  stack
+pointer.  It is deducted 4 and offset from the beginning of the context to find  the
+real location of the next stack slot.  And  then  it  is  written  with  the  memory
+location to where the goodboy boolean variable is. 
+
+We can set a useful breakpoint at 4018B6 (immediately after the fetch) because  that
+is where AL will contain the opcode and ESI will contain the address from  where  it
+was accessed.  You will get these results as you try  to  verify  a  serial  number:
+
+You will see this sequence:
+
+al=17
+esi=004034be
+al=7
+esi=004036b7
+al=7
+esi=004036bb
+al=1
+esi=004036bf
+...
+
+I label 4034BE "pcode" and after some experimentation see that the last byte of the
+instruction stream is at 403C69.
+
+[----------------------------------------------------------------------------------]
+  VM MEMORY, CONTEXT
+[----------------------------------------------------------------------------------]
+
+The VM actually accesses two memory regions during its execution:
+
+1) heap, location varies (allocated by 401863) ..it contains:
+    - CONTEXT structure (EIP, ESP, registers)
+    - STACK
+
+    +----------------+ <-- +013Ch
+    |                |
+    |                |        pops go up   ^
+    |                |      pushes go down v
+    | STACK          |
+    +----------------+ <-- +003Ch
+    | CONTEXT        |  
+    +----------------+ <-- +0000h (base allocated by 401863)
+
+2) static memory from [403C6A, 403D73]
+    - the VM code itself starting at 4034BE
+    - constants (like a base 41 lookup table at 4034A8)
+    - execution variables (like the goodboy boolean at 403D73)
+
+    +----------------+
+    | GOODBOY FLAG   |
+    +----------------+ <-- 403D73
+    | VARIABLES      |
+    +----------------+ <-- 403D66
+    | SERIAL         | 
+    +----------------+ <-- 403D4A
+    | USERNAME       | 
+    +----------------+ <-- 403D25
+    | VARIABLES      |
+    +----------------+ <-- 403CFD many variables
+    | USERNAME BYTES |
+    +----------------+ <-- 403C9D bytes generated from user name
+    | ...            |
+    | BASE 41 LOOKUP |
+    +----------------+ <-- 403C6A
+
+The machine itself uses only the heap stuff. The program running within the  machine
+uses the static (I have labelled "constant", or "cmem" memory to difference it  from
+dynamic, allocated memory.) Some memory references inside instructions will have  an
+immediate value, such as 403C9D.  Others will have an offset from the  beginning  of
+cmem like 0x33 which also refers to 403C9D (add it to 403C6A).
+
+Let's have a closer look at the context structure:
+
+    OFFSET    SIZE      WHAT    SAVED/RESTORED ON VM PUSHA/POPA?
+    00000038: [04 byte] REXE    YES
+    00000034: [04 byte] REXD    YES
+    00000030: [04 byte] REXC    YES
+    0000002C: [04 byte] REXB    YES
+    00000028: [04 byte] REXA    YES
+    00000024: [04 byte] REX9    YES
+    00000020: [04 byte] REX8    YES
+    0000001C: [04 byte] REX7    YES
+    00000018: [04 byte] REX6    NO
+    00000014: [04 byte] RXSP    NO
+    00000010: [04 byte] REX4    YES
+    0000000C: [04 byte] REX3    YES
+    00000008: [04 byte] REX2    YES
+    00000004: [04 byte] REX1    YES
+    00000000: [04 byte] EIP     NO 
+
+EIP and ESP  were  determined  by  analyzing  just  the  fetch  routine  and  a  few
+instructions. The others appear to be used as general purpose. The VM can access all
+registers in 32-bit entirety, some in 16-bit, and some the low 8 bit. I've taken the
+liberty to name the registers REX in their 32-bit form, RHX  for  their  low  16-bit
+part, and RLX for their lowest 8-bit part.
+
+[----------------------------------------------------------------------------------]
+  DECODING INSTRUCTIONS
+[----------------------------------------------------------------------------------]
+
+Tracing a few instructions and you will see that opcodes 1A, 1B, and 1E  (RET,  NOP,
+QUIT VM, respectively) are handled in VM_Execute function itself.  For  the  others,
+VM_Execute calls sub_00401495() to look up an appropriate handler:
+
+                   OPCODE  COMMENT                 HANDLER LOCATION
+0, 1, 2, 3, 4, 5, 6, 7, 8  mov, add, sub, xor, etc 00401000
+                  9, A, B  inc, dec, not           004010A3 
+               C, D, E, F  shr, shl, ror, rol      00401109
+                       10  jmp relative            004011B1
+   11, 12, 13, 14, 15, 16  conditional jumps       004011EF     
+                       17  call                    0040128A
+                   18, 19  push, pop               004012EE
+                       1A  ret                     VM_Execute
+                       1B  nop                     VM_Execute
+                    1C 1D  pusha, popa             004013B6
+                       1E  quit VM                 VM_Execute
+
+After the opcode is read by the appropriate handler, ones that contain operands call
+into sub_004017E0() to verify that the  operand  is  valid.   Then  they  call  into
+sub_004014C3() to decode and retrieve the values that the operands refer to. It does
+this by looking in the following table at 00403029:
+
+     amt  size  type  size  type  size  type  size  type
+    0x01, 0x01, 'R' , 
+    0x01, 0x03, 'O' , 
+    0x01, 0x01, 'Q' , 
+    0x01, 0x03, 'I' , 
+    0x01, 0x04, 'I' , 	
+    0x02, 0x01, 'R' , 0x01, 'R' ,
+    0x02, 0x01, 'R' , 0x03, 'O' , 
+    0x02, 0x01, 'R' , 0x01, 'Q' , 
+    0x02, 0x01, 'R' , 0x01, 'I' , 
+    0x02, 0x01, 'R' , 0x02, 'I' , 
+    0x02, 0x01, 'R' , 0x04, 'I' , 
+    0x02, 0x03, 'O' , 0x01, 'R' , 
+    0x02, 0x03, 'O' , 0x01, 'I' , 
+    0x02, 0x03, 'O' , 0x02, 'I' , 
+    0x02, 0x03, 'O' , 0x04, 'I' , 
+    0x02, 0x01, 'Q' , 0x01, 'R' , 
+    0x02, 0x01, 'Q' , 0x01, 'I' , 
+    0x02, 0x01, 'Q' , 0x02, 'I' , 
+    0x02, 0x01, 'Q' , 0x04, 'I' , 
+    0x03, 0x03, 'I' , 0x01, 'R' , 0x01, 'R' , 	
+    0x03, 0x03, 'I' , 0x01, 'R' , 0x03, 'O' , 
+    0x03, 0x03, 'I' , 0x01, 'R' , 0x01, 'Q' , 
+    0x03, 0x03, 'I' , 0x01, 'R' , 0x01, 'I' , 
+    0x03, 0x03, 'I' , 0x01, 'R' , 0x02, 'I' , 
+    0x03, 0x03, 'I' , 0x01, 'R' , 0x04, 'I' ,
+    0x03, 0x03, 'I' , 0x03, 'O' , 0x01, 'R' , 
+    0x03, 0x03, 'I' , 0x03, 'O' , 0x01, 'I' , 
+    0x03, 0x03, 'I' , 0x03, 'O' , 0x02, 'I' , 
+    0x03, 0x03, 'I' , 0x03, 'O' , 0x04, 'I' , 
+    0x03, 0x03, 'I' , 0x01, 'Q' , 0x01, 'R' ,
+    0x03, 0x03, 'I' , 0x01, 'Q' , 0x01, 'I' ,
+    0x03, 0x03, 'I' , 0x01, 'Q' , 0x02, 'I' , 
+    0x03, 0x03, 'I' , 0x01, 'Q' , 0x04, 'I'         
+
+Each row represents an entry. The first byte in an antry is the amount of opcodes in
+the instruction. Then follows pairs of bytes. For each pair, the first byte  is  the
+size of the operand in bytes, and the second byte of the pair is the type of operand
+it is. There are 4 types:
+
+    'R' - operand is context access code to read value of a register
+    'O' - operand is offset in memory
+    'I' - operand is immediate value
+    'Q' - operand is context access code to dereference register
+
+For types 'R' and 'Q', the register access code is interpreted  by  sub_004016F4  by
+looking up the following table of bytes from 004030E1:
+
+    0x01, 0x04, 0x04, 	// code 01: read from context+0x04 exactly 0x04 bytes 
+    0x02, 0x08, 0x04,   // code 02: read from context+0x08 exactly 0x04 bytes 
+    0x03, 0x0C, 0x04,   // etc... 
+    0x04, 0x10, 0x04,   // 
+    0x05, 0x14, 0x04,   // 
+    0x06, 0x18, 0x04, 
+    0x07, 0x1C, 0x04, 
+    0x08, 0x20, 0x04, 
+    0x09, 0x24, 0x04, 
+    0x0A, 0x28, 0x04, 
+    0x0B, 0x2C, 0x04, 
+    0x0C, 0x30, 0x04, 
+    0x0D, 0x34, 0x04, 
+    0x0E, 0x38, 0x04, 
+    0x0F, 0x04, 0x01, 	// code 0F: read from context+0x04 1 byte (the "al") 
+    0x10, 0x05, 0x01,   // code 10: read from context+0x05 1 byte (the "ah")
+    0x11, 0x08, 0x01, 
+    0x12, 0x09, 0x01, 
+    0x13, 0x0C, 0x01, 
+    0x14, 0x0D, 0x01, 
+    0x15, 0x10, 0x01, 
+    0x16, 0x11, 0x01, 
+    0x17, 0x04, 0x02, 
+    0x18, 0x08, 0x02, 
+    0x19, 0x0C, 0x02, 
+    0x1A, 0x10, 0x02, 
+    0x1B, 0x14, 0x02, 
+    0x1C, 0x18, 0x02, 
+    0x1D, 0x1C, 0x02, 
+    0x1E, 0x20, 0x02  
+
+Each row is a code.  The first byte is the register access code itself that will  be
+the value of one of the operands.  The next byte is the offset  within  the  context
+(referring to some register). And the last byte of the entry is the number of bytes
+to read from there.
+
+Here are a couple of examples worked out by hand:
+
+403561: 0F 09 09 07 "ROL REX9, 7"
+        |  |  |  |
+        |  |  |  +- one byte opcode type I (immediate: 0x07)
+        |  |  +---- one byte opcode type R (REX9)
+        |  +------- 1-based index into opcode table -> 0x01, 'R' , 0x01, 'I'
+        +---------- opcode: ROL
+
+403565: 01 0C 00 00 9B 09 "ADD [cmem+0x9B], REX9" (cmem+0x9B resolves to 403D05)
+        |  |  |  |  |  | 
+        |  |  |  |  |  |
+        |  |  |  |  |  |
+        |  |  |  |  |  +------- 1 byte operand type 'R' (REX9)
+        |  |  |  |  |
+        |  |  +--+--+---------- three byte operand type 'O' (offset 00009B)
+        |  |  
+        |  +------------------- 1-based index opcode table -> 0x03, 'O' , 0x01, 'R' 
+        +---------------------- opcode: MOV
+
+To decode the VM program in entirety, I made a disassembler. See disasm.cpp.
+
+[----------------------------------------------------------------------------------]
+  WATCHING THE VM EXECUTE
+[----------------------------------------------------------------------------------]
+
+I traced through the VM execution with a text editor window open to the disassembly.
+You can "single step" the VM by setting a breakpoint here, after the fetch:
+
+_0.ELO:004018B6     mov al, [esi]
+_0.ELO:004018B8     cmp al, 1Eh                         <-- BP
+
+When this breakpoint is hit,
+
+ al == opcode
+esi == VM EIP
+edi == &context
+
+So you can just "go" to this breakpoint over and over to single step. Remember  that
+the context address is allocated and de-allocated on every run  through  of  the  VM
+program.
+
+If you want to jump  to  a  certain  instruction,  breakpoint  here,  before  fetch:
+
+_0.ELO:004018B6     mov al, [esi]                       <-- BP
+_0.ELO:004018B8     cmp al, 1Eh                         
+
+You must set ESI to the location that you want to jump to, and also the  EIP  within
+the context to that location (recall it's at offset 0).
+
+If your VM instruction will be hit naturally while processing your serial,  you  can
+stop the VM  at  that  instruction  just  by  setting  a  hardware  read  breakpoint
+at that address.
+
+To view registers, just keep a memory dump window open to EDI  (the  context).   For
+offset addressed memory, just keep a memory dump window open to  403C6A  +  <offset>
+because   403C6A   is   the   base   address   of    the    non-allocated    memory.
+
+Ok, the VM code is about 388 instructions long.   See  disasm_commented.txt  for  my
+sloppy notes on what the VM is doing. Look at keygen.cpp for some exact replicas of
+routines (and their inverses) within the VM.
+
+[----------------------------------------------------------------------------------]
+  SERIAL VERIFICATION
+[----------------------------------------------------------------------------------]
+
+The username is used to produce an array of bytes, which is  then  used  to  produce
+four 32-bit values:
+
+                   +--------------+                      
+      username --> | PCODE_4037DB | --> username_bytes    
+                   +--------------+
+
+                   +--------------+
+username_bytes --> | PCODE_4038D5 | --> username_dword
+                   +--------------+
+
+                   +--------------+
+username_bytes --> | PCODE_4038B0 | --> name_bytes_sum
+                   +--------------+
+
+                   +--------------+
+username_bytes --> | PCODE_40382A | --> pair0, pair1
+                   +--------------+
+
+These names correspond to the C++ variable  names  in  the  keygen.   The  functions
+PCODE_4037DB(),  PCODE_4038D5(),  PCODE_4038B0(),   and   PCODE_40382A()   are   C++
+reconstructions of their VM counterparts.
+
+The serial has form "AAAAAA-BBBBBB-CCCCCC" where the A's, B's, and C's are  base  41
+encodings of numbers with set "aAb0cBd1eCf2gDh3jEk4lFm5nGp6qHr7sJt8uKv9w". Once they
+are decoded, they go through a small mixing operation starting at PCODE_40355B. See
+base41_encode(),  base41_decode(),  and  INVERSE_PCODE_40355B()   in   the   keygen.
+
+             +---------------+     +--------------+
+             |               | --> |              | --> dw0
+  serial --> | Base41 Decode | --> | PCODE_40355B | --> dw1
+             |               | --> |              | --> dw2
+             +---------------+     +--------------+
+
+Next there's a huge pain-in-the-ass encryption function  at  PCODE  403916.   A  C++
+reconstruction of it is encrypt() in the keygen, and its inverse is  decrypt().   It
+takes two 32-bit values that don't change through execution, and two  32-bit  values
+that do change. I think this corresponds to the key and the plaintext, both 64-bits
+long. Here's how it is used:
+
+                       +-----------+
+pair0:pair1 (key)  --> | encrypt() | --> ct0:ct1
+      d0:d1 (p.t.) --> |           |         
+                       +-----------+                   require ct1 == name_bytes_sum
+                                    
+                                     +-----------+
+username_dword:0x6B79745F (key)  --> | encrypt() | --> 0x59414B4F:0x5955475F                                      
+                   ct0:d2 (p.t.) --> |           |         "OKAY" "_GUY"
+                                     +-----------+
+
+They keygen strategy isn't hard once decrypt() has been written.  We  calculate  all
+four   values    from    the    username    just    by    emulating    the    PCODE.
+
+Then we decrypt "OKAY_GUY" using the username_dword and the constant  0x6B79745F  as
+the key. This gives us the plaintext ct0:d2. The d2 is of course the second DWORD in
+our serial. Next ct0 and name_bytes_sum are decrypted using pair0:pair1 as the key,
+giving us d0 and d1. Now all three DWORDS of the serial are known and they can move
+through INVERSE_PCODE_40355B.  Finally the output can be base 41  encoded  into  the
+serial.
+
+[----------------------------------------------------------------------------------]
+  CONCLUSION
+[----------------------------------------------------------------------------------]
+
+Once it is finished, it's not so bad looking back. But analyzing the VM instructions
+was a marathon.  I started Thursday on the plane flight to Defcon and didn't  finish
+until well within the following week. 
+
+One idea I think is worth trying on the next VM is to  find  architecture  that  IDA
+supports that has as many registers as the VM, and instead of  disassembling  to  an
+invented language (like in disasm.txt) disassemble to the known architecture.   Then
+the disassembly can be assembled and analyzed with IDA.
+
+Example pairs:
+
+   user: NAME
+ serial: EJD22s-eA36fp-a2hgH3
+
+   user: crackmes.de
+ serial: 45jmC2-D1Ac93-fu4nu0
+
+Hello to my unborn son, who may read this on archive.org some day in the future!
+
+Hello to lin0xx, artif, fusss!
+

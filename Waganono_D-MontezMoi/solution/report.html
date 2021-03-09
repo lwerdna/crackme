@@ -1,0 +1,475 @@
+<html>
+
+<head>
+  <title>How to keygen D-Montez-Moi (Disassemble Me)</title>
+
+  <style type="text/css">
+
+<!--
+   BODY
+   {
+      background : #FFFFFF;
+      background-color: skyblue;
+      color : #000000;
+      font-family : normal arial, helvetica;
+      font-size: 12px;
+      align: center;
+      text-align: center;
+   }
+   DIV.x
+   {
+    background-color: white;
+    border-style: solid;
+    border-width: 1;
+    border-color: black;
+    padding-left: 4;
+    padding-top: 8;
+    padding-right: 4;
+    padding-bottom: 4;
+    width: 640;
+    margin-left: auto;
+    margin-right: auto;
+    text-align: justify;
+   }
+   H3.center
+   {
+        text-align: center;
+   }
+   H3
+   {
+      font-size : 16px;
+      text-align : left;
+   }
+   A:link, A:visited
+   {
+      color: #0000FF;
+      text-decoration: none;
+   }
+
+   pre.code
+   {
+        background-color: #C0C0C0
+   }
+
+   pre.windbg
+   {
+        background-color: #FFCCFF
+   }
+
+   pre.dos
+   {
+        background-color: #CCFFFF
+    }
+//-->
+
+  </style>
+</head>
+
+<h3 class="center">How to keygen D-Montez-Moi (Disassemble Me)</h3>
+
+<!-- CONTENT -->
+<DIV class="x">
+<h4>Intro</h4>
+<p>The first half of this is a very enjoyable crackme. It has many interesting tricks, none of which are too difficult to pass. The end though requires some number theory crap which is a pain to look up and implement.</p>
+
+<p>Windbg used as debugger. The !dumpmem windbg extension used to write runtime modified code back to exe, but there are analogous methods for other debuggers. IDA to analyze EXE.<p>
+
+<h4>Get in early!</h4>
+
+<p>Load D-Montez-Moi.exe in IDA and hit CTRL+E to find entry points. You see that there's a thread local storage callback at 004012F0 that will get executed before the EXE entry point. You can also run <i>dumpbin D-Montez-Moi.exe /TLS</i> to get this information.</p>
+
+<p>This is a short function with a few tricks. First the author sends us a ":)" which you can see if you execute (not attach) the crackme with a debugger.</p>
+
+<p>He uses GetModuleHandle and GetProcAddress to find location of ntdll!DbgUiRemoteBreakin, VirtualProtect to make it writeable, and the following instruction to neuter it:</p>
+
+<pre class=code>.text:00401334 C6 03 C3        mov byte ptr [ebx], 0C3h</pre>
+
+<p>This function is vital in the chain of calls used when a debugger requests breaking into a target process from windows. If it simply returns, windbg access violates. This page explains it well: <a href="http://www.kakeeware.com/i_antiattach.php">http://www.kakeeware.com/i_antiattach.php</a>.</p>
+
+<p>Next, 0x50 bytes at .data:404020 is written to .text:004016F0.</p>
+
+<pre class=code>
+.text:0040134A                 movzx   eax, byte ptr loc_404020[esi]
+.text:00401351                 mov     byte ptr ds:sub_4016F0[esi], al
+.text:00401357                 inc     esi
+.text:00401358                 cmp     esi, 50h
+.text:0040135B                 jnz     short loc_40134A
+</pre>
+
+<p>Next, he calls NtQueryInformationProcess with PROCESSINFOCLASS 7 which is to get ProcessDebugPort. The <a href=http://msdn2.microsoft.com/en-us/library/ms684280(VS.85).aspx>MSDN page</a> explains that anything other than a nonzero value means it's running under ring 3 debugger. On my machine it returns 0xFFFFFFFF with windbg attached.</p>
+
+<p>Patch this TLS behavior permanently so you won't have to step through and bypass checks on every debugging session. A simple way that works is to write 0xC3 (ret) to 004012F0.</p>
+
+<p>Since the TLS callback won't transfer those bytes to 004016F0, make sure that you've dumped memory after this transfer back to the EXE file.</p>
+
+<p>Also, name 4016F0 to TRANSFERRED_FUNCTION so we can recognise it in later analysis.</p>
+
+<h3>An exceptional way to get started!</h3>
+
+<p>Find the entry point to the programmer's code. You can start at the raw entry point in IDA (Ctrl+E again) and look for something that doesn't look pre packaged. Another method that sometimes works is to break on GetModuleHandle() and see where execution goes from there since this is often the last call that the premade loader stuff makes, and can also be an argument to typically signatured WinMain's.</p>
+
+<pre class=code>
+.text:004016D0 sub_4016D0      proc near               ; CODE XREF: sub_403300+103p
+.text:004016D0                 push    ebp
+.text:004016D1                 mov     ebp, esp
+.text:004016D3                 push    offset TopLevelExceptionFilter 
+.text:004016D8                 call    SetUnhandledExceptionFilter
+.text:004016DD                 mov     large byte ptr ds:0, 99h
+.text:004016E4                 leave
+.text:004016E5                 retn    10h
+.text:004016E5 sub_4016D0      endp
+</pre>
+
+<p>Obviously he sets the function that will be called on exception, then causes an exception by writing to address 0. Look at TopLevelExceptionFilter in IDA. It calls DialogBoxParamA! We're on the right track!</p>
+
+<p>What's interesting about SetUnhandledExceptionFilter is what it says about the exception filter function (from MSDN) "A pointer to a top-level exception filter function that will be called whenever the UnhandledExceptionFilter function gets control, and the process is <u>not being debugged</u>." I'm not sure how this works, but if I set a breakpoint on TopLevelExceptionFilter and allowed the exception to occur <b>AND EXPLICITLY TOLD MY DEBUGGER TO NOT HANDLE THE EXCEPTION</b> the program still wouldn't pass control to TopLevelExceptionFilter. MSDN's words on this function are to be taken literally.</p>
+
+<p>Patch the first bytes of this subroutine with an unconditional jump to the TopLevelExceptionFilter.</p>
+
+<p>Now that execution goes here, you can break on DialogBoxParamA and the DialogBox callback function at 004013F2.</p>
+
+<h3>Access violations!</h3>
+
+<p>The dialogbox function is not too long, scroll up and down and get familiar with it. Let's look at some functions that IDA doesn't immediately recognise:</p>
+
+<pre class=code>
+.text:0040149D                 call    sub_401BD4
+</pre>
+
+<p>Following that, you'll see it calls waveOutOpen. I'm guessing that has something to with the music. Rename this function.</p>
+
+<pre class=code>
+.text:004014A2                 push    offset ModuleName ; "user32.dll"
+.text:004014A7                 call    GetModuleHandleA
+.text:004014AC                 push    offset ProcName ; "SetTimer"
+.text:004014B1                 push    eax             ; hModule
+.text:004014B2                 call    GetProcAddress
+
+.text:004014B7                 push    offset flOldProtect ; lpflOldProtect
+.text:004014BC                 mov     ebx, eax
+.text:004014BE                 push    40h             ; flNewProtect
+.text:004014C0                 push    40h             ; dwSize
+.text:004014C2                 push    eax             ; lpAddress
+.text:004014C3                 call    VirtualProtect
+
+.text:004014C8                 push    offset flOldProtect ; lpflOldProtect
+.text:004014CD                 push    40h             ; flNewProtect
+.text:004014CF                 push    40h             ; dwSize
+.text:004014D1                 push    offset unk_406010 ; lpAddress
+.text:004014D6                 call    VirtualProtect
+
+.text:004014DB                 push    40h             ; size_t
+.text:004014DD                 push    ebx             ; void *
+.text:004014DE                 push    offset unk_406010 ; void *
+.text:004014E3                 call    memmove
+</pre>
+
+<p>He gets the address of SetTimer function, and sets its memory permissions to PAGE_EXECUTE_READWRITE. He then makes address 406010 permission PAGE_EXECUTE_READWRITE and copies SetTimer code to there. Rename unk_406010 to SetTimerCopied. Next?</p>
+
+<pre class=code>
+.text:00401512                 push    0
+.text:00401514                 push    55F0h
+.text:00401519                 push    0FA3h
+.text:0040151E                 push    esi
+.text:0040151F                 mov     ds:wParam, eax
+.text:00401524                 call    sub_4013DC
+</pre>
+
+<p>This looks funny. What is sub_4013DC?</p>
+
+<pre class=code>
+.text:004013DC                 push    ebp
+.text:004013DD                 mov     ebp, esp
+.text:004013DF                 push    [ebp+arg_C]
+.text:004013E2                 push    [ebp+arg_8]
+.text:004013E5                 push    [ebp+arg_4]
+.text:004013E8                 push    [ebp+arg_0]
+.text:004013EB                 call    near ptr SetTimerCopied
+.text:004013F0                 leave
+.text:004013F1                 retn
+.text:004013F1 sub_4013DC      endp
+</pre>
+
+<p>Cool, let's rename him SetTimerCopiedThunk. What the heck were those args sent to him? From MSDN we know that the args from first to last are (hWnd==esi, nIDEvent==0xFA3, uElapse==0x55F0, lpTimerFunc=0). The 0x55F0 is 22000 milliseconds, or 22 seconds. Kinda seems odd for a crackme. Maybe it's what loops the music. 
+
+<pre class=code>
+.text:00401547                 push    0
+.text:00401549                 push    0C8h
+.text:0040154E                 push    0FA1h
+.text:00401553                 push    esi
+.text:00401554                 call    SetTimerCopiedThunk
+.text:00401559                 add     esp, 10h
+.text:0040155C                 push    0
+.text:0040155E                 push    190h
+.text:00401563                 push    0FA2h
+.text:00401568                 push    esi
+.text:00401569                 call    SetTimerCopiedThunk
+</pre>
+
+<p>Two other timers now. The first with ID 0xFA1, and timeout 200 MS. Another with ID 0xFA2 and timeout 400 MS. These guys kinda spook me, so let's get them sorted out quick. Read the MSDN page on what happens if you give a timer func of NULL. It sends us WM_TIMER message to our dialogproc. Grep your SDK\Include directory for WM_TIMER, it's defined as 0x0113.</p>
+
+<pre class=code>
+.text:00401418                 cmp     eax, 111h
+.text:0040141D                 jz      loc_401617
+.text:00401423                 cmp     eax, 113h
+.text:00401428                 jz      loc_4015BB
+</pre>
+
+<p>Rename loc_4015BB to "HANDLE_WM_TIMER". While we're at edit, grep your SDK\Include directory for 0x0111. It's WM_TIMER. Rename loc_401617 to "HANDLE_WM_COMMAND". Ok, back to these spooky timers.</p>
+
+<pre class=code>
+.text:004015BB HANDLE_WM_TIMER:                        ; CODE XREF: DialogFunc+36j
+.text:004015BB                 cmp     edx, 0FA1h
+.text:004015C1                 jnz     short loc_4015E7
+.text:004015C3                 cmp     [ebp+arg_C], 1
+.text:004015C7                 jnz     short loc_4015DE
+.text:004015C9                 push    offset aWellDoneRevers ; "Well done reverser"
+.text:004015CE                 push    7D1h            ; nIDDlgItem
+.text:004015D3                 push    esi             ; hDlg
+.text:004015D4                 call    SetDlgItemTextA
+.text:004015D9                 jmp     loc_401693
+</pre>
+
+<p>First, quickly follow loc_401693 and see why I rename it "RETURN1". Follow the logical comparisons on EDX and label the code paths for handling the different timers. If we're to believe this good boy message, all we have to do is get ebp+arg_C to hold a 1 and we're golden. Look what happens if ebp+arg_C is NOT 1:</p>
+
+<pre class=code>
+.text:004015DE                 push    7Eh
+.text:004015E0                 push    offset sub_401770
+.text:004015E5                 jmp     short loc_40160E
+</pre>
+
+<p>What the heck is 40160E?</p>
+
+<pre class=code>
+.text:00401770                 push    ebp
+.text:00401771                 mov     ebp, esp
+.text:00401773                 push    edi
+.text:00401774                 push    esi
+.text:00401775                 push    ebx
+.text:00401776                 sub     esp, 40h
+.text:00401779                 mov     ebx, [ebp+arg_0]
+.text:0040177C                 retn
+.text:0040177C sub_401770      endp ; sp = -50h
+.text:0040177C
+.text:0040177D ; ---------------------------------------------------------------------------
+.text:0040177D                 push    5
+.text:0040177F                 lea     esi, [ebp-2Ch]
+.text:00401782                 push    ebx
+.text:00401783                 push    esi
+.text:00401784                 call    memmove
+</pre>
+
+<p>It looks like normal code but with a retn right in the middle. I have a feeling this will be modified. For now let's rename sub_401770 to MYSTERYFUNCTION.</p>
+
+<p>Ok, two other timers. What does FA2 do? Pushes 7Eh and a pointer to TRANSFERRED_FUNCTION before jumping to 4016OE. Timer FA3 does something similar, pushing 27Bh and a pointer to DialogFunc before going to 40160E. Have you noticed that all three timers push some offset, a pointer to a function, then jump to 40160E?</p>
+
+<pre class=code>
+.text:0040160E                 call    sub_401392
+.text:00401613                 pop     esi
+.text:00401614                 pop     edi
+.text:00401615                 jmp     short RETURN1
+</pre>
+
+<p>I'm guessing sub_401392 is pretty interesting. I will comment it for you.</p>
+
+<pre class=code>
+.text:00401392         push    ebp
+.text:00401393         mov     ebp, esp
+.text:00401395         push    edi
+.text:00401396         mov     edi, [ebp+arg_pFunction]
+.text:00401399         push    esi
+.text:0040139A         mov     esi, [ebp+arg_Limit]
+.text:0040139D         push    ebx
+.text:0040139E         xor     ebx, ebx                ; loopVar = 0
+.text:004013A0
+.text:004013A0 NOT_CC:                                 ; CODE XREF: sub_401392+1Bj
+.text:004013A0                                         ; sub_401392+28j
+.text:004013A0         cmp     ebx, esi                ; if(loopVar == arg_Limit)
+.text:004013A2         jz      short loop_done
+.text:004013A4         movzx   eax, byte ptr [ebx+edi] ; byteVar = pFunction[loopVar];
+.text:004013A8         inc     ebx                     ; loopVar++;
+.text:004013A9         xor     al, 3Ah
+.text:004013AB         cmp     al, 0F6h                ; if((byteVar xor 0x3A) == 0xF6)
+.text:004013AD         jnz     short NOT_CC            ; if(loopVar == arg_Limit)
+.text:004013AF
+.text:004013AF IS_CC:
+.text:004013AF         push    0
+.text:004013B1         push    0
+.text:004013B3         call    MYSTERYFUNCTION
+.text:004013B8         pop     eax
+.text:004013B9         pop     edx
+.text:004013BA         jmp     short NOT_CC            ; if(loopVar == arg_Limit)
+.text:004013BC ; ---------------------------------------------------------------------------
+.text:004013BC
+.text:004013BC loop_done:                              ; CODE XREF: sub_401392+10j
+.text:004013BC         cmp     boolHavePatched, 0
+.text:004013C3         jz      short skip_patch
+.text:004013C5         mov     byte ptr [edi+0Ch], 90h ; NOP the 0x0C'th pFunction byte
+.text:004013C9         mov     boolHavePatched, 0
+.text:004013D3
+.text:004013D3 skip_patch:                             ; CODE XREF: sub_401392+31j
+.text:004013D3         lea     esp, [ebp-0Ch]
+.text:004013D6         pop     ebx
+.text:004013D7         pop     esi
+.text:004013D8         pop     edi
+.text:004013D9         pop     ebp
+.text:004013DA         retn
+</pre>
+
+<p>It's a breakpoint scanning function (0x3A ^ 0xF6 = 0xCC). And it also NOP's out the 0x0C'th byte of the function that it's scanning, but only once. I hope you have guessed that this is targetted at the ret inside MYSTERYFUNCTION. And thus it is essential that the timer FA1 calls this function first.</p>
+
+<p>Notice his recourse if he finds 0xCC. He calls MYSTERYFUNCTION without the ret being removed. It screws up the stack bad because MYSTERYFUNCTION made room for local variables and never reclaimed the space.</p>
+
+<p>Ok, patch this function to simply return. Since he's not being called anymore, NOP's the ret in mystery function. Rename the function GATEKEEPER just so we can orient ourselves when we see it called.</p>
+
+<h3>The key to the whole thing?</h3>
+
+<p>Alright, we know that he's trying to protect three functions from breakpoints. The dialogproc, the MYSTERYFUNCTION, and the TRANSFERREDFUNCTION. Let's keep those in the back of our minds while we watch what happens when we click the button.</p>
+
+<pre class=code>
+.text:00401617 HANDLE_WM_COMMAND:                      ; CODE XREF: DialogFunc+2Bj
+.text:00401617         cmp     dx, 3E9h
+.text:0040161C         jnz     short RETURN0
+.text:0040161E         cld
+</pre>
+
+<p>I guess 3E9h is the resource ID for the "Check button". Breakpoint at 40161E and click the button.</p>
+
+<p>The serial is read to 406070. Rename this SERIAL_BUFF. The len is recorded to 4060F0. Rename this SERIAL_LEN. It must be 0x1D characters long.</p>
+
+<p>MYSTERYFUNCTION is called. Use your debugger to prove that if it returns 0xCACA and address 406050 (an arg to the function) is written 1, "WELL DONE REVERSER" is printed. Enter the function.</p>
+
+<p>There're a series of memmove's. Watch them execute. They concatenate 5 character block substrings of the serial, except the last, which is only 4.</p>
+
+<p>This concatenated thing is sent along with 0x0C to TRANSFERRED. The equivalent C code for TRANSFERRED is this:</p>
+
+<pre class=code>
+char g_lookup[] = "5W0DKA69ONIT1SUXZY23478BCEFGHJLMPQV";
+
+int charToLookupIndex(char c)
+{
+    int i;
+
+    for(i=0; i&lt;sizeof(g_lookup); ++i)
+        if(g_lookup[i] == c)
+            return i;
+}
+
+unsigned __int64 TRANSFERRED(char * serial, int len)
+{
+    unsigned __int64 result = 0;
+
+    for(int i=len-1; i&gt;=0; --i)
+        result = result * 0x23 + charToLookupIndex(serial[i]);
+
+    return result;
+}
+</pre>
+
+<p>You know how a decimal number like 31337 is 3*10^4 + 1*10^3 + 3*10^2 + 3*10^1 + 7*10^0 ? This is doing the same thing, except that instead of the possible digits {0, 1, 2, 3, ...} we have {5, W, 0, D, ...}. And instead of being base 10, it's base 35. So the first region of the serial is treated as if it were a number in this new system, and the quantity is extracted. We'll call this HALF1. Likewise, the quantity of the second region is found and we'll name is HALF2.</p>
+
+<p>There's no way around it, the code to follow is nasty. The HALF1 and HALF2 are split each into their upper and lower 32 bits. We'll name them TRANSFERRED_{LO,HI}_HALF{1,2}. The halves are XOR'd respectively. We'll name those XOR_HIPART and XOR_LOPART. I'll comment reorder the instructions and add comments:</p>
+
+<pre class=code>
+// compute XOR_LOWPART, XOR_HIPART
+.text:0040180C         mov     eax, [ebp+TRANSFERRED_LOPART_HALF2]
+.text:0040180F         mov     edx, [ebp+TRANSFERRED_HIPART_HALF2]
+.text:00401812         xor     eax, esi
+.text:00401814         xor     edx, edi
+.text:00401816         mov     [ebp+XOR_LOWPART], eax
+.text:0040181E         mov     [ebp+XOR_HIPART], edx
+
+// VAR_48:VAR_4C = XOR_HIPART:XOR_LOPART * 5BF21E7E73094A68
+.text:00401819         mov     eax, 73094A68h
+.text:00401821         mul     [ebp+XOR_LOWPART]
+.text:00401836         mov     [ebp+var_4C], eax
+
+.text:00401824         imul    ebx, [ebp+XOR_LOWPART], 5BF21E7Eh
+.text:0040182B         mov     ecx, edx
+.text:0040182D         add     ecx, ebx
+
+.text:0040182F         imul    ebx, [ebp+XOR_HIPART], 73094A68h
+.text:0040183C         lea     ebx, [ecx+ebx]
+.text:0040183F         mov     [ebp+var_48], ebx
+
+// VAR_48:VAR_4C &gt;&gt; 3
+.text:00401839         mov     eax, [ebp+var_4C]
+.text:00401842         mov     edx, [ebp+var_48]
+.text:0040184B         shrd    eax, edx, 3
+.text:0040184F         shr     edx, 3
+.text:00401852         mov     [ebp+var_4C], eax
+.text:0040185A         mov     [ebp+var_48], edx
+
+// VAR_40:Var_44 = TRANSFERRED_HIPART_HALF1:TRANSFERRED_LOPART_HALF1 * 5BF21E7E73094A68
+.text:00401845         imul    ebx, esi, 5BF21E7Eh
+.text:0040185F         mov     ecx, edx
+.text:00401861         add     ecx, ebx
+
+.text:00401855         mov     eax, 73094A68h
+.text:0040185D         mul     esi
+.text:00401863         mov     [ebp+var_44], eax
+
+.text:00401866         imul    ebx, edi, 73094A68h
+.text:00401872         lea     ebx, [ecx+ebx]
+.text:00401878         mov     [ebp+var_40], ebx
+
+// VAR_44:VAR_40 &gt;&gt; 3 (now stored in EBX:ECX)
+.text:00401875         mov     ecx, [ebp+var_44]
+.text:0040187B         mov     ebx, [ebp+var_40]
+.text:0040187E         shrd    ecx, ebx, 3
+.text:00401882         shr     ebx, 3
+
+// EBX:ECX = VAR_40:VAR_44
+// EDX:EAX = VAR_48:VAR_4C
+.text:0040186C         mov     eax, [ebp+var_4C]
+.text:0040186F         mov     edx, [ebp+var_48]
+
+.text:00401885         xor     eax, ecx
+.text:00401887         xor     edx, ebx                ; TO RETURN 0xCACA:
+.text:00401889         and     eax, 0FFF00000h         ; REQUIRE EAX=2b2[89AB]XXXX
+.text:0040188E         and     edx, 0FFFh              ; REQUIRE EDX=00000003
+
+.text:00401894         shrd    eax, edx, 16h
+.text:00401898         shr     edx, 16h
+</pre>
+
+<p>To return 0xCACA, EDX at must be 0x00000003 and EAX can be of form 2b2[89AB]XXXX where the X's are any characters. The two results of the multiplications can be chosen as random, so long as their upper 32-bit parts xor to EDX and lower parts to EAX. Call them caca_xor1, caca_xor2. Multiply both these guys by 8 to undo the shift right 8 times.</p>
+
+<p>To get caca_xor1 in a 64 bit data type after multiplying by 0x5BF21E7E73094A68 you need to find a HALF1 such that:</p>
+
+<pre class=code>
+0x5BF21E7E73094A68 * HALF1 (congruent) caca_xor1 (MOD 2^56)
+</pre>
+
+<p>This is called a linear congruence equation. I used the Wikipedia page and NTL library to solve it.</p>
+
+<p>Once this is found, you can find the value needing multiplication by 0x5BF21E7E73094A68 to get caca_xor2. This value must be XOR'd by HALF1 to find HALF2.</p>
+
+<p>One last thing, the following code:</p>
+
+<pre class=code>
+.text:004017F6         push    offset a5w0dka69onit1s  ; "5W0DKA69...
+.text:004017FB         call    strchr
+.text:00401800         pop     ebx
+.text:00401801         sub     eax, offset a5w0dka69onit1s ; "5W0DKA69...
+.text:00401806         pop     edx
+.text:00401807         mov     edx, [ebp+arg_OUT_VAR]
+.text:0040180A         mov     [edx], al               
+</pre>
+
+<p>Requires that the last character be 'W' if you want 1 to be written to 406050.</p>
+
+<h3>Conclusion</h3>
+
+<p>Sorry I glossed over the math at the end but it's very late now and this has been a several day affair. If this is really a level 2, then I need to find another hobby.</p>
+
+<p>Oh yea, one more thing. There's a trick inside the PE header where the number of data directories is set to some ridiculously high value. It thwarts dumpbin /ALL. Set it to 16 and everything is fine.</p>
+
+<p>Example serial: 5BP7K-34TLQ-LAC5C-47X0P-XD7YW</p>
+
+</DIV>
+
+Feb 6, 2008 andrewl
+
+</html>
+

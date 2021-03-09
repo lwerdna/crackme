@@ -1,0 +1,768 @@
+.text:00401000 ; int __cdecl GetAndVerifySerial(HWND hWnd)
+.text:00401000 GetAndVerifySerial proc far             ; CODE XREF: DialogFunc+85p
+.text:00401000
+.text:00401000 vm_opcode= dword ptr -150h
+.text:00401000 var_14C= dword ptr -14Ch
+.text:00401000 var_148= dword ptr -148h
+.text:00401000 var_144= dword ptr -144h
+.text:00401000 var_140= dword ptr -140h
+.text:00401000 var_13C= dword ptr -13Ch
+.text:00401000 var_138= dword ptr -138h
+.text:00401000 var_134= dword ptr -134h
+.text:00401000 loopvar= dword ptr -130h
+.text:00401000 bignum_31A04C6B84E= dword ptr -12Ch
+.text:00401000 bignumA= dword ptr -128h
+.text:00401000 bIsOdd= dword ptr -121h
+.text:00401000 mod_100= dword ptr -11Ch
+.text:00401000 area= dword ptr -118h
+.text:00401000 bignum_37001= dword ptr -0E0h
+.text:00401000 bignum_60617= dword ptr -0DCh
+.text:00401000 loop_i= dword ptr -0D8h
+.text:00401000 c0_c3= byte ptr -0D4h
+.text:00401000 var_D0= dword ptr -0D0h
+.text:00401000 var_CC= word ptr -0CCh
+.text:00401000 var_CA= byte ptr -0CAh
+.text:00401000 var_C9= byte ptr -0C9h
+.text:00401000 iFirstSix= dword ptr -0A0h
+.text:00401000 bignumE= dword ptr -9Ch
+.text:00401000 pointA_and_final_bOk= dword ptr -95h
+.text:00401000 Serial= byte ptr -90h
+.text:00401000 c4_c5= word ptr -8Ch
+.text:00401000 var_89= dword ptr -89h
+.text:00401000 var_84= dword ptr -84h
+.text:00401000 var_7F= byte ptr -7Fh
+.text:00401000 var_7B= dword ptr -7Bh
+.text:00401000 var_76= dword ptr -76h
+.text:00401000 var_71= byte ptr -71h
+.text:00401000 var_6D= word ptr -6Dh
+.text:00401000 bignumD= dword ptr -24h
+.text:00401000 bignum_1C9F5D= dword ptr -20h
+.text:00401000 bignumC= dword ptr -1Ch
+.text:00401000 bignumB= dword ptr -18h
+.text:00401000 dashes_in_right_spot= dword ptr -11h
+.text:00401000 pointC= dword ptr -0Ch
+.text:00401000 var_8= dword ptr -8
+.text:00401000 pointB= dword ptr -4
+.text:00401000 hWnd= dword ptr  8
+.text:00401000
+.text:00401000     push ebp
+.text:00401001     mov ebp, esp
+.text:00401003     sub esp, 150h
+.text:00401009     push edi
+.text:0040100A     mov byte ptr [ebp+pointA_and_final_bOk], 0
+.text:00401011     mov byte ptr [ebp+dashes_in_right_spot], 1
+.text:00401015     push 0
+.text:00401017     call allocate_new_bignum_from_int
+.text:0040101C     add esp, 4
+.text:0040101F     mov [ebp+bignumB], eax
+.text:00401022     push 0
+.text:00401024     call allocate_new_bignum_from_int
+.text:00401029     add esp, 4
+.text:0040102C     mov [ebp+bignumC], eax
+.text:0040102F     push 0
+.text:00401031     call allocate_new_bignum_from_int
+.text:00401036     add esp, 4
+.text:00401039     mov [ebp+bignum_1C9F5D], eax
+.text:0040103C     push 26Dh
+.text:00401041     call allocate_new_bignum_from_int
+.text:00401046     add esp, 4
+.text:00401049     mov [ebp+var_8], eax
+.text:0040104C     push 285h
+.text:00401051     call allocate_new_bignum_from_int
+.text:00401056     add esp, 4
+.text:00401059     mov [ebp+dashes_in_right_spot+1], eax
+.text:0040105C     push 0
+.text:0040105E     call allocate_new_bignum_from_int
+.text:00401063     add esp, 4
+.text:00401066     mov [ebp+bignum_31A04C6B84E], eax
+.text:0040106C     push 0
+.text:0040106E     call allocate_new_bignum_from_int
+.text:00401073     add esp, 4
+.text:00401076     mov [ebp+bignumA], eax
+.text:0040107C     mov [ebp+c0_c3], 0
+.text:00401083     mov ecx, 0Ch
+.text:00401088     xor eax, eax
+.text:0040108A     lea edi, [ebp+c0_c3+1]
+.text:00401090     rep stosd
+.text:00401092     stosb
+.text:00401093     push 104h                           ; cchMax
+.text:00401098     lea eax, [ebp+Serial]
+.text:0040109E     push eax                            ; lpString
+.text:0040109F     push 3EBh                           ; nIDDlgItem
+.text:004010A4     mov ecx, [ebp+hWnd]
+.text:004010A7     push ecx                            ; hDlg
+.text:004010A8     call ds:GetDlgItemTextA
+.text:004010AE     mov [ebp+bIsOdd+1], eax
+.text:004010B4     mov edx, [ebp+bIsOdd+1]
+.text:004010BA     shl edx, 2
+.text:004010BD     cmp edx, 94h                        ; strlen(serial) == 0x4A (74 chars) long
+.text:004010C3     jnz done_loop                       ;
+.text:004010C3                                         ;
+.text:004010C9     mov [ebp+var_14C], 6                ; 6
+.text:004010D3     mov [ebp+var_148], 0Bh              ; 11
+.text:004010DD     mov [ebp+var_144], 10h              ; 16
+.text:004010E7     mov [ebp+var_140], 14h              ; 20
+.text:004010F1     mov [ebp+var_13C], 19h              ; 25
+.text:004010FB     mov [ebp+var_138], 1Eh              ; 30
+.text:00401105     mov [ebp+var_134], 22h              ; 34 (7 numbers total)
+.text:00401105                                         ;
+.text:0040110F     mov [ebp+loopvar], 0                ; loop goes [0..6] !!!
+.text:0040110F                                         ;
+.text:00401119     jmp short start_loop
+.text:0040111B ; ---------------------------------------------------------------------------
+.text:0040111B
+.text:0040111B continue_loop:                          ; CODE XREF: GetAndVerifySerial:loc_401151j
+.text:0040111B     mov eax, [ebp+loopvar]
+.text:00401121     add eax, 1
+.text:00401124     mov [ebp+loopvar], eax
+.text:0040112A
+.text:0040112A start_loop:                             ; CODE XREF: GetAndVerifySerial+119j
+.text:0040112A     cmp [ebp+loopvar], 7
+.text:00401131     jge short done_loop                 ;
+.text:00401131                                         ;
+.text:00401133     mov ecx, [ebp+loopvar]
+.text:00401139     mov edx, [ebp+ecx*4+var_14C]
+.text:00401140     movsx eax, [ebp+edx+Serial]
+.text:00401148     cmp eax, 2Dh                        ; look for '-'?
+.text:0040114B     jz  short loc_401151
+.text:0040114D     mov byte ptr [ebp+dashes_in_right_spot], 0
+.text:00401151
+.text:00401151 loc_401151:                             ; CODE XREF: GetAndVerifySerial+14Bj
+.text:00401151     jmp short continue_loop
+.text:00401153 ; ---------------------------------------------------------------------------
+.text:00401153
+.text:00401153 done_loop:                              ; CODE XREF: GetAndVerifySerial+C3j
+.text:00401153                                         ; GetAndVerifySerial+131j
+.text:00401153     mov ecx, dword ptr [ebp+Serial]
+.text:00401159     mov dword ptr [ebp+c0_c3], ecx      ;
+.text:00401159                                         ;
+.text:0040115F     mov dx, [ebp+c4_c5]
+.text:00401166     mov word ptr [ebp+var_D0], dx
+.text:0040116D     mov byte ptr [ebp+var_D0+2], 0      ;
+.text:0040116D                                         ;
+.text:00401174     lea eax, [ebp+bignumA]
+.text:0040117A     push eax
+.text:0040117B     lea ecx, [ebp+c0_c3]                ; -> first 6 chars!
+.text:00401181     push ecx
+.text:00401182     call ascii_to_bignum_maybe2
+.text:00401187     add esp, 8                          ;
+.text:00401187                                         ;
+.text:0040118A     lea edx, [ebp+c0_c3]
+.text:00401190     push edx
+.text:00401191     call ascii_to_string_maybe_2        ; hex_to_int_into_eax
+.text:00401196     add esp, 4                          ;
+.text:00401196                                         ;
+.text:00401199     mov [ebp+iFirstSix], eax
+.text:0040119F     mov byte ptr [ebp+bIsOdd], 0        ;
+.text:0040119F                                         ;
+.text:004011A6     mov eax, [ebp+iFirstSix]
+.text:004011AC     and eax, 0FFFFFFh
+.text:004011B1     bsr edx, eax
+.text:004011B4     xor ecx, ecx
+.text:004011B6     inc ecx
+.text:004011B7     inc ecx                             ; ecx=2
+.text:004011B8     mov eax, edx
+.text:004011BA     cdq
+.text:004011BB     idiv ecx                            ; divide by 2?
+.text:004011BD     cmp edx, 0
+.text:004011C0     jz  short is_even                   ;
+.text:004011C0                                         ;
+.text:004011C2     mov [ebp+bIsOdd], 1
+.text:004011CC
+.text:004011CC is_even:                                ; CODE XREF: GetAndVerifySerial+1C0j
+.text:004011CC     mov eax, [ebp+bIsOdd]
+.text:004011D2     and eax, 0FFh
+.text:004011D7     test eax, eax
+.text:004011D9     jnz short is_odd_
+.text:004011DB     mov byte ptr [ebp+dashes_in_right_spot], 0
+.text:004011DF
+.text:004011DF is_odd_:                                ; CODE XREF: GetAndVerifySerial+1D9j
+.text:004011DF     mov ecx, [ebp+var_89]
+.text:004011E5     mov dword ptr [ebp+c0_c3], ecx
+.text:004011EB     mov edx, [ebp+var_84]
+.text:004011F1     mov [ebp+var_D0], edx
+.text:004011F7     lea eax, [ebp+var_7F]
+.text:004011FA     mov cx, [eax]
+.text:004011FD     mov [ebp+var_CC], cx
+.text:00401204     mov dl, [eax+2]
+.text:00401207     mov [ebp+var_CA], dl
+.text:0040120D     mov [ebp+var_C9], 0
+.text:00401214     lea eax, [ebp+bignumB]
+.text:00401217     push eax
+.text:00401218     lea ecx, [ebp+c0_c3]
+.text:0040121E     push ecx
+.text:0040121F     call ascii_to_bignum_maybe2
+.text:00401224     add esp, 8                          ;
+.text:00401224                                         ;
+.text:00401227     mov edx, [ebp+var_7B]
+.text:0040122A     mov dword ptr [ebp+c0_c3], edx
+.text:00401230     mov eax, [ebp+var_76]
+.text:00401233     mov [ebp+var_D0], eax
+.text:00401239     lea ecx, [ebp+var_71]
+.text:0040123C     mov dx, [ecx]
+.text:0040123F     mov [ebp+var_CC], dx
+.text:00401246     mov al, [ecx+2]
+.text:00401249     mov [ebp+var_CA], al
+.text:0040124F     mov [ebp+var_C9], 0
+.text:00401256     lea ecx, [ebp+bignumC]
+.text:00401259     push ecx
+.text:0040125A     lea edx, [ebp+c0_c3]
+.text:00401260     push edx
+.text:00401261     call ascii_to_bignum_maybe2
+.text:00401266     add esp, 8                          ;
+.text:00401266                                         ;
+.text:00401269     mov ax, [ebp+var_6D]
+.text:0040126D     mov word ptr [ebp+c0_c3], ax
+.text:00401274     mov [ebp+c0_c3+2], 0
+.text:0040127B     movsx ecx, [ebp+c0_c3]
+.text:00401282     push ecx
+.text:00401283     call allocate_new_bignum_from_int
+.text:00401288     add esp, 4
+.text:0040128B     mov [ebp+bignumD], eax              ;
+.text:0040128B                                         ;
+.text:0040128E     movsx edx, [ebp+c0_c3+1]
+.text:00401295     push edx
+.text:00401296     call allocate_new_bignum_from_int
+.text:0040129B     add esp, 4
+.text:0040129E     mov [ebp+bignumE], eax              ;
+.text:0040129E                                         ;
+.text:004012A4     push 0ECC9h
+.text:004012A9     call allocate_new_bignum_from_int
+.text:004012AE     add esp, 4
+.text:004012B1     mov [ebp+bignum_60617], eax         ;
+.text:004012B1                                         ;
+.text:004012B7     push 9089h
+.text:004012BC     call allocate_new_bignum_from_int
+.text:004012C1     add esp, 4
+.text:004012C4     mov [ebp+bignum_37001], eax         ;
+.text:004012C4                                         ;
+.text:004012CA     lea eax, [ebp+bignumE]
+.text:004012D0     push eax
+.text:004012D1     lea ecx, [ebp+bignum_60617]
+.text:004012D7     push ecx
+.text:004012D8     lea edx, [ebp+bignumE]
+.text:004012DE     push edx
+.text:004012DF     call bignum_INVMOD
+.text:004012E4     add esp, 0Ch                        ; E^-1 (mod 60617)
+.text:004012E4                                         ;
+.text:004012E7     lea eax, [ebp+bignumE]
+.text:004012ED     push eax
+.text:004012EE     lea ecx, [ebp+bignumD]
+.text:004012F1     push ecx
+.text:004012F2     lea edx, [ebp+bignumE]
+.text:004012F8     push edx
+.text:004012F9     call bignum_MUL
+.text:004012FE     add esp, 0Ch                        ; E^-1 * D
+.text:004012FE                                         ;
+.text:00401301     lea eax, [ebp+bignumE]
+.text:00401307     push eax
+.text:00401308     lea ecx, [ebp+bignum_60617]
+.text:0040130E     push ecx
+.text:0040130F     lea edx, [ebp+bignumE]
+.text:00401315     push edx
+.text:00401316     call bignum_MOD
+.text:0040131B     add esp, 0Ch                        ;
+.text:0040131B                                         ;
+.text:0040131E     lea eax, [ebp+c0_c3]
+.text:00401324     push eax                            ; LPSTR
+.text:00401325     lea ecx, [ebp+bignumE]
+.text:0040132B     push ecx                            ; int
+.text:0040132C     call bignum_to_asciiHex
+.text:00401331     add esp, 8                          ;
+.text:00401331                                         ;
+.text:00401334     lea edx, [ebp+bignumD]
+.text:00401337     push edx
+.text:00401338     call destroy_bignum_maybe
+.text:0040133D     add esp, 4
+.text:00401340     lea eax, [ebp+bignumE]
+.text:00401346     push eax
+.text:00401347     call destroy_bignum_maybe
+.text:0040134C     add esp, 4
+.text:0040134F     lea ecx, [ebp+bignum_60617]
+.text:00401355     push ecx
+.text:00401356     call destroy_bignum_maybe
+.text:0040135B     add esp, 4
+.text:0040135E     lea edx, [ebp+bignum_37001]
+.text:00401364     push edx
+.text:00401365     call destroy_bignum_maybe
+.text:0040136A     add esp, 4                          ;
+.text:0040136A                                         ;
+.text:0040136D     lea eax, [ebp+c0_c3]
+.text:00401373     push eax                            ; Str
+.text:00401374     call _atoi                          ; ah but input could be hex!!!
+.text:00401379     add esp, 4
+.text:0040137C     mov [ebp+iFirstSix], eax            ; overwrite firstSix ???
+.text:0040137C                                         ;
+.text:00401382     mov [ebp+mod_100], 0
+.text:0040138C     mov ecx, 0Eh
+.text:00401391     xor eax, eax
+.text:00401393     lea edi, [ebp+area]
+.text:00401399     rep stosd                           ;
+.text:00401399                                         ;
+.text:0040139B     mov eax, [ebp+iFirstSix]
+.text:004013A1     xor edx, edx                        ; why xor here?
+.text:004013A3     mov ecx, 64h
+.text:004013A8     div ecx
+.text:004013AA     mov [ebp+mod_100], edx              ;
+.text:004013AA                                         ;
+.text:004013B0     mov eax, [ebp+iFirstSix]
+.text:004013B6     xor edx, edx
+.text:004013B8     mov ecx, 64h
+.text:004013BD     div ecx
+.text:004013BF     xor edx, edx                        ; set eax?
+.text:004013BF                                         ;
+.text:004013C1     mov ecx, 64h
+.text:004013C6     div ecx                             ; this is divide by 10,000
+.text:004013C8     mov [ebp+area], edx                 ; area[0] = modthing % 10,000
+.text:004013C8                                         ;
+.text:004013CE     mov [ebp+loop_i], 1
+.text:004013D8     jmp short loc_4013E9                ; loop [1..12]
+.text:004013DA ; ---------------------------------------------------------------------------
+.text:004013DA
+.text:004013DA loc_4013DA:                             ; CODE XREF: GetAndVerifySerial+426j
+.text:004013DA     mov edx, [ebp+loop_i]
+.text:004013E0     add edx, 1
+.text:004013E3     mov [ebp+loop_i], edx
+.text:004013E9
+.text:004013E9 loc_4013E9:                             ; CODE XREF: GetAndVerifySerial+3D8j
+.text:004013E9     cmp [ebp+loop_i], 0Ch
+.text:004013F0     jg  short START_VM                  ;
+.text:004013F0                                         ;
+.text:004013F2     mov eax, [ebp+mod_100]
+.text:004013F8     imul eax, 3
+.text:004013FB     imul eax, [ebp+loop_i]              ;
+.text:004013FB                                         ;
+.text:00401402     mov ecx, [ebp+area]
+.text:00401408     imul ecx, 6
+.text:0040140B     imul ecx, [ebp+loop_i]
+.text:00401412     add eax, ecx
+.text:00401414     and eax, 0FFh                       ; (3*(check1) + check2*6*i) % 256
+.text:00401414                                         ;
+.text:00401419     mov edx, [ebp+loop_i]
+.text:0040141F     mov [ebp+edx*4+area], eax
+.text:00401426     jmp short loc_4013DA
+.text:00401428 ; ---------------------------------------------------------------------------
+.text:00401428
+.text:00401428 START_VM:                               ; CODE XREF: GetAndVerifySerial+3F0j
+.text:00401428     mov [ebp+loop_i], 0
+.text:00401432     jmp short loc_401443                ; loop goes [0..0x0D]
+.text:00401434 ; ---------------------------------------------------------------------------
+.text:00401434
+.text:00401434 fetch:                                  ; CODE XREF: GetAndVerifySerial:next_instructionj
+.text:00401434     mov eax, [ebp+loop_i]
+.text:0040143A     add eax, 1
+.text:0040143D     mov [ebp+loop_i], eax
+.text:00401443
+.text:00401443 loc_401443:                             ; CODE XREF: GetAndVerifySerial+432j
+.text:00401443     cmp [ebp+loop_i], 0Eh               ; loop goes [0..0x0D]
+.text:0040144A     jge loop_done                       ;
+.text:0040144A                                         ;
+.text:00401450     mov ecx, [ebp+loop_i]
+.text:00401456     mov edx, [ebp+ecx*4+mod_100]
+.text:0040145D     mov [ebp+vm_opcode], edx            ;
+.text:0040145D                                         ;
+.text:00401463     mov eax, [ebp+vm_opcode]            ; vm_opcode = vm_opcode-11h
+.text:00401469     sub eax, 11h
+.text:0040146C     mov [ebp+vm_opcode], eax            ;
+.text:0040146C                                         ;
+.text:00401472     cmp [ebp+vm_opcode], 0D9h
+.text:0040147C     ja  next_instruction                ;
+.text:0040147C                                         ;
+.text:00401482
+.text:00401482 fetch_instr:
+.text:00401482     mov ecx, [ebp+vm_opcode]
+.text:00401488     xor edx, edx
+.text:0040148A     mov dl, ds:vm_function_i[ecx]
+.text:00401490     jmp ds:vm_function_ptrs[edx*4]      ;
+.text:00401490                                         ; loop function
+.text:00401490                                         ; ---- --------
+.text:00401490                                         ;    0 004016bc
+.text:00401490                                         ;    1 004014c7
+.text:00401490                                         ;    2 00401733
+.text:00401490                                         ;    3 004014b0
+.text:00401490                                         ;    4 0040154f
+.text:00401490                                         ;    5 0040178e
+.text:00401490                                         ;    6 004015dd
+.text:00401490                                         ;    7 004016a1
+.text:00401490                                         ;    8 00401497
+.text:00401490                                         ;    9 00401749
+.text:00401490                                         ;   10 00401656
+.text:00401490                                         ;   11 0040179f
+.text:00401490                                         ;   12 004015c1
+.text:00401490                                         ;   13 00401523
+.text:00401490                                         ;
+.text:00401497
+.text:00401497 vm_function_ptr0:                       ; DATA XREF: .text:vm_function_ptrso
+.text:00401497     lea eax, [ebp+pointB]
+.text:0040149A     push eax
+.text:0040149B     lea ecx, [ebp+bignumC]
+.text:0040149E     push ecx
+.text:0040149F     lea edx, [ebp+pointB]
+.text:004014A2     push edx
+.text:004014A3     call ECC_PointMultiply
+.text:004014A8     add esp, 0Ch
+.text:004014AB     jmp next_instruction
+.text:004014B0 ; ---------------------------------------------------------------------------
+.text:004014B0
+.text:004014B0 vm_function_ptr3:                       ; CODE XREF: GetAndVerifySerial+490j
+.text:004014B0                                         ; DATA XREF: .text:0040188Bo
+.text:004014B0     push 0
+.text:004014B2     push 0
+.text:004014B4     call allocate_new_point_maybe
+.text:004014B9     add esp, 8
+.text:004014BC     mov [ebp+pointA_and_final_bOk+1], eax
+.text:004014C2     jmp next_instruction
+.text:004014C7 ; ---------------------------------------------------------------------------
+.text:004014C7
+.text:004014C7 vm_function_ptr5:                       ; CODE XREF: GetAndVerifySerial+490j
+.text:004014C7                                         ; DATA XREF: .text:00401893o
+.text:004014C7     lea eax, [ebp+bignum_1C9F5D]
+.text:004014CA     push eax
+.text:004014CB     push offset a1c9f5d                 ; "1C9F5D"
+.text:004014D0     call ascii_to_bignum_maybe2
+.text:004014D5     add esp, 8                          ;
+.text:004014D5                                         ;
+.text:004014D8     lea ecx, [ebp+bignum_1C9F5D]
+.text:004014DB     push ecx
+.text:004014DC     lea edx, [ebp+bignum_1C9F5D]
+.text:004014DF     push edx
+.text:004014E0     lea eax, [ebp+bignum_31A04C6B84E]
+.text:004014E6     push eax
+.text:004014E7     call bignum_Add                     ;
+.text:004014E7                                         ;
+.text:004014EC     add esp, 0Ch
+.text:004014EF     call $+5
+.text:004014F4     pop eax
+.text:004014F5     add eax, 2Ah
+.text:004014F8     jmp eax
+.text:004014F8 ; ---------------------------------------------------------------------------
+.text:004014FA ; crap
+.text:0040151E ; ---------------------------------------------------------------------------
+.text:0040151E     jmp next_instruction
+.text:00401523 ; ---------------------------------------------------------------------------
+.text:00401523
+.text:00401523 vm_function_ptrC:                       ; CODE XREF: GetAndVerifySerial+490j
+.text:00401523                                         ; DATA XREF: .text:004018AFo
+.text:00401523     lea ecx, [ebp+bignumA]
+.text:00401529     push ecx
+.text:0040152A     lea edx, [ebp+bignumB]
+.text:0040152D     push edx
+.text:0040152E     call sub_402970
+.text:00401533     add esp, 8
+.text:00401536     test eax, eax
+.text:00401538     jnz short loc_401543
+.text:0040153A     mov byte ptr [ebp+pointA_and_final_bOk], 1
+.text:00401541     jmp short loc_40154A
+.text:00401543 ; ---------------------------------------------------------------------------
+.text:00401543
+.text:00401543 loc_401543:                             ; CODE XREF: GetAndVerifySerial+538j
+.text:00401543     mov byte ptr [ebp+pointA_and_final_bOk], 0
+.text:0040154A
+.text:0040154A loc_40154A:                             ; CODE XREF: GetAndVerifySerial+541j
+.text:0040154A     jmp next_instruction
+.text:0040154F ; ---------------------------------------------------------------------------
+.text:0040154F
+.text:0040154F vm_function_ptr7:                       ; CODE XREF: GetAndVerifySerial+490j
+.text:0040154F                                         ; DATA XREF: .text:0040189Bo
+.text:0040154F     push 0
+.text:00401551     push 0
+.text:00401553     call allocate_new_point_maybe
+.text:00401558     add esp, 8
+.text:0040155B     mov [ebp+pointB], eax
+.text:0040155E     call $+5
+.text:00401563     pop eax
+.text:00401564     add eax, 2Ah
+.text:00401567     jmp eax
+.text:00401567 ; ---------------------------------------------------------------------------
+.text:00401569 ; crap2
+.text:0040158D ; ---------------------------------------------------------------------------
+.text:0040158D     call $+5
+.text:00401592     pop eax
+.text:00401593     add eax, 2Ah
+.text:00401596     jmp eax
+.text:00401596 ; ---------------------------------------------------------------------------
+.text:00401598 ; crap3
+.text:004015BC ; ---------------------------------------------------------------------------
+.text:004015BC     jmp next_instruction
+.text:004015C1 ; ---------------------------------------------------------------------------
+.text:004015C1
+.text:004015C1 vm_function_ptrA:                       ; CODE XREF: GetAndVerifySerial+490j
+.text:004015C1                                         ; DATA XREF: .text:004018A7o
+.text:004015C1     lea eax, [ebp+bignumB]
+.text:004015C4     push eax
+.text:004015C5     lea ecx, [ebp+bignum_31A04C6B84E]
+.text:004015CB     push ecx
+.text:004015CC     lea edx, [ebp+bignumB]
+.text:004015CF     push edx
+.text:004015D0     call bignum_MOD
+.text:004015D5     add esp, 0Ch
+.text:004015D8     jmp next_instruction
+.text:004015DD ; ---------------------------------------------------------------------------
+.text:004015DD
+.text:004015DD vm_function_ptrB:                       ; CODE XREF: GetAndVerifySerial+490j
+.text:004015DD                                         ; DATA XREF: .text:004018ABo
+.text:004015DD     call $+5
+.text:004015E2 ; [00000074 BYTES: BEGIN OF AREA .text:004015E2. PRESS KEYPAD "-" TO COLLAPSE]
+.text:004015E2     pop eax
+.text:004015E3     add eax, 2Ah
+.text:004015E6     jmp eax
+.text:004015E6 ; ---------------------------------------------------------------------------
+.text:004015E8     dd 9B1B9120h
+.text:004015EC     dd 5B65BCD4h
+.text:004015F0     dd 9CED2629h
+.text:004015F4     dd 0E97CBC36h
+.text:004015F8     dd 5F98ADF3h
+.text:004015FC     dd 6D080E0Ah
+.text:00401600     dd 7E67DC4Eh
+.text:00401604     dd 0B63BD832h
+.text:00401608     dd 0E2CB9A3Dh
+.text:0040160C ; ---------------------------------------------------------------------------
+.text:0040160C     call $+5
+.text:00401611     pop eax
+.text:00401612     add eax, 2Ah
+.text:00401615     jmp eax
+.text:00401615 ; ---------------------------------------------------------------------------
+.text:00401617     dd 0E97CBC36h
+.text:0040161B     dd 5F98ADF3h
+.text:0040161F     dd 5B65BCD4h
+.text:00401623     dd 6D080E0Ah
+.text:00401627     dd 604042DFh
+.text:0040162B     dd 0FA1B1D62h
+.text:0040162F     dd 0E2CB9A3Dh
+.text:00401633     dd 9CED2629h
+.text:00401637     dd 122B07B4h
+.text:0040163B ; ---------------------------------------------------------------------------
+.text:0040163B     lea eax, [ebp+pointB]               ; <--- to here!
+.text:0040163E     push eax
+.text:0040163F     push offset a1ce7c1306e7            ; "1CE7C1306E7"
+.text:00401644     push offset a1c08985ee09            ; "1C08985EE09"
+.text:00401649     call set_point_from_strings
+.text:0040164E     add esp, 0Ch
+.text:00401651     jmp next_instruction
+.text:00401651 ; [00000074 BYTES: END OF AREA .text:004015E2. PRESS KEYPAD "-" TO COLLAPSE]
+.text:00401656 ; ---------------------------------------------------------------------------
+.text:00401656
+.text:00401656 vm_function_ptr6:                       ; CODE XREF: GetAndVerifySerial+490j
+.text:00401656                                         ; DATA XREF: .text:00401897o
+.text:00401656     call $+5
+.text:0040165B ; [00000046 BYTES: BEGIN OF AREA .text:0040165B. PRESS KEYPAD "-" TO COLLAPSE]
+.text:0040165B     pop eax
+.text:0040165C     add eax, 2Ah
+.text:0040165F     jmp eax
+.text:0040165F ; ---------------------------------------------------------------------------
+.text:00401661     db 36h, 0BCh, 7Ch
+.text:00401664     db 0E9h
+.text:00401665     db 0F3h ; =
+.text:00401666     db 0ADh ; ¡
+.text:00401667     db  98h ; ÿ
+.text:00401668     db  5Fh ; _
+.text:00401669     db 0D4h ; +
+.text:0040166A     db 0BCh ; +
+.text:0040166B     db  65h ; e
+.text:0040166C     db  5Bh ; [
+.text:0040166D     db  0Ah
+.text:0040166E     db  0Eh
+.text:0040166F     db    8
+.text:00401670     db  6Dh ; m
+.text:00401671     db 0DFh ; ¯
+.text:00401672     db  42h ; B
+.text:00401673     db  40h ; @
+.text:00401674     db  60h ; `
+.text:00401675     db  62h ; b
+.text:00401676     db  1Dh
+.text:00401677     db  1Bh
+.text:00401678     db 0FAh ; ·
+.text:00401679     db  3Dh ; =
+.text:0040167A     db  9Ah ; Ü
+.text:0040167B     db 0CBh ; -
+.text:0040167C     db 0E2h ; G
+.text:0040167D     db  29h ; )
+.text:0040167E     db  26h ; &
+.text:0040167F     db 0EDh ; f
+.text:00401680     db  9Ch ; £
+.text:00401681     db 0B4h ; ¦
+.text:00401682     db    7
+.text:00401683     db  2Bh ; +
+.text:00401684     db  12h
+.text:00401685 ; ---------------------------------------------------------------------------
+.text:00401685     lea ecx, [ebp+pointA_and_final_bOk+1]
+.text:0040168B     push ecx
+.text:0040168C     lea edx, [ebp+pointC]
+.text:0040168F     push edx
+.text:00401690     lea eax, [ebp+pointB]
+.text:00401693     push eax
+.text:00401694     call ECC_PointAdd
+.text:00401699     add esp, 0Ch
+.text:0040169C     jmp next_instruction
+.text:0040169C ; [00000046 BYTES: END OF AREA .text:0040165B. PRESS KEYPAD "-" TO COLLAPSE]
+.text:004016A1 ; ---------------------------------------------------------------------------
+.text:004016A1
+.text:004016A1 vm_function_ptrD:                       ; CODE XREF: GetAndVerifySerial+490j
+.text:004016A1                                         ; DATA XREF: .text:004018B3o
+.text:004016A1     lea ecx, [ebp+pointC]
+.text:004016A4     push ecx
+.text:004016A5     push offset a65e9a84ed7             ; "65E9A84ED7"
+.text:004016AA     push offset a43da35440f             ; "43DA35440F"
+.text:004016AF     call set_point_from_strings
+.text:004016B4     add esp, 0Ch
+.text:004016B7     jmp next_instruction
+.text:004016BC ; ---------------------------------------------------------------------------
+.text:004016BC
+.text:004016BC vm_function_ptr4:                       ; CODE XREF: GetAndVerifySerial+490j
+.text:004016BC                                         ; DATA XREF: .text:0040188Fo
+.text:004016BC     call $+5
+.text:004016C1 ; [00000072 BYTES: BEGIN OF AREA .text:004016C1. PRESS KEYPAD "-" TO COLLAPSE]
+.text:004016C1     pop eax
+.text:004016C2     add eax, 2Ah
+.text:004016C5     jmp eax
+.text:004016C5 ; ---------------------------------------------------------------------------
+.text:004016C7     db 20h
+.text:004016C8     dd 0D49B1B91h, 295B65BCh, 369CED26h, 0F3E97CBCh, 0A5F98ADh, 4E6D080Eh
+.text:004016C8     dd 327E67DCh, 3DB63BD8h, 0E8E2CB9Ah, 0
+.text:004016F0     dd 2AC08358h
+.text:004016F4     dd 0BC36E0FFh
+.text:004016F8     dd 0ADF3E97Ch
+.text:004016FC     dd 0BCD45F98h
+.text:00401700     dd 0E0A5B65h
+.text:00401704     dd 42DF6D08h
+.text:00401708     dd 1D626040h
+.text:0040170C     dd 9A3DFA1Bh
+.text:00401710     dd 2629E2CBh
+.text:00401714     dd 7B49CEDh
+.text:00401718     dw 122Bh
+.text:0040171A ; ---------------------------------------------------------------------------
+.text:0040171A     lea edx, [ebp+bignum_31A04C6B84E]
+.text:00401720     push edx
+.text:00401721     push offset a31a04c6b84e            ; "31A04C6B84E"
+.text:00401726     call ascii_to_bignum_maybe2
+.text:0040172B     add esp, 8
+.text:0040172E     jmp next_instruction
+.text:0040172E ; [00000072 BYTES: END OF AREA .text:004016C1. PRESS KEYPAD "-" TO COLLAPSE]
+.text:00401733 ; ---------------------------------------------------------------------------
+.text:00401733
+.text:00401733 vm_function_ptr1:                       ; CODE XREF: GetAndVerifySerial+490j
+.text:00401733                                         ; DATA XREF: .text:00401883o
+.text:00401733     lea eax, [ebp+bignum_1C9F5D]
+.text:00401736     push eax
+.text:00401737     lea ecx, [ebp+dashes_in_right_spot+1] ; bignum: 0x0285
+.text:0040173A     push ecx
+.text:0040173B     lea edx, [ebp+var_8]                ; bignum: 0x026d
+.text:0040173E     push edx
+.text:0040173F     call SetGlobalPointThing
+.text:00401744     add esp, 0Ch
+.text:00401747     jmp short next_instruction
+.text:00401749 ; ---------------------------------------------------------------------------
+.text:00401749
+.text:00401749 vm_function_ptr2:                       ; CODE XREF: GetAndVerifySerial+490j
+.text:00401749                                         ; DATA XREF: .text:00401887o
+.text:00401749     lea eax, [ebp+pointC]
+.text:0040174C     push eax
+.text:0040174D     lea ecx, [ebp+bignumB]
+.text:00401750     push ecx
+.text:00401751     lea edx, [ebp+pointC]
+.text:00401754     push edx
+.text:00401755     call ECC_PointMultiply
+.text:0040175A     add esp, 0Ch
+.text:0040175D     call $+5
+.text:00401762     pop eax
+.text:00401763     add eax, 2Ah
+.text:00401766     jmp eax                             ; jmp next_instr
+.text:00401766 ; ---------------------------------------------------------------------------
+.text:00401768 ; .text:00401768
+.text:0040178C ; ---------------------------------------------------------------------------
+.text:0040178C     jmp short next_instruction
+.text:0040178E ; ---------------------------------------------------------------------------
+.text:0040178E
+.text:0040178E vm_function_ptr9:                       ; CODE XREF: GetAndVerifySerial+490j
+.text:0040178E                                         ; DATA XREF: .text:004018A3o
+.text:0040178E     push 0
+.text:00401790     push 0
+.text:00401792     call allocate_new_point_maybe
+.text:00401797     add esp, 8
+.text:0040179A     mov [ebp+pointC], eax
+.text:0040179D     jmp short next_instruction
+.text:0040179F ; ---------------------------------------------------------------------------
+.text:0040179F
+.text:0040179F vm_function_ptr8:                       ; CODE XREF: GetAndVerifySerial+490j
+.text:0040179F                                         ; DATA XREF: .text:0040189Fo
+.text:0040179F     lea eax, [ebp+bignumB]
+.text:004017A2     push eax
+.text:004017A3     mov ecx, [ebp+pointA_and_final_bOk+1]
+.text:004017A9     push ecx
+.text:004017AA     lea edx, [ebp+bignumB]
+.text:004017AD     push edx
+.text:004017AE     call ECC_SubXCoordFrom
+.text:004017B3     add esp, 0Ch
+.text:004017B6
+.text:004017B6 next_instruction:                       ; CODE XREF: GetAndVerifySerial+47Cj
+.text:004017B6                                         ; GetAndVerifySerial+490j ...
+.text:004017B6     jmp fetch
+.text:004017BB ; ---------------------------------------------------------------------------
+.text:004017BB
+.text:004017BB loop_done:                              ; CODE XREF: GetAndVerifySerial+44Aj
+.text:004017BB     mov eax, [ebp+pointA_and_final_bOk]
+.text:004017C1     and eax, 0FFh
+.text:004017C6     cmp eax, 1
+.text:004017C9     jnz short fail                      ;
+.text:004017C9                                         ;
+.text:004017CB     mov ecx, [ebp+dashes_in_right_spot]
+.text:004017CE     and ecx, 0FFh
+.text:004017D4     cmp ecx, 1
+.text:004017D7     jnz short fail                      ;
+.text:004017D7                                         ;
+.text:004017D9     push 40h                            ; uType
+.text:004017DB     push offset Caption                 ; "You did it!"
+.text:004017E0     push offset Text                    ; "Congratulations!"
+.text:004017E5     mov edx, [ebp+hWnd]
+.text:004017E8     push edx                            ; hWnd
+.text:004017E9     call ds:MessageBoxA
+.text:004017EF
+.text:004017EF fail:                                   ; CODE XREF: GetAndVerifySerial+7C9j
+.text:004017EF                                         ; GetAndVerifySerial+7D7j
+.text:004017EF     lea eax, [ebp+pointB]
+.text:004017F2     push eax
+.text:004017F3     call destroy_point_maybe
+.text:004017F8     add esp, 4
+.text:004017FB     lea ecx, [ebp+pointC]
+.text:004017FE     push ecx
+.text:004017FF     call destroy_point_maybe
+.text:00401804     add esp, 4
+.text:00401807     lea edx, [ebp+pointA_and_final_bOk+1]
+.text:0040180D     push edx
+.text:0040180E     call destroy_point_maybe
+.text:00401813     add esp, 4
+.text:00401816     call sub_402760
+.text:0040181B     lea eax, [ebp+bignum_31A04C6B84E]
+.text:00401821     push eax
+.text:00401822     call destroy_bignum_maybe
+.text:00401827     add esp, 4
+.text:0040182A     lea ecx, [ebp+var_8]
+.text:0040182D     push ecx
+.text:0040182E     call destroy_bignum_maybe
+.text:00401833     add esp, 4
+.text:00401836     lea edx, [ebp+dashes_in_right_spot+1]
+.text:00401839     push edx
+.text:0040183A     call destroy_bignum_maybe
+.text:0040183F     add esp, 4
+.text:00401842     lea eax, [ebp+bignum_1C9F5D]
+.text:00401845     push eax
+.text:00401846     call destroy_bignum_maybe
+.text:0040184B     add esp, 4
+.text:0040184E     lea ecx, [ebp+bignumA]
+.text:00401854     push ecx
+.text:00401855     call destroy_bignum_maybe
+.text:0040185A     add esp, 4
+.text:0040185D     lea edx, [ebp+bignumB]
+.text:00401860     push edx
+.text:00401861     call destroy_bignum_maybe
+.text:00401866     add esp, 4
+.text:00401869     lea eax, [ebp+bignumC]
+.text:0040186C     push eax
+.text:0040186D     call destroy_bignum_maybe
+.text:00401872     add esp, 4
+.text:00401875     mov eax, 1
+.text:0040187A     pop edi
+.text:0040187B     mov esp, ebp
+.text:0040187D     pop ebp
+.text:0040187E     retn
+.text:0040187E GetAndVerifySerial endp ; sp-analysis failed

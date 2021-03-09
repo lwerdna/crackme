@@ -1,0 +1,17 @@
+#include <windows.h>
+#include "myresource.h"
+
+ID_DIALOG DIALOG 256, 256, 200, 54
+FONT 8, "MS Shell Dlg"
+CAPTION "DrPepUr #4 Keygen"
+STYLE WS_POPUP
+BEGIN
+    EDITTEXT                    ID_EDIT2,          002, 002, 196, 012, ES_CENTER
+    EDITTEXT                    ID_EDIT1,          002, 016, 196, 012, ES_CENTER, ES_READONLY
+    PUSHBUTTON      "GENERATE",  ID_BUTTON1,   002, 030, 196, 012
+    RTEXT           "2008 andrewl",  ID_RTEXT1,   002, 044, 196, 012, WS_DISABLED
+
+END
+
+
+

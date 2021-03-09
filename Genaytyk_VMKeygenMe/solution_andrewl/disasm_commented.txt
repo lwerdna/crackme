@@ -1,0 +1,702 @@
+; this is just what I jotted down while tracing thru - beware of inconsistencies
+; and errors ...look at keygen.cpp for exact recreations of important  functions
+
+4034BE: [17] call imm1F9 (4036B7)                              ; ensures serial contains valid chars
+                                                               ; and two dashes.. nulls-out dashes
+4034C3: [11] jz imm1F8, rex01, immFFFFFFFF (4036B6)            ; is not ok? QUIT
+
+; at this point we know serial must look like "A-A-A"
+; and in mem it was changed to "A\x00A\x00A"
+
+4034CD: [07] xor rex03, rex03
+4034D1: [01] mov rex07, immE0                                  ; rex07 = cmem offset to serial
+4034D8: [17] call imm25D (40371B)			       ; strlen()
+4034DD: [12] jnz imm1F8, rex01, imm6 (4036B6) ; QUIT           ; require length == 6
+
+; at this point we know serial must look like "AAAAAA-A-A"
+; let's call these three string member0, member1, member2
+
+4034E7: [02] add rex07, imm7                                   ; serial + 7 moves to next member
+4034EE: [09] inc rex03                                         ; rex03 ++
+4034F1: [12] jnz imm1A, rex03, imm3 (4034D8)                   ; if(rex03 != 3) goto 4034D8
+
+; so it just went over the other two members and ensured that they were 6 bytes
+; so now we know the serial must look like "AAAAAA-AAAAAA-AAAAAA"
+; and of course in memory this has been transformed to "AAAAAA\x00AAAAAA\x00AAAAAA"
+
+4034FB: [07] xor rex03, rex03
+4034FF: [01] mov rex07, immE0                                  ; seek again to start of serial
+403506: [17] call imm27D (40373B)                              ; convert member's characters to offsets
+                                                               ; within valid serial list
+
+40350B: [09] inc rex07                                         ; skip over null from end of member
+40350E: [09] inc rex03
+403511: [12] jnz imm48, rex03, imm3 (403506)                   ; if haven't done all three members, continue
+
+; so now our string has been converted to all their bytes within the valid characters
+; list "aAb0cBd1eCf2gDh3jEk4lFm5nGp6qHr7sJt8uKv9w"
+;
+; for example "AAAAAAAA-AAAAAAAA-AAAAAAAA" now looks like this in memory:
+; "\x01\x01\x01\x01\x01\x01\x00\x01\x01\x01\x01\x01\x01\x00\x01\x01\x01\x01\x01\x01"
+;
+
+40351B: [07] xor rex03, rex03
+40351F: [01] mov rex07, immE0                                  ; seek to serial
+403526: [01] mov rex02, imm9B                                  ; rex2 = 0x9B -> offset to store 3 dwords
+
+; this upcoming call treats the bytes given as a big-endian stored base 29h number
+;
+; for example, with our "AAAAAAAA" member converted to "\x01\0x01\0x01\0x01\0x01\0x01"
+; it computes 1*29h^5 + 1*29h^4 + 1*29h^3 + 1*29h^2 + 1*29h^1 + 1*29h^0
+;
+40352D: [17] call imm2AF (40376D) 
+
+403532: [11] jz imm1F8, rex01, immFFFFFFFF (4036B6) ; QUIT
+
+40353C: [01] mov cmem[rex02], rex01
+403540: [02] add rex02, imm4
+403547: [02] add rex07, imm7
+40354E: [09] inc rex03
+403551: [12] jnz imm6F, rex03, imm3 (40352D)
+
+;
+; now at cmem + 0x9B (0x403C6A + 0x9B) we have stored three dwords
+;
+; for our "AAAAAAAA-AAAAAAAA-AAAAAAAA" it makes:
+;
+; 00403d05:  0714055e 0714055e 0714055e 00000000
+; 
+; we can call these dword0, dword1, dword2
+
+40355B: [01] mov rex09, [403D05]                               ; rol dword0 7 bits
+403561: [0F] rol rex09, imm7
+403565: [01] mov [403D05], rex09
+
+40356B: [01] mov rex09, [403D09]                               ; ror dword1 9 bits
+403571: [0E] ror rex09, imm9
+403575: [01] mov [403D09], rex09
+
+40357B: [01] mov rex09, [403D0D]                               ; ror dword2 Bh bits
+403581: [0E] ror rex09, immB
+403585: [01] mov [403D0D], rex09
+
+40358B: [01] mov rex01, [403D09]
+403591: [07] xor [403D05], rex01                               ; dword0 ^= dword1
+
+403597: [02] add [403D0D], rex01                               ; dword2 += dword1
+
+40359D: [01] mov rex01, [403D05]
+4035A3: [03] sub [403D0D], rex01                               ; dword2 -= dword0
+
+;
+; the following two calls use the username to produce a DWORD value into rex01
+; they use a hash-like operation to fill memory from 403C9D
+;
+4035A9: [17] call imm2FF (4037BD)
+4035AE: [17] call imm417 (4038D5)
+
+4035B3: [01] mov [403D11], rex01                               ; username dword
+4035B9: [17] call imm36C (40382A)                              ; form pair of dwords at 403D11, 403D15
+
+4035BE: [01] mov rex01, [403D05]                               ; temp0 [403CFD] = serial_dword0
+4035C4: [01] mov [403CFD], rex01                               ;  
+
+4035CA: [01] mov rex01, [403D09]                               ; temp1 [403d01] = serial_dword1                  
+4035D0: [01] mov rex09, imm93                                  ;
+4035D7: [02] add rex09, imm4                                   ;
+4035DE: [01] mov cmem[rex09], rex01                            ;
+
+loop_setup:
+4035E2: [01] mov rex03, immA                                   ; loop counter: [0Ah..0)
+loop_body:
+4035E9: [01] mov rex04, immAB                                  ; -> pair0, pair1
+4035F0: [01] mov rex01, imm93                                  ; -> temp0, temp1 (dword0, dword1)
+4035F7: [17] call imm458 (403916)
+loop_after:
+4035FC: [0A] dec rlx03
+4035FF: [12] jnz imm12B, rlx03, imm0 (4035E9)
+
+403606: [17] call imm3F2 (4038B0)                              ; get sum of dwords from user bytes buffer
+40360B: [01] mov rex09, imm93
+403612: [02] add rex09, imm4
+403619: [12] jnz imm1F8, rex01, cmem[rex09] (4036B6) ; QUIT    ; must equal temp1
+
+;
+; temp1 [403d01] = serial_dword2
+;
+403620: [01] mov rex01, [403D0D]
+403626: [01] mov rex09, imm93
+40362D: [02] add rex09, imm4
+403634: [01] mov cmem[rex09], rex01                            ; temp1 = serial dword 2
+
+403638: [01] mov rex01, [403D11]                               ; tempX = username DWORD
+40363E: [01] mov [403D1D], rex01
+
+403644: [01] mov rex09, immB3                                  ; set constant?
+40364B: [02] add rex09, imm4
+403652: [01] mov cmem[rex09], imm6B79745F
+
+loop_setup:
+403659: [01] mov rex03, immF
+loop_body:
+403660: [01] mov rex04, immB3                                  ; -> [username DWORD][0x6B79745F]
+403667: [01] mov rex01, imm93                                  ; -> temp0, temp1
+40366E: [17] call imm458 (403916)
+loop_after:
+403673: [0A] dec rex03
+403676: [12] jnz imm1A2, rex03, imm0 (403660)
+
+;
+; the 8 bytes at cmem+93h (00403cfd) and cmem+2Ah (00403c94) "OKAY_GUY" must match
+; 
+; more succinctly, [temp0][temp1] == "OKAY_GUY"
+;
+loop_setup:
+403680: [01] mov rex07, imm93
+403687: [01] mov rex08, imm2A
+40368E: [07] xor rex03, rex03
+loop_body:
+403692: [01] mov rlx01, cmem[rex07]
+403696: [12] jnz imm1F8, rlx01, cmem[rex08] (4036B6) ; QUIT
+loop_after:
+40369D: [09] inc rex07
+4036A0: [09] inc rex08
+4036A3: [09] inc rex03
+4036A6: [12] jnz imm1D4, rex03, imm8 (403692)
+
+4036B0: [01] mov [403D73], imm1                                ; mark good boy flag!
+
+4036B6: [1E] exit
+
+; ****************************************************************
+; sub_4036B7()
+; ****************************************************************
+;
+; ensures that the serial has two dashes and contains only allowed
+; characters "aAb0cBd1eCf2gDh3jEk4lFm5nGp6qHr7sJt8uKv9w" ..it also
+; replaces the dashes with 0's, presumably to come back  and  read
+; the '-' deliminated data later
+;
+4036B7: [07] xor rex01, rex01
+4036BB: [07] xor rex04, rex04
+4036BF: [01] mov rex07, immE0                                  ; i=E0    cmem[i] is serial buffer
+
+next_char:
+4036C6: [01] mov rlx01, cmem[rex07]                            ; rlx01 = serial[i]
+4036CA: [12] jnz imm21F, rlx01, imm2D (4036DD)                 ; if(not '-') goto 4036DD
+
+; it is a DASH
+4036D1: [09] inc rex04                                         ; rex04 is number of dashes
+4036D4: [01] mov cmem[rex07], imm0                             ; cmem[i] = '\0';
+4036D8: [10] jmp imm23C (4036FA)
+
+4036DD: [01] mov rex03, imm0
+4036E4: [11] jz imm23C, rlx01, cmem[rex03] (4036FA)
+4036EB: [09] inc rex03					       ; lookup in table (rex03 is index)
+4036EE: [12] jnz imm226, cmem[rex03], imm0 (4036E4)
+4036F5: [10] jmp imm255 (403713)			       ; return -1 when end of table
+
+loop_post_check:
+4036FA: [09] inc rex07
+4036FD: [12] jnz imm208, cmem[rex07], imm0 (4036C6)            ; if(cmem[i]!=0) goto next_char
+403704: [12] jnz imm255, rex04, imm2 (403713)                  ; if(number of dashes != 2)
+40370E: [07] xor rex01, rex01                                  ; return 0
+403712: [1A] ret
+403713: [01] mov rex01, immFFFFFFFF                            ; return -1
+40371A: [1A] ret
+
+; ****************************************************************
+; sub_40371B()
+; ****************************************************************
+;
+; strlen
+; 
+; output: rex01
+;
+40371B: [01] mov rex08, rex07                                  ; rex08 = cmem offset to serial
+40371F: [01] mov rlx01, cmem[rex08]                            ; rlx01 = cmem[i]
+403723: [11] jz imm274, rlx01, imm0 (403732)
+40372A: [09] inc rex08
+40372D: [10] jmp imm261 (40371F)
+403732: [03] sub rex08, rex07
+403736: [01] mov rex01, rex08
+40373A: [1A] ret
+
+; ****************************************************************
+; sub_40373B()
+; ****************************************************************
+;
+; converts given string bytes into their offset within the list of
+; valid characters
+; 
+; input: rex07 is offset in cmem
+;
+; output: string changed in place
+;         rex07 is offset to null byte at end of string
+;
+40373B: [07] xor rex04, rex04
+40373F: [01] mov rlx01, cmem[rex07] 			       ; rlx01 = serial[i]
+403743: [01] mov rex02, imm0                                   ; cmem + 0 -> valid serial chars lookup
+40374A: [0A] dec rex02
+
+40374D: [09] inc rex02
+403750: [12] jnz imm28F, rlx01, cmem[rex02] (40374D)           ; if serial[i] != lookup[j] inc lookup
+403757: [03] sub rex02, imm0
+40375E: [01] mov cmem[rex07], rlx02
+403762: [09] inc rex07
+403765: [12] jnz imm27D, cmem[rex07], imm0 (40373B)            ; if (cmem[i] != '0') continue
+40376C: [1A] ret
+
+; ****************************************************************
+; subroutine
+; ****************************************************************
+;
+; treats bytes as coeff's of base 0x29 number
+;
+; eg input "02 03 04 05 06 07" will return 07*29h^0 + 06*29h^1 + ... + 02*29h^5
+;
+;
+40376D: [18] push rex02                                        ; 0x9B
+403770: [07] xor rex02, rex02
+403774: [07] xor rex01, rex01
+403778: [01] mov rex04, rex07                                  ; cmem offset to serial
+40377C: [02] add rex07, imm5				       ; e0 + 5 = e5
+403783: [03] sub rex04, imm1                                   ;
+40378A: [01] mov rex08, imm1                                   ; multiplier starts at 1
+repeat:
+403791: [07] xor rex01, rex01
+403795: [01] mov rlx01, cmem[rex07]                            ; last byte of member
+403799: [04] imul rex01, rex08                                 ; times 1
+40379D: [02] add rex02, rex01
+4037A1: [04] imul rex08, imm29                                 ; multiplier *= 29
+4037A8: [0A] dec rex07
+4037AB: [12] jnz imm2D3, rex07, rex04 (403791)
+4037B2: [09] inc rex07
+4037B5: [01] mov rex01, rex02
+4037B9: [19] pop rex02
+4037BC: [1A] ret
+
+; ****************************************************************
+; subroutine
+; ****************************************************************
+;
+; this uses some math shit to fill [403C9D...403CFC]
+; for a total of 0x60 bytes, all based on username
+;
+4037BD: [01] mov rex08, immBB                                  ; rex08 = 0xBB
+4037C4: [01] mov rex04, rex08
+4037C8: [02] add rex04, [403D6F]                               ; 403D6F -> length of name
+                                                               ; eg "NAME" .. BBh + 4 = BF
+4037CE: [01] mov rex07, imm33
+4037D5: [02] add rex07, imm5F                                  ; r7 = 92h
+
+4037DC: [07] xor rex03, rex03
+4037E0: [07] xor rex01, rex01
+
+// loop:
+4037E4: [07] xor rlx01, cmem[rex08]                            ; cmem[r8] -> name character
+4037E8: [07] xor rlx01, imm75                                  
+4037EC: [02] add rlx01, rlx03                                  ; add adder
+
+4037F0: [02] add rex03, imm3                                   ; update adder
+4037F7: [07] xor rex03, imm45
+4037FE: [0F] rol rex03, imm3
+
+403802: [09] inc rex08                                         ; point to next character
+403805: [01] mov cmem[rex07], rlx01                            ; store
+
+403809: [11] jz imm36B, rex07, imm33 (403829)                  ; reached limit of buffer?
+
+403813: [0A] dec rex07
+403816: [12] jnz imm326, rex08, rex04 (4037E4)                 ; if at end of username string
+40381D: [01] mov rex08, immBB                                  ; point back to beginning
+403824: [10] jmp imm326 (4037E4)
+403829: [1A] ret
+
+; ****************************************************************
+; subroutine
+; ****************************************************************
+;
+40382A: [01] mov rex01, imm13A1DCB4
+403831: [01] mov rex02, imm45E8ADC1
+
+403838: [01] mov rex03, imm28                                   ; loop from:
+                                                                ; r3 = [28h..1]
+
+outer:                                                          ; loop from:
+40383F: [01] mov rex07, imm33                                   ; r7 = 33h (start) // cmem offset to username_bytes
+403846: [01] mov rex08, rex07
+40384A: [02] add rex08, imm30
+403851: [01] mov rex04, rex08                                   ; r4 = 63h (end) // 30 later, halfway thru username_bytes
+                                                                ; in decrements of 4
+inner:
+403855: [07] xor rex01, cmem[rex07]                             ; username bytes first half
+403859: [0F] rol rex01, imm3
+40385D: [02] add rex01, cmem[rex08]                             ; username bytes second half
+
+403861: [02] add rex07, imm4
+403868: [02] add rex08, imm4
+40386F: [12] jnz imm397, rex07, rex04 (403855)
+
+403876: [07] xor rex01, rex02                                   ; r1 ^= r2 then swap r1, r2
+40387A: [01] mov rex09, rex01  
+40387E: [01] mov rex0A, rex02 
+403882: [01] mov rex02, rex09
+403886: [01] mov rex01, rex0A
+
+40388A: [0A] dec rex03
+40388D: [12] jnz imm381, rex03, imm0 (40383F)
+
+403897: [01] mov [403D15], rex01
+40389D: [01] mov rex09, immAB
+4038A4: [02] add rex09, imm4
+4038AB: [01] mov cmem[rex09], rex02                             ; 403D19
+4038AF: [1A] ret
+
+; ****************************************************************
+; subroutine
+; ****************************************************************
+;
+; just sums all the DWORDS from the username bytes buffer
+;
+4038B0: [07] xor rex01, rex01
+4038B4: [01] mov rex07, imm33
+4038BB: [01] mov rex08, rex07
+4038BF: [02] add rex08, imm5D                                  ; r7 -> loopvar = [33..89]
+
+4038C6: [02] add rex01, cmem[rex07]
+4038CA: [09] inc rex07
+4038CD: [12] jnz imm408, rex07, rex08 (4038C6)
+4038D4: [1A] ret
+
+; ****************************************************************
+; subroutine
+; ****************************************************************
+;
+; uses the bytes produced from sub_4037BD() to produce a single
+; dword value returned in rex01
+;
+4038D5: [01] mov rex01, imm1A2B3C4D
+4038DC: [01] mov rex03, immFF
+
+outer:
+4038E3: [01] mov rex07, imm33
+4038EA: [01] mov rex08, rex07                                  ; cmem + 33 -> serial bytes
+4038EE: [02] add rex08, imm5D
+
+inner:
+4038F5: [01] mov rex02, cmem[rex07]                            ; serial_bytes[i]
+4038F9: [07] xor rex01, rex02
+4038FD: [0F] rol rex01, imm7
+403901: [09] inc rex07
+
+403904: [12] jnz imm437, rex07, rex08 (4038F5)
+40390B: [0A] dec rlx03
+
+40390E: [12] jnz imm425, rlx03, imm0 (4038E3)
+403915: [1A] ret
+
+; ****************************************************************
+; subroutine
+; ****************************************************************
+;
+; a big motherfucker
+;
+; input:
+;
+; rex04 -> pointer in cmem to two DWORDS    (on the first call from 403F57 it points to
+;                                            pair0, pair1)
+;
+; rex01 -> pointer in cmem to two DWORDS    (temp0, temp1 on both calls)
+;
+; output:
+;
+; manipulates the two dwords at [rex04] area in place
+;
+403916: [1C] pusha 
+403917: [18] push rex01                                        ; 
+
+40391A: [01] mov rex03, cmem[rex04]                            ; tempA = [arg0]
+40391E: [01] mov [403D74], rex03
+
+403924: [01] mov rex09, rex04                                  ; tempB = [arg0+4]                 
+403928: [02] add rex09, imm4                                   
+40392F: [01] mov rex03, cmem[rex09]                            
+403933: [01] mov rex09, imm10A
+40393A: [02] add rex09, imm4
+403941: [01] mov cmem[rex09], rex03                          
+
+403945: [17] call imm682 (403B40)                              ; produce a dword from tempA and tempB
+40394A: [01] mov rex08, rex01                                  ; dword from pairs
+
+40394E: [19] pop rex07                                         ; pop arg1 -> [temp0][temp1] == [serial0][serial1]
+
+;
+; ok here is very important point - up until now the two parts (serial, username) that will
+; probably end up meeting at some test have been manipulated individually
+;
+; now we start mixing the two
+;
+
+loop_init:
+403951: [07] xor rex01, rex01
+403955: [01] mov rex03, imm64
+loop_body:
+    loop_init:
+    40395C: [07] xor rex02, rex02
+    403960: [01] mov rex09, rex07
+    403964: [01] mov rex02, rex09                              ; r9 -> [temp0][temp1] (dwords)
+    403968: [02] add rex02, imm7                               ; 
+    40396F: [01] mov rex0A, rex04                              ; rA -> [dwpair0][dwpair1] (pairs)
+    loop_body:
+        403973: [01] mov rlx01, cmem[rex09]                           
+        403977: [07] xor rlx01, cmem[rex0A]                    ; r1 = dwords[i] ^ pairs[i]
+        40397B: [09] inc rex0A
+        40397E: [03] sub rlx01, cmem[rex0A]                    ; r1 -= pairs[i+1]
+        403982: [0A] dec rex0A
+        403985: [02] add rlx01, imm12                          ; r1 += 0x12
+        403989: [01] mov cmem[rex09], rlx01                    ; dwords[i] = r1;
+    loop_post:
+    40398D: [09] inc rex0A
+    403990: [09] inc rex09                                     ; i++
+    403993: [12] jnz imm4B5, rex09, rex02 (403973)             ; continue while r9 != r2
+    
+    loop_init:
+    40399A: [07] xor rex02, rex02                              ; loop var r2 = [0..15]
+        loop_body:
+        40399E: [01] mov rex09, rex07                          ; rotate dwords[0] left
+        4039A2: [01] mov rex0A, cmem[rex09]
+        4039A6: [0F] rol rex0A, imm3
+        4039AA: [01] mov cmem[rex09], rex0A
+    
+        4039AE: [02] add rex09, imm4                           ; rotate dwords[0] right
+        4039B5: [01] mov rex0A, cmem[rex09]
+        4039B9: [0E] ror rex0A, imm3
+        4039BD: [01] mov cmem[rex09], rex0A
+    
+        4039C1: [01] mov rex09, rex07                          ; dwords[0] ^= pairs[0]
+        4039C5: [01] mov rex0A, rex04                                  
+        4039C9: [01] mov rex01, cmem[rex0A]
+        4039CD: [07] xor cmem[rex09], rex01
+    
+        4039D1: [02] add rex0A, imm4                           ; dwords[1] ^= pairs[1]
+        4039D8: [02] add rex09, imm4
+        4039DF: [01] mov rex01, cmem[rex0A]
+        4039E3: [07] xor cmem[rex09], rex01
+    
+        4039E7: [01] mov rex09, rex07                          ; dwords[0] += pairs[1]
+        4039EF: [02] add cmem[rex09], rex01                    ; dwords[1] += pairs[0]
+        4039EB: [01] mov rex0A, rex04
+        4039F3: [01] mov rex01, cmem[rex0A]
+        4039F7: [02] add rex09, imm4
+        4039FE: [02] add cmem[rex09], rex01
+    loop_post:
+    403A02: [09] inc rex02
+    403A05: [12] jnz imm4E0, rex02, imm10 (40399E)
+    
+    loop_init:
+    403A0F: [07] xor rex02, rex02                              ; 0
+    403A13: [01] mov rex06, imm20                              ; bit to test for
+    loop_body:
+        if:
+        403A1A: [17] call imm764 (403C22)                      ; is rex06'th bit set? (arg rex08 == dword from pair)
+        403A1F: [11] jz imm5A9, rex01, imm0 (403A67)           
+        if_body:
+            ; bit was set
+            403A29: [18] push rex06                            ; if needed, reduce r6 = [0..7]
+            403A2C: [16] jbe imm589, rex06, imm7 (403A47)
+            403A36: [03] sub rex06, imm7
+            403A3D: [13] ja imm578, rex06, imm7 (403A36)
+        
+            403A47: [01] mov rex09, rex04                      ; -> pairs
+            403A4B: [02] add rex09, rex02                      ; -> move to r2'th byte
+            403A4F: [01] mov rlx01, cmem[rex09]
+
+            403A53: [01] mov rex09, rex07
+            403A57: [02] add rex09, rex06
+            403A5B: [07] xor cmem[rex09], rlx01                ; dwords[r6] ^= pairs[r2]
+            403A5F: [19] pop rex06
+            403A62: [10] jmp imm5D9 (403A97)
+        if_else: 
+            ; bit was not set
+            403A67: [18] push rex02                            ; if needed, reduce r2 = [0..7]
+            403A6A: [16] jbe imm5C7, rex02, imm7 (403A85)
+            403A74: [03] sub rex02, imm7 
+            403A7B: [13] ja imm5B6, rex02, imm7 (403A74)
+           
+                                                               ; dwords[r2] = (~dwords[r2]) ^ r2;
+
+            403A85: [01] mov rex09, rex07                      ; -> dwords
+            403A89: [02] add rex09, rex02                      ; -> move to rex02'th byte
+            403A8D: [0B] not cmem[rex09]                       ; negate it
+            403A90: [07] xor cmem[rex09], rlx02                ; xor it with rex02
+            403A94: [19] pop rex02
+    
+        403A97: [09] inc rex02
+        403A9A: [14] jb imm5EA, rex02, imm8 (403AA8)
+        403AA4: [07] xor rex02, rex02
+
+    loop_post:
+    403AA8: [0A] dec rex06
+    403AAB: [12] jnz imm55C, rex06, imm0 (403A1A)
+   
+    ; HERE
+    loop_setup:
+    403AB5: [07] xor rex02, rex02                              ; loopvar i: [0..7]
+    403AB9: [01] mov rex09, rex07                              ; -> dwords
+        loop_body:
+        403ABD: [01] mov rlx01, cmem[rex09]                        ; r1 = dwords[i]
+        403AC1: [18] push rex07
+        403AC4: [02] add rex07, imm7                               ; 
+        403ACB: [03] sub rex07, rex02                              ; 
+        403ACF: [07] xor cmem[rex07], rlx01                        ; dwords[7-i] ^= r1
+        403AD3: [19] pop rex07
+        403AD6: [01] mov rlx01, cmem[rex09]                        ; dwords[i] rol 3
+        403ADA: [0F] rol rlx01, imm3
+        403ADE: [01] mov cmem[rex09], rlx01
+        403AE2: [09] inc rex09
+    loop_post:
+    403AE5: [09] inc rex02
+    403AE8: [12] jnz imm5FF, rex02, imm8 (403ABD)
+    
+    403AF2: [01] mov rex09, rex07
+    403AF6: [01] mov rex01, cmem[rex09]
+    403AFA: [0F] rol rex01, imm7
+    403AFE: [01] mov cmem[rex09], rex01                        ; first dword rol 7
+
+    403B02: [02] add rex09, imm4
+    403B09: [01] mov rex01, cmem[rex09]
+    403B0D: [0E] ror rex01, imm7
+    403B11: [01] mov cmem[rex09], rex01                        ; second dword ror 7
+
+loop_post:    
+403B15: [0A] dec rex03                                         ; started at 0x64
+403B18: [12] jnz imm49E, rex03, imm0 (40395C)
+
+403B22: [01] mov rex09, imm10A
+403B29: [01] mov cmem[rex09], imm0                             ; tempA = 0
+403B30: [02] add rex09, imm4
+403B37: [01] mov cmem[rex09], imm0                             ; tempB = 0
+403B3E: [1D] popa 
+403B3F: [1A] ret
+
+; ****************************************************************
+; subroutine
+; ****************************************************************
+;
+; operates on buffer:
+;    4 bytes       4 bytes
+; [dwPair0_copy][dwPair1_copy]
+;
+loop_init:                                                     ; 7 times thru
+403B40: [07] xor rex02, rex02
+loop_body:
+403B44: [01] mov rex09, imm10A
+403B4B: [09] inc rex09                                         ; r9 -> dwPair0_copy+1
+
+403B4E: [02] add rex09, rex02                                  ; seek to byte indexed by loop var
+403B52: [01] mov rlx01, cmem[rex09]                            ; get it
+
+403B56: [0A] dec rex09                                         ; back up to previous byte
+
+403B59: [02] add cmem[rex09], rlx01                            ; add to previous byte
+403B5D: [03] sub cmem[rex09], rlx02                            ; subtract loop var
+
+403B61: [01] mov rex09, imm10A
+403B68: [01] mov rex01, cmem[rex09]                            ; 
+403B6C: [0F] rol rex01, imm5                                   ; 
+403B70: [01] mov cmem[rex09], rex01                            ; dwPair0_copy rol 5
+
+403B74: [02] add rex09, imm4 
+403B7B: [01] mov rex01, cmem[rex09]
+403B7F: [0E] ror rex01, imm5
+403B83: [01] mov cmem[rex09], rex01                            ; dwPair1_copy ror 5
+
+loop_after:
+403B87: [09] inc rex02
+403B8A: [12] jnz imm686, rex02, imm7 (403B44)
+
+loop_setup:                                                    ; 4 times thru
+403B94: [07] xor rex01, rex01
+403B98: [07] xor rex02, rex02                                  ; loopvar i = [0..3]
+403B9C: [07] xor rex03, rex03
+403BA0: [01] mov rex07, imm45
+loop_body:
+403BA7: [01] mov rex09, imm10A                                 ; back to dw pair buffer
+403BAE: [02] add rex09, rex02                                  ; skip ahead loop var
+
+403BB2: [01] mov rlx01, cmem[rex09]                            ; buff[i]
+403BB6: [02] add rex03, rex01                                  ; r3 += buff[i]
+403BBA: [04] imul rex07, rex07                                 ; 
+403BBE: [09] inc rex03
+403BC1: [04] imul rex03, rex07
+loop_after:
+403BC5: [09] inc rex02
+403BC8: [12] jnz imm6E9, rex02, imm4 (403BA7)
+
+403BD2: [18] push rex03                                        ; save result
+
+loop_setup:                                                    ; 4 times thru
+403BD5: [07] xor rex01, rex01
+403BD9: [07] xor rex02, rex02                                  ; loopvar rex02 = [0..3]
+403BDD: [07] xor rex03, rex03
+403BE1: [01] mov rex07, imm35
+loop_body:
+403BE8: [01] mov rex09, imm10A
+403BEF: [02] add rex09, imm4                                   ; seek to second dword
+403BF6: [02] add rex09, rex02                                  ; plus loopvar
+
+403BFA: [01] mov rlx01, cmem[rex09]
+403BFE: [03] sub rex03, rex01
+403C02: [04] imul rex07, rex07
+403C06: [09] inc rex03
+403C09: [04] imul rex03, rex07
+loop_after:
+403C0D: [09] inc rex02
+403C10: [12] jnz imm72A, rex02, imm4 (403BE8)
+
+403C1A: [19] pop rex01
+403C1D: [04] imul rex01, rex03
+403C21: [1A] ret
+
+; ****************************************************************
+; subroutine
+; ****************************************************************
+;
+; tests if a bit is set
+;
+; input:
+;    rex06: bit position to test
+;    rex08: register
+;
+; output:
+;    rex01: 1 if bit is set, 0 otherwise 
+;
+403C22: [18] push rex06
+403C25: [18] push rex08
+403C28: [01] mov rex01, imm1
+403C2F: [10] jmp imm77A (403C38)
+loop_body:
+403C34: [0D] shl rex01, imm1
+loop_continue_check:
+403C38: [0A] dec rex06
+403C3B: [12] jnz imm776, rex06, immFFFFFFFF (403C34)
+
+403C45: [08] and rex08, rex01            
+
+;
+; if(!(rex08 & rex1))
+;     return 0;
+; else
+;     return 1;
+;                      
+403C49: [11] jz imm7A1, rex08, imm0 (403C5F)
+return1:
+403C53: [01] mov rex01, imm1
+403C5A: [10] jmp imm7A5 (403C63)
+return0:
+403C5F: [07] xor rex01, rex01
+quit:
+403C63: [19] pop rex08
+403C66: [19] pop rex06
+403C69: [1A] ret

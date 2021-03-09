@@ -1,0 +1,243 @@
+Solution to BUBlic's "Xor2Zero" - andrewl - 1/44/2009
+
+[----------------------------------------------------------------------------------]
+ INTRO
+[----------------------------------------------------------------------------------]
+
+BUBlic's keygenme is really good because it makes your head hurt over what you
+you thought where familiar, friendly bit operations!
+
+[----------------------------------------------------------------------------------]
+ THE ALGORITHM
+[----------------------------------------------------------------------------------]
+
+The serial consists of four double words separated by dashes. None can be 0. The
+total serial length is 128 bits:
+
+.text:00401060         push    offset dw3
+.text:00401065         push    offset dw2
+.text:0040106A         mov     edi, offset dw1
+.text:0040106F         push    edi
+.text:00401070         push    offset dw0
+.text:00401075         push    offset aXXXX            ; "%X-%X-%X-%X"
+.text:0040107A         push    esi                     ; ptr to serial
+.text:0040107B         call    scanf_thing
+.text:00401080         xor     ebp, ebp
+.text:00401082         add     esp, 18h                ;
+.text:00401082                                         ;
+.text:00401085         cmp     dw0, ebp
+.text:0040108B         jz      nocheating
+.text:00401091         cmp     dw1, ebp
+.text:00401097         jz      nocheating
+.text:0040109D         cmp     dw2, ebp
+.text:004010A3         jz      nocheating
+.text:004010A9         cmp     dw3, ebp
+.text:004010AF         jz      nocheating              ;
+
+100 MD5 hashes are made. The first is in typical MD5 fashion (MD5Init() then
+MD5Update() then MD5Final()). The remaining 99 are made by calling MD5Final() on
+whatever is left in the context structure.
+
+What MD5Final() leaves in the context structure is implementation specific, and I
+think BUBlic did not forsee this difficulty (doesn't behave like RFC code). Just a
+few changes are needed. See build_equations() in keygen.cpp.
+
+.text:004010B5         push    md5_context
+.text:004010BB         call    MD5Init                 ;
+.text:004010BB                                         ;
+.text:004010C0         push    ebx
+.text:004010C1         call    optimized_strlen        ; get strlen(name)
+.text:004010C1                                         ;
+.text:004010C6         push    eax                     ; len
+.text:004010C7         push    ebx                     ; name
+.text:004010C8         push    md5_context             ; context
+.text:004010CE         call    MD5Update
+.text:004010D3         add     esp, 14h                ;
+.text:004010D3                                         ;
+.text:004010D6         mov     loopvar, ebp
+.text:004010DC         mov     esi, offset digest
+.text:004010E1
+.text:004010E1 copy_hash:                              ; CODE XREF: sub_401000+113j
+.text:004010E1         push    md5_context
+.text:004010E7         push    esi
+.text:004010E8         call    md5_final               ;
+.text:004010E8                                         ;
+.text:004010ED         mov     eax, loopvar
+.text:004010F2         push    10h                     ; push 16
+.text:004010F4         shl     eax, 4
+.text:004010F7         add     eax, offset hash_copies
+.text:004010FC         push    esi                     ; push digest
+.text:004010FD         push    eax                     ; push 40F0D8 + loopvar*16
+.text:004010FE         call    optimized_memcpy
+.text:00401103         add     esp, 14h                ;
+.text:00401103                                         ;
+.text:00401106         inc     loopvar
+.text:0040110C         cmp     loopvar, 64h
+.text:00401113         jnz     short copy_hash
+.text:00401115         mov     loopvar, ebp
+.text:0040111B         mov     eax, offset hash_copies_p4
+
+For each hash, the 128 bit serial is AND. For each hash, a value is calculated
+that is the XOR of each of its bits. Each hash's value must be 0. This is why
+the crackme is called "Xor2Zero" :)
+
+.text:00401120         mov     ecx, dw0
+.text:00401126         and     [eax-4], ecx            ; hash_dw0 ^= dw0
+.text:00401129         mov     ecx, dw1
+.text:0040112F         and     [eax], ecx              ; hash_dw1 ^= dw1
+.text:00401131         mov     ecx, dw2
+.text:00401137         and     [eax+4], ecx            ; hash_dw2 ^= dw2
+.text:0040113A         mov     ecx, dw3
+.text:00401140         and     [eax+8], ecx            ; hash_dw3 ^= dw3
+.text:00401140                                         ;
+.text:00401143         mov     edx, [eax+8]
+.text:00401146         mov     ecx, [eax+4]
+.text:00401149         xor     ecx, edx
+.text:0040114B         mov     [eax+8], ecx            ; ecx = hash_dw3 = hash_dw3 ^ hash_dw2
+.text:0040114B                                         ;
+.text:0040114E         mov     edx, [eax]
+.text:00401150         xor     edx, ecx
+.text:00401152         mov     [eax+8], edx            ; edx = hash_dw3 = (hash_dw3 ^ hash_dw2 ^ hash_dw1)
+.text:00401152                                         ;
+.text:00401155         mov     esi, [eax-4]
+.text:00401158         xor     esi, edx                ; val = hash_dw0 ^ hash_dw3
+.text:00401158                                         ;
+.text:0040115A         mov     ecx, esi
+.text:0040115C         shr     ecx, 10h
+.text:0040115F         xor     ecx, esi                ; val ^= (val >> 16)
+.text:0040115F                                         ;
+.text:00401161         mov     edx, ecx
+.text:00401163         shr     edx, 8
+.text:00401166         xor     edx, ecx                ; val ^= (val >> 8)
+.text:00401166                                         ;
+.text:00401168         mov     ecx, edx
+.text:0040116A         shr     ecx, 4
+.text:0040116D         xor     ecx, edx                ; val ^= (val >> 4)
+.text:0040116D                                         ;
+.text:0040116F         mov     edx, ecx
+.text:00401171         shr     edx, 2
+.text:00401174         xor     edx, ecx                ; val ^= (val >> 2)
+.text:00401174                                         ;
+.text:00401176         mov     ecx, edx
+.text:00401178         shr     ecx, 1
+.text:0040117A         xor     ecx, edx                ; val ^= (val >> 1)
+.text:0040117A                                         ;
+.text:0040117C         test    cl, 1                   ; if cl==1, ZF=0 (1 and 1, not zero)
+.text:0040117C                                         ; if cl==0, ZF=1 (1 and 0, zero)
+.text:0040117F         mov     [eax+8], ecx
+.text:00401182         jnz     short badboy            ;
+.text:00401182                                         ;
+.text:00401184         inc     loopvar
+.text:0040118A         add     eax, 10h                ; eax -> next hash
+.text:0040118D         cmp     eax, edi                ; is it at end?
+.text:0040118F         jnz     short continue
+.text:00401191         push    ebp
+.text:00401192         push    offset aGoodBoy         ; "Good boy"
+.text:00401197         push    offset aYouDidIt        ; "You did it!"
+
+Here is an attempt to draw the algorithm's behavior:
+
+serial b127 --[AND]-------------------+
+...                                   |
+serial b001 --[AND]-------+           |
+serial b000 --[AND]--+    |           |
+                     |    |           |
+                     V    V           V
+                   +----+----+--...-+----+
+           hash0:  |b000|b001|      |b127| --> XOR of all these bits must == 0
+                   +----+----+--...-+----+
+           hash1:  |b000|b001|      |b127| --> XOR of all these bits must == 0
+                   +----+----+--...-+----+
+                   ...
+                   +----+----+--...-+----+
+           hash99: |b000|b001|      |b127| --> XOR of all these bits must == 0
+                   +----+----+--...-+----+
+
+[----------------------------------------------------------------------------------]
+ THE MATH
+[----------------------------------------------------------------------------------]
+
+If we choose number system GF(2), with XOR addition and AND multiplication, we can
+infer:
+
+- this is 100 linear equations, each with 128 variables
+- each hash is an equation, each hash's bit is a coefficient
+- the serial multiplies against every equation... with only {0,1} numbers, this is
+  essentially selecting the values of the variables
+
+I solve this by constructing the following matrix:
+
+
+                                ...       
+           hash0:  |b000|b001|      |b127|0000
+                                ...       
+           hash1:  |b000|b001|      |b127|0000
+                                ...       
+                   ...
+                                ...       
+           hash99: |b000|b001|      |b127|0000
+                                ...        ^
+                                           |
+                                           +-- augment value
+
+And then applying a simplified Gauss-Jordan elimination adapted to this problem.
+
+As you may see, with 100 equations, and 128 variables, there are not enough
+constraints to lock a value for each variable.
+
+Thus every name has many keys - roughly 2^30 since about 98% of the columns [0..99]
+have a single coefficient after Guass-Jordan is applied. That leaves about 30
+variables free for choice, and the rest can be backsolved.
+
+[----------------------------------------------------------------------------------]
+ THE MATH #2
+[----------------------------------------------------------------------------------]
+
+Another interesting way to view this is that the columns of the hashes form 128
+vectors in a 100-dimension space.
+
+Your serial number is selecting which of the vectors to sum together, and that sum
+must be the origin :)
+
+[----------------------------------------------------------------------------------]
+ AND/XOR REQUIREMENT
+[----------------------------------------------------------------------------------]
+
+In the Gauss-Jordan elimination, adding one row to another is XOR.
+
+Scaling a row is multiplying by 0 or 1, or AND, but this is not necessary.
+
+Backsolving using XOR takes a little thought:
+
+For unchosen value to the right of a pivot in a given row, assume its value to be 1.
+This avoids the danger of creating a 0 double-word (not allowed by the crackme) and
+makes your keygen convenient to write by focusing on just one key for each name.
+
+The value at the pivot position is then simply the XOR of all values to the right,
+including the augment value.
+
+[----------------------------------------------------------------------------------]
+ CONCLUSION
+[----------------------------------------------------------------------------------]
+
+All of the above hand-waving is put into concrete terms in keygen.cpp.
+
+A preprocessor variable EXAMPLE can be defined to make the keygen run on a smaller
+5-equation, 8-variable system aiming for the vector <1,1,1,1,1> which I worked out
+with pencil/paper trying to debug the keygen.
+
+Thanks to BUBlic for this work. It's nice to have crackme that teaches you something
+while wasting minimal time. This has been in my head for several days now :)
+
+Example pairs:
+
+  Name: BUBlic
+Serial: CA3AA8BD-0FC5ECBD-AA1AC8ED-FFFFFF2B
+
+  Name: crackmes.de
+Serial: 08AE2549-C3E04107-2073D805-FFFFFF8F
+
+  Name: abc
+Serial: 8B705B3C-EC51FED4-C263638E-FFFFFFE7
+
+Hello to E.L., cyclops, everlast, numernia, artif, etc. in #c4n and crackmes.de!

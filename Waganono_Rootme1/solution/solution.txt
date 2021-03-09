@@ -1,0 +1,106 @@
+Solution to Waganono's "Root Me #1"
+
+1) IDENTIFY BIG NUMBERS
+--------------------------------------------------------------------------------
++0: capacity/flags?
++4: current size (in dwords)?
++8: 00922a00 pointer to dwords (in ascending significance)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ example: 0000B2D0FD991BDDC9E137CE7E21F04B231A3899 
+          445CC8FA6C6364BBABBED816AE77AAFFE2FC6329
+          F64B9A47EDAACEFF05D6EDA9
++0: 0000000e 14 dwords allocated
++4: 0000000d 13 dwords in stored digits
++8: 00922a00 pointer to dwords
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    00922a00:  05d6eda9 edaaceff f64b9a47 e2fc6329
+    00922a10:  ae77aaff abbed816 6c6364bb 445cc8fa
+    00922a20:  231a3899 7e21f04b c9e137ce fd991bdd
+    00922a30:  0000b2d0
+
+2) IDENTIFY BIG NUMBER FUNCTIONS
+--------------------------------------------------------------------------------
+bignum_add_dword           403E40
+bignum_and                 403230
+bignum_assign_dword        403AF0
+bignum_compare             4047D0
+bignum_compare_int         403BF0
+bignum_divide              402FC0
+bignum_divide_int          403B30
+bignum_exp_mod             404960
+bignum_free                403B10
+bignum_from_bytes          404540
+bignum_from_string         404DC0
+bignum_legendre            404040
+bignum_log                 403C60
+bignum_message_from_string 401213
+bignum_mul_dword           403F00
+bignum_new                 403C30
+bignum_remainder           403050
+bignum_shl                 4037F0
+bignum_shr                 403AD0
+bignum_subtract_dword      403730
+
+3) LEARN ALGORITHM
+--------------------------------------------------------------------------------
+-  name is whirlpool hashed, converted to a large integer c
+-  c is incremented until it becomes a quadratic residue of n
+-  serial is given as base 36 encoded string
+   using alphabet: QZM9GYLDR4BKS6PH7FX3TNW1A20J5C8VOEIU
+-  serial is decoded to a large integer
+-  large integer is decomposed into a base 257 representation
+-  the low 50 coefficients of the base 257 representation are multiplied by an
+   invertible 50x50 matrix over F_257; the result replaces these 50 coefficients
+-  resulting base 257 representation is considered again as a large integer
+-  large integer is shifted right 400 bits; resulting integer must divide n
+-  low 400 bits must be square root of c (mod n)
+
+where:
+ n = B2D0FD991BDDC9E137CE7E21F04B231A3899445CC8FA6C6364
+     BBABBED816AE77AAFFE2FC6329F64B9A47EDAACEFF05D6EDA9
+ p = B37AD654A32D2D93F7D8FB81C999CEBB621B6C234666F3196B
+ q = FF0DBD838D1D7F92A972DA9857F35C71ABFD20F4DC00BAB63B
+
+n factors into two distinct primes; the squaring mod n is a tell-tale sign of the
+Rabin cryptosystem, but this knowledge isn't necessary to solve the crackme; see:
+
+http://en.wikipedia.org/wiki/Legendre_symbol
+http://en.wikipedia.org/wiki/Quadratic_residue
+
+4) REVERSE ALGORITHM
+--------------------------------------------------------------------------------
+-  compute c from the name
+-  choose p or q to be the bits > b_400
+-  solve the square root of c (mod n); result into low 400 bits
+-  decompose into base 257 representation
+-  multiply low 50 coefficients by inverse of matrix (see invert.gp)
+-  recompose the base 257 representation into a large integer
+-  base 36 encode this integer as the serial
+
+the square root is solved for in pieces: once for p, once for q, and the CRT
+guarantees a combined solution which we get at with the EGCD algorithm; see
+keygen.py for details
+
+example keys: (trailing \ indicates "continuation on next line")
+~~~~~~~~~~~~
+   waganono 8CO5YK0C9EWM36ELDD49OJQXXOH1QRACPIZI2WH7W9E27AP24E4BLSO1WB \
+            TT91VSD8UNA6EP2UANRP6AHIMN3F0RUGA8RD3O19DSZH6A7XQRA0CGS6S8
+    andrewl 8CO5YK0C9EWM36ELDD49OJQXXOH1QRACPIZI2WALZ85P7F8GJATB5XPOVO \
+            AWVGFJNY1VYAK8GLLSYT70490DY30EX46KZNMX7MD0TRGLAZZDIP0IC82J
+crackmes.de 8CO5YK0C9EWM36ELDD49OJQXXOH1QRACPIZI2W7NV054EHT0YXWIIZ2B4H \
+            5K5UKJRFE0THX7GGHPEODB99R0ME3UIXXCD5KAWSSKYZL1Z40B1BNCZPLQ
+*2*jY3&3>3? 8CO5YK0C9EWM36ELDD49OJQXXOH1QRACPIZI2WXYWTHBQP5OAZHVD099PK \
+            YAIBOMVSITV2513WGL0AXRW9Z5WTFAUHKYDNOM27OLUB9ODP2Y7QL4BVNE
+
+5) CONCLUSION
+--------------------------------------------------------------------------------
+Not too hard - fun, even. Early start on crypto crackmes was with Waganono's
+work! In fact, this is close to "D-Racinez Moi" except the addition of whirlpool
+and F_257 matrix.
+
+Greets @ dalnet #crackmesde!
+
+--
+andrewl
+crackmes.de
+feb15_2011

@@ -1,0 +1,341 @@
+.text:004012AB ; int __cdecl VerifySerial(int, LPCSTR lpString)
+.text:004012AB VerifySerial    proc near               ; CODE XREF: DialogFunc+1ADp
+.text:004012AB
+.text:004012AB factorA         = dword ptr -3Ch
+.text:004012AB factorB         = dword ptr -30h
+.text:004012AB bignum_msg      = dword ptr -24h
+.text:004012AB bignum_n        = dword ptr -18h
+.text:004012AB bignum_bot      = dword ptr -0Ch
+.text:004012AB arg_username    = dword ptr  8
+.text:004012AB lpString        = dword ptr  0Ch
+.text:004012AB
+.text:004012AB                 push    ebp
+.text:004012AC                 mov     ebp, esp
+.text:004012AE                 sub     esp, 3Ch
+.text:004012B1                 push    esi
+.text:004012B2                 lea     eax, [ebp+bignum_bot]
+.text:004012B5                 push    eax
+.text:004012B6                 xor     esi, esi
+.text:004012B8                 call    bignum_new
+.text:004012BD                 lea     eax, [ebp+bignum_msg]
+.text:004012C0                 push    eax
+.text:004012C1                 call    bignum_new
+.text:004012C6                 lea     eax, [ebp+factorB]
+.text:004012C9                 push    eax
+.text:004012CA                 call    bignum_new
+.text:004012CF                 lea     eax, [ebp+factorA]
+.text:004012D2                 push    eax
+.text:004012D3                 call    bignum_new
+.text:004012D8                 push    10h
+.text:004012DA                 lea     eax, [ebp+bignum_n]
+.text:004012DD                 push    offset aB2d0fd991bddc9 ; "B2D0FD991BDDC9E137CE7E21F04B231A3899445"...
+.text:004012E2                 push    eax
+.text:004012E3                 call    bignum_from_string ;
+.text:004012E3                                         ;
+.text:004012E8                 lea     eax, [ebp+factorA]
+.text:004012EB                 push    eax             ; result_remainder
+.text:004012EC                 lea     eax, [ebp+factorB]
+.text:004012EF                 push    eax             ; int
+.text:004012F0                 lea     eax, [ebp+bignum_n]
+.text:004012F3                 push    eax             ; int
+.text:004012F4                 lea     eax, [ebp+bignum_bot]
+.text:004012F7                 push    eax             ; int
+.text:004012F8                 push    [ebp+lpString]  ; lpString
+.text:004012FB                 call    decode_serial
+.text:00401300                 add     esp, 30h
+.text:00401303                 test    eax, eax
+.text:00401305                 jz      short done      ;
+.text:00401305                                         ;
+.text:00401307                 lea     eax, [ebp+bignum_n]
+.text:0040130A                 push    eax
+.text:0040130B                 lea     eax, [ebp+bignum_bot]
+.text:0040130E                 push    2
+.text:00401310                 push    eax
+.text:00401311                 push    eax
+.text:00401312                 call    bignum_exp_mod  ;
+.text:00401312                                         ;
+.text:00401317                 lea     eax, [ebp+bignum_msg]
+.text:0040131A                 push    eax             ; int
+.text:0040131B                 lea     eax, [ebp+bignum_n]
+.text:0040131E                 push    eax             ; int
+.text:0040131F                 lea     eax, [ebp+factorA]
+.text:00401322                 push    eax             ; int
+.text:00401323                 lea     eax, [ebp+factorB]
+.text:00401326                 push    eax             ; int
+.text:00401327                 push    [ebp+arg_username] ; LPCSTR
+.text:0040132A                 call    bignum_message_from_string ;
+.text:0040132A                                         ;
+.text:0040132F                 lea     eax, [ebp+bignum_msg]
+.text:00401332                 push    eax
+.text:00401333                 lea     eax, [ebp+bignum_bot]
+.text:00401336                 push    eax
+.text:00401337                 call    bignum_compare  ;
+.text:00401337                                         ;
+.text:0040133C                 add     esp, 2Ch
+.text:0040133F                 mov     esi, eax
+.text:00401341                 neg     esi
+.text:00401343                 sbb     esi, esi
+.text:00401345                 inc     esi
+.text:00401346
+.text:00401346 done:                                   ; CODE XREF: VerifySerial+5Aj
+.text:00401346                 lea     eax, [ebp+bignum_n]
+.text:00401349                 push    eax
+.text:0040134A                 call    bignum_free
+.text:0040134F                 lea     eax, [ebp+bignum_bot]
+.text:00401352                 push    eax
+.text:00401353                 call    bignum_free
+.text:00401358                 lea     eax, [ebp+bignum_msg]
+.text:0040135B                 push    eax
+.text:0040135C                 call    bignum_free
+.text:00401361                 lea     eax, [ebp+factorB]
+.text:00401364                 push    eax
+.text:00401365                 call    bignum_free
+.text:0040136A                 lea     eax, [ebp+factorA]
+.text:0040136D                 push    eax
+.text:0040136E                 call    bignum_free
+.text:00401373                 add     esp, 14h
+.text:00401376                 mov     eax, esi
+.text:00401378                 pop     esi
+.text:00401379                 leave
+.text:0040137A                 retn
+.text:0040137A VerifySerial    endp
+
+
+
+.text:0040104F ; int __cdecl decode_serial(LPCSTR lpString, int, int, int, int result_remainder)
+.text:0040104F decode_serial   proc near               ; CODE XREF: VerifySerial+50p
+.text:0040104F
+.text:0040104F var_DC          = dword ptr -0DCh
+.text:0040104F base_257        = word ptr -0CCh
+.text:0040104F bignum_temp     = byte ptr -20h
+.text:0040104F strlen          = dword ptr -14h
+.text:0040104F large_shr       = byte ptr -10h
+.text:0040104F loopvar         = dword ptr -4
+.text:0040104F lpString        = dword ptr  8
+.text:0040104F arg_4           = dword ptr  0Ch
+.text:0040104F arg_factorA     = dword ptr  10h
+.text:0040104F arg_C           = dword ptr  14h
+.text:0040104F result_remainder= dword ptr  18h
+.text:0040104F
+.text:0040104F                 push    ebp
+.text:00401050                 mov     ebp, esp
+.text:00401052                 sub     esp, 0CCh
+.text:00401058                 push    [ebp+lpString]  ; lpString
+.text:0040105B                 call    ds:lstrlenA
+.text:00401061                 mov     [ebp+strlen], eax
+.text:00401064                 test    eax, eax
+.text:00401066                 jnz     short loc_40106A
+.text:00401068                 leave
+.text:00401069                 retn
+.text:0040106A ; ---------------------------------------------------------------------------
+.text:0040106A
+.text:0040106A loc_40106A:                             ; CODE XREF: decode_serial+17j
+.text:0040106A                 and     [ebp+loopvar], 0
+.text:0040106E                 push    ebx
+.text:0040106F                 push    esi
+.text:00401070                 mov     esi, [ebp+arg_4]
+.text:00401073                 push    edi
+.text:00401074                 test    eax, eax
+.text:00401076                 jle     short done_decoding
+.text:00401078                 mov     ebx, offset byte_42A000
+.text:0040107D
+.text:0040107D continue_over:                          ; CODE XREF: decode_serial+6Aj
+.text:0040107D                 mov     ecx, [ebp+lpString]
+.text:00401080                 mov     eax, [ebp+loopvar]
+.text:00401083                 movsx   eax, byte ptr [eax+ecx]
+.text:00401087                 push    eax             ; current character
+.text:00401088                 push    ebx             ; decode_table
+.text:00401089                 call    chr_str
+.text:0040108E                 mov     edi, eax
+.text:00401090                 pop     ecx
+.text:00401091                 pop     ecx
+.text:00401092                 test    edi, edi
+.text:00401094                 jz      index_0         ; quit if 'Q' ?
+.text:00401094                                         ;
+.text:0040109A                 push    24h
+.text:0040109C                 push    esi
+.text:0040109D                 push    esi
+.text:0040109E                 call    bignum_mul_dword ;
+.text:0040109E                                         ;
+.text:004010A3                 sub     edi, ebx
+.text:004010A5                 push    edi
+.text:004010A6                 push    esi
+.text:004010A7                 push    esi
+.text:004010A8                 call    bignum_add_dword
+.text:004010AD                 add     esp, 18h        ;
+.text:004010AD                                         ;
+.text:004010B0                 inc     [ebp+loopvar]
+.text:004010B3                 mov     eax, [ebp+loopvar]
+.text:004010B6                 cmp     eax, [ebp+strlen]
+.text:004010B9                 jl      short continue_over
+.text:004010BB
+.text:004010BB done_decoding:                          ; CODE XREF: decode_serial+27j
+.text:004010BB                 push    2
+.text:004010BD                 push    esi
+.text:004010BE                 call    bignum_log      ;
+.text:004010BE                                         ;
+.text:004010C3                 pop     ecx
+.text:004010C4                 pop     ecx
+.text:004010C5                 cmp     eax, 2A8h       ; need less than 680 bits
+.text:004010CA                 ja      return_0        ;
+.text:004010CA                                         ;
+.text:004010D0                 lea     eax, [ebp+bignum_temp]
+.text:004010D3                 push    eax
+.text:004010D4                 call    bignum_new      ;
+.text:004010D4                                         ;
+.text:004010D9                 push    0AAh            ; 170 bytes
+.text:004010DE                 lea     eax, [ebp+base_257]
+.text:004010E4                 push    0
+.text:004010E6                 push    eax
+.text:004010E7                 call    memset_like     ;
+.text:004010E7                                         ;
+.text:004010EC                 push    0
+.text:004010EE                 push    esi
+.text:004010EF                 call    bignum_compare_int
+.text:004010F4                 add     esp, 18h        ;
+.text:004010F4                                         ;
+.text:004010F7                 mov     edi, 101h       ; 257 is prime
+.text:004010FC                 test    eax, eax
+.text:004010FE                 jz      short bignum_is_0 ;
+.text:004010FE                                         ;
+.text:00401100                 lea     ebx, [ebp+base_257]
+.text:00401106
+.text:00401106 loop:                                   ; CODE XREF: decode_serial+D6j
+.text:00401106                 push    edi             ; 257
+.text:00401107                 push    esi             ; arg2: 00000090c8ef6145
+.text:00401108                 lea     eax, [ebp+bignum_temp]
+.text:0040110B                 push    eax             ; arg1: empty
+.text:0040110C                 push    esi             ; arg0: 00000090c8ef6145
+.text:0040110D                 call    bignum_divide_int ;
+.text:0040110D                                         ;
+.text:00401112                 push    0
+.text:00401114                 mov     [ebx], ax       ;
+.text:00401114                                         ;
+.text:00401117                 push    esi
+.text:00401118                 add     ebx, 2
+.text:0040111B                 call    bignum_compare_int
+.text:00401120                 add     esp, 18h
+.text:00401123                 test    eax, eax
+.text:00401125                 jnz     short loop      ; convert to base 257
+.text:00401127
+.text:00401127 bignum_is_0:                            ; CODE XREF: decode_serial+AFj
+.text:00401127                 lea     eax, [ebp+bignum_temp]
+.text:0040112A                 push    eax
+.text:0040112B                 call    bignum_free     ;
+.text:0040112B                                         ;
+.text:00401130                 lea     eax, [ebp+base_257] ; arg1
+.text:00401136                 mov     [esp+0DCh+var_DC], offset dword_42A090 ; arg2
+.text:0040113D                 push    eax
+.text:0040113E                 call    matrix_mul      ;
+.text:0040113E                                         ;
+.text:00401143                 push    0
+.text:00401145                 push    esi
+.text:00401146                 call    bignum_assign_dword
+.text:0040114B                 add     esp, 10h        ;
+.text:0040114B                                         ;
+.text:0040114E                 push    54h
+.text:00401150                 pop     ebx
+.text:00401151
+.text:00401151 keep_going:                             ; CODE XREF: decode_serial+11Ej
+.text:00401151                 push    edi             ; take base 257 array right back to bignum?
+.text:00401152                 push    esi
+.text:00401153                 push    esi
+.text:00401154                 call    bignum_mul_dword
+.text:00401159                 movzx   eax, [ebp+ebx*2+base_257]
+.text:00401161                 push    eax
+.text:00401162                 push    esi
+.text:00401163                 push    esi
+.text:00401164                 call    bignum_add_dword
+.text:00401169                 add     esp, 18h
+.text:0040116C                 dec     ebx
+.text:0040116D                 jns     short keep_going ;
+.text:0040116D                                         ;
+.text:0040116F                 mov     ebx, [ebp+arg_C]
+.text:00401172                 mov     edi, 190h       ; 400
+.text:00401177                 push    edi
+.text:00401178                 push    esi             ; <- reconstructed decoded bignum from serial
+.text:00401179                 push    ebx
+.text:0040117A                 call    bignum_shr      ;
+.text:0040117A                                         ;
+.text:0040117F                 lea     eax, [ebp+large_shr]
+.text:00401182                 push    eax
+.text:00401183                 call    bignum_new      ;
+.text:00401183                                         ;
+.text:00401188                 lea     eax, [ebp+large_shr]
+.text:0040118B                 push    1
+.text:0040118D                 push    eax
+.text:0040118E                 call    bignum_assign_dword ;
+.text:0040118E                                         ;
+.text:00401193                 lea     eax, [ebp+large_shr]
+.text:00401196                 push    edi
+.text:00401197                 push    eax
+.text:00401198                 push    eax
+.text:00401199                 call    bignum_shl      ;
+.text:00401199                                         ;
+.text:0040119E                 lea     eax, [ebp+large_shr]
+.text:004011A1                 push    1
+.text:004011A3                 push    eax
+.text:004011A4                 push    eax
+.text:004011A5                 call    bignum_subtract_dword ;
+.text:004011A5                                         ;
+.text:004011AA                 lea     eax, [ebp+large_shr]
+.text:004011AD                 push    eax
+.text:004011AE                 push    esi
+.text:004011AF                 push    esi
+.text:004011B0                 call    bignum_and      ;
+.text:004011B0                                         ;
+.text:004011B5                 lea     eax, [ebp+large_shr]
+.text:004011B8                 push    eax
+.text:004011B9                 call    bignum_free
+.text:004011BE                 add     esp, 40h
+.text:004011C1                 push    0
+.text:004011C3                 push    ebx
+.text:004011C4                 call    bignum_compare_int
+.text:004011C9                 pop     ecx
+.text:004011CA                 pop     ecx
+.text:004011CB                 test    eax, eax
+.text:004011CD                 jz      short return_0  ;
+.text:004011CD                                         ;
+.text:004011CF                 push    ebx             ; bignum_top
+.text:004011D0                 push    [ebp+arg_factorA]
+.text:004011D3                 push    [ebp+result_remainder]
+.text:004011D6                 call    bignum_remainder ;
+.text:004011D6                                         ;
+.text:004011DB                 push    0
+.text:004011DD                 push    [ebp+result_remainder]
+.text:004011E0                 call    bignum_compare_int
+.text:004011E5                 add     esp, 14h
+.text:004011E8                 test    eax, eax
+.text:004011EA                 jz      short loc_4011FC
+.text:004011EC
+.text:004011EC return_0:                               ; CODE XREF: decode_serial+7Bj
+.text:004011EC                                         ; decode_serial+17Ej ...
+.text:004011EC                 xor     eax, eax
+.text:004011EE                 jmp     short return_now
+.text:004011F0 ; ---------------------------------------------------------------------------
+.text:004011F0
+.text:004011F0 index_0:                                ; CODE XREF: decode_serial+45j
+.text:004011F0                 push    0
+.text:004011F2                 push    esi
+.text:004011F3                 call    bignum_assign_dword
+.text:004011F8                 pop     ecx
+.text:004011F9                 pop     ecx
+.text:004011FA                 jmp     short return_0
+.text:004011FC ; ---------------------------------------------------------------------------
+.text:004011FC
+.text:004011FC loc_4011FC:                             ; CODE XREF: decode_serial+19Bj
+.text:004011FC                 push    ebx
+.text:004011FD                 push    [ebp+arg_factorA]
+.text:00401200                 push    [ebp+result_remainder]
+.text:00401203                 call    bignum_divide
+.text:00401208                 xor     eax, eax
+.text:0040120A                 add     esp, 0Ch
+.text:0040120D                 inc     eax
+.text:0040120E
+.text:0040120E return_now:                             ; CODE XREF: decode_serial+19Fj
+.text:0040120E                 pop     edi
+.text:0040120F                 pop     esi
+.text:00401210                 pop     ebx
+.text:00401211                 leave
+.text:00401212                 retn
+.text:00401212 decode_serial   endp

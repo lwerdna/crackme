@@ -1,0 +1,296 @@
+Solution to jE!'s "jE!_CRC_DRx" by andrewl
+
+November 29th, 2008 4:00AM
+
+"fun is fun, but what for U!?" says jE!
+
+[----------------------------------------------------------------------------------]
+ GETTING STARTED
+[----------------------------------------------------------------------------------]
+
+ROSASM was used to make the crackme. It stores some comments inside the EXE. I will
+refer to some of the symbol names in this crackme. For example "SEH" refers to the
+name jE! gave to his SEH handler. "onTRAP" refers to the name he gave to one of the
+areas inside SEH. Just open the file in ROSASM to see these things.
+
+[----------------------------------------------------------------------------------]
+ HIGH LEVEL STRUCTURE
+[----------------------------------------------------------------------------------]
+
+I cannot explain too much the crackme. You have ROSASM to view comments. My IDA
+fully commented listing is je!_CRC_DRX.idb and explains nearly every line of code.
+
+You see that the crackme is a puzzle, with some complicated pieces. The goal is to
+display the messagebox.
+
+"U need fUntaziE+LogiQ, have U!?" says jE!
+
+There is the main thread, a "CRC" thread, and an exception handler.
+
+The main thread signals to the exception handler via invalid opcode exceptions and
+access violations. See exception_sequence.txt for full explanation. 
+
+The exception handler creates a thread (CRCThread) which just sums the bytes over
+the entire crackme. If a breakpoint is set, the sum changes.
+
+The exception handler and thread signal each other using an unused bit in the
+context flags of the main thread. The CRCThread was given a pointer to the main
+thread's context as a parameter during CreateThread().
+
+[----------------------------------------------------------------------------------]
+ BEHAVIOR
+[----------------------------------------------------------------------------------]
+
+10 DWORDS are read from a file "KEY". They are mixed on every access violation using
+the result of CRCThread. Adding a software BP will thus change your results. It is
+best at this point to patch your crackme so that the thread always returns the right
+answer 0x17187. See jeadd.cpp for the calculation. Now you can set BP's.
+
+The DWORDS are read into the context of the main thread. Thus, using hardware BP's
+will skew results again.
+
+Here is the mixing operation:
+
+.text:004031E0                   mix_debug_registers:                    ; context.EAX
+.text:004031E0 8B 83 B0 00 00 00     mov eax, [ebx+0B0h]
+.text:004031E6 01 43 10              add [ebx+10h], eax                  ; context.DR3 += EAX (bytes sum)
+.text:004031E9 FC                    cld
+.text:004031EA 8D 73 04              lea esi, [ebx+4]                    ; esi -> context.debug registers
+.text:004031ED AD                    lodsd
+.text:004031EE 31 06                 xor [esi], eax                      ; dr1 ^= dr0
+.text:004031F0 AD                    lodsd
+.text:004031F1 31 06                 xor [esi], eax                      ; dr2 ^= dr1
+.text:004031F3 AD                    lodsd
+.text:004031F4 31 46 F4              xor [esi-0Ch], eax                  ; dr0 ^= dr2
+.text:004031F7 AD                    lodsd
+.text:004031F8 31 46 F0              xor [esi-10h], eax
+.text:004031FB 31 46 F4              xor [esi-0Ch], eax
+.text:004031FE 31 46 F8              xor [esi-8], eax                    ; dr0,dr1,dr2 xor'd with dr3
+
+See reverse_dws.cpp for how to reverse it.
+
+Here is how the DWORDS are used, in pseudocode:
+
+DR[0] = file_dwords[0];
+DR[1] = file_dwords[1];
+DR[2] = file_dwords[2];
+DR[3] = file_dwords[3];
+
+loop_8:
+    DR[3] += 0x17187;
+    DR[1] ^= DR[0];
+    DR[2] ^= DR[1];
+    DR[0] ^= DR[2];
+    DR[0] ^= DR[3];
+    DR[1] ^= DR[3];
+    DR[2] ^= DR[3];
+
+memcpy(&mem_dwords[5] + file_dwords[4], &DR, 3*sizeof(DWORD));
+
+DR[0] = file_dwords[5];
+DR[1] = file_dwords[6];
+DR[2] = file_dwords[7];
+
+loop_8:
+    DR[3] += 0x17187;
+    DR[1] ^= DR[0];
+    DR[2] ^= DR[1];
+    DR[0] ^= DR[2];
+    DR[0] ^= DR[3];
+    DR[1] ^= DR[3];
+    DR[2] ^= DR[3];
+
+memcpy(&mem_dwords[9] + file_dwords[8], &DR, 3*sizeof(DWORD));
+
+original thread's EAX = dwords[9];
+
+Watch out for traps:
+
+.text:004033B5 9D                    popf                                ; set trap flag
+.text:004033B6 9C                    pushf                               ; trigger single step exception
+.text:004033B7 CC                    int 3                               ; Trap to Debugger
+
+If you are stepping over this with your debugger, the crackme's single step handler
+will not be invoked to skip the int 3.
+
+[----------------------------------------------------------------------------------]
+ THE PUZZLE PIECES
+[----------------------------------------------------------------------------------]
+
+Here are the pieces:
+
+1) You get two 3-DWORD writes controlled by KEY file (after mixing)
+2) You get one stack add controlled by a byte in the last DWORD
+3) You get two writes to the stack where the value written is the stack location+4
+4) You get these two subroutines to point at:
+
+.text:00403002                   EXIT1: 
+.text:00403002 83 C4 0C              add esp, 0Ch
+.text:00403005 FF E0                 jmp eax
+
+.text:0040300C                   EXIT2:  
+.text:0040300C 89 44 24 14           mov [esp+14h], eax
+.text:00403010 83 C4 0C              add esp, 0Ch
+.text:00403013 C3                    retn
+
+5) You get some memory... BP at 004030AD and dump 0xA0 bytes. There is pointers
+to EXIT1 and EXIT2. There is strings "CONGRATULATIONS!" and "WOW!". 
+
+[----------------------------------------------------------------------------------]
+ THE PUZZLE
+[----------------------------------------------------------------------------------]
+
+Here is final program flow deciding if MessageBox is displayed:
+
+.text:004030C5 03 CE                 add ecx, esi                        <--- exceptions are done by here
+.text:004030C7 64 8B 22              mov esp, fs:[edx]
+.text:004030CA 64 8F 02              pop dword ptr fs:[edx]
+.text:004030CD 74 0C                 jz  short loc_4030DB                <--- must take this jump
+.text:004030CF
+.text:004030CF                   EXIT0:                                  
+.text:004030CF 68 6A 45 21 00        push 21456Ah
+.text:004030D4 FF 15 6C 10 40 00     call ExitProcess
+.text:004030DA C3                    retn
+.text:004030DB
+.text:004030DB                   loc_4030DB:                             ; 
+.text:004030DB 0F B6 D0              movzx edx, al                       ; 0th byte
+.text:004030DE 03 E2                 add esp, edx                        ;
+.text:004030DE                                                           ;
+.text:004030E0 0F B6 D4              movzx edx, ah                       ; 1st byte
+.text:004030E3 03 D4                 add edx, esp
+.text:004030E5 89 52 FC              mov [edx-4], edx                    ;
+.text:004030E5                                                           ;
+.text:004030E8 C1 E8 10              shr eax, 10h                        ; 2nd byte
+.text:004030EB 03 C4                 add eax, esp
+.text:004030ED 89 40 FC              mov [eax-4], eax                    ;
+.text:004030ED                                                           ;
+.text:004030F0 FF 35 70 10 40 00     push LoadLibraryA
+.text:004030F6 FF 35 74 10 40 00     push GetProcAddress
+.text:004030FC 8F 40 F0              pop dword ptr [eax-10h]
+.text:004030FF 8F 42 F4              pop dword ptr [edx-0Ch]
+.text:00403102 C3                    retn
+
+The problem is that ECX was calculated as 0x17187 - ESI. So adding ESI back always
+yields 0x17187. Thus the JZ at 4030CD is never taken, and we ExitProcess everytime.
+
+Assume that we could reach 4030DB. JoKa did the work in figuring out how to make the
+messagebox appear and posted it on crackmes.de message board. See comments inside
+reverse_dws.cpp for details on building keyfile that can get to this point. 
+
+[----------------------------------------------------------------------------------]
+ DEFEATING JZ/JE
+[----------------------------------------------------------------------------------]
+
+You should know that HW breakpoints are implemented in DRx registers, exactly where
+our DWORDS are, during mixing. What we do is choose a sequence of mixing operations
+that is both capable of placing "user32" and "MessageBoxA" on the stack while having
+an HW BP in a strategic spot before the final access violation:
+
+004030bf 012a            add     dword ptr [edx],ebp
+004030c1 e2fc            loop    image00400000+0x30bf (004030bf)
+004030c3 8b2a            mov     ebp,dword ptr [edx]             <--- HW BP here
+004030c5 03ce            add     ecx,esi
+004030c7 648b22          mov     esp,dword ptr fs:[edx]
+004030ca 648f02          pop     dword ptr fs:[edx]
+004030cd 740c            je      image00400000+0x30db (004030db) <--- goal: take this fucker
+
+The hardware breakpoint causes single step exception. The "onTRAP" handler is actually
+the default handler invoked after the crackme determines that the exception is not an
+access violation or breakpoint. The handler zero's ECX, sets ZF, and increments EIP. 
+We must disassemble from 4030C4 where SEH returns:
+
+004030c4 2a03            sub     al,byte ptr [ebx]
+004030c6 ce              into                                    <--- invokes onTRAP
+004030c7 648b22          mov     esp,dword ptr fs:[edx]
+004030ca 648f02          pop     dword ptr fs:[edx]
+004030cd 740c            je      image00400000+0x30db (004030db) <--- goal: take this fucker
+
+The into instruction causes an overflow exception. It is handled by onTRAP again, which
+zero's ECX, sets ZF, and increments EIP. Its context is with EIP after the "into" at
+4030C7, so incrementing brings to 4030C8. Notice the '64' segment override is skipped,
+so the "fs:[edx]" is not "[edx]" and is an access violation which will allow elast to
+be called:
+
+004030c8 8b22            mov     esp,dword ptr [edx]             <--- invokes last access violation
+004030ca 648f02          pop     dword ptr fs:[edx]
+004030cd 740c            je      image00400000+0x30db (004030db) <--- goal: take this fucker
+
+The last access violation writes the DWORDS as normal (allowing us to place "MessageBoxA"
+on stack). The ZF remains set from onTRAP's influence, and the JE is taken!
+
+Here is the sequence of mix operations from the KEY file, showing how to incorporate the
+HW BP with the strings "User32" and "MessageBoxA" that must be placed on the stack.
+
+Starting with the four DWORDS supplied in the key file, the sequence of 16 mixes brings
+out the "User32" string, and sets no HW BP's that will be hit:
+
+  file: 72651518 00065623 72785486 0011FFE3 ..er#V...Txr....
+mix 00: 726D73CF 72703251 000866D7 0013716A .smrQ2pr.f..jq..
+mix 01: 726CB677 0009A36F 0001C5B8 0014E2F1 w.lro...........
+mix 02: 001E32AF 72734160 727284D8 00165478 .2..`Asr..rrxT..
+mix 03: 00160047 727AB630 000832E8 0017C5FF G...0.zr.2......
+mix 04: 726BB35E 727581F1 727DB319 00193786 ^.kr..ur..}r.7..
+mix 05: 00129BE5 00049BA2 727928BB 001AA90D .........(yr....
+mix 06: 7261A98D 000A1AD3 72733268 001C1A94 ..ar....h2sr....
+mix 07: 7264A4A0 72763F45 00050D2D 001D8C1B ..drE?vr-.......
+mix 08: 726DCFCA 000C6647 00096B6A 001EFDA2 ..mrGf..jk......
+mix 09: 00256204 7241C6A4 7248ADCE 00206F29 .b%...Ar..Hr)o..
+mix 10: 00288BDA 72454410 000DE9DE 0021E0B0 ..(..DEr......!.
+mix 11: 726BFFF9 724E9DFD 72437423 00235237 ..kr..Nr#tCr7R#.
+mix 12: 00292A60 0001A1BA 7242D599 0024C3BE `*).......Br..$.
+mix 13: 72654166 000EBE9F 724C6B06 00263545 fAer.....kLrE5&.
+mix 14: 72657355 724C5935 00003233 0027A6CC User5YLr32....'.
+mix 15: 72657355 00003233 00000000 00291853 User32......S.).
+
+The second set of DWORDS uses 3 from the file, and one remaining from the previous
+mixes (0x291853).
+
+  file: 311E95F2 00246E4C 7320FE4E 00291853 ...1Ln$.N..sS.).
+mix 00: 732E19D8 31107264 42308C2A 002A89DA ...sdr.1*.0B..*.
+mix 01: 730B052F 421590DD 00251CF7 002BFB61 /..s...B..%.a.+.
+mix 02: 421DE0C2 3133F91A 3116E5ED 002D6CE8 ...B..31...1.l-.
+mix 03: 000BC298 7300C7B7 4216225A 002EDE6F .......sZ".Bo...
+mix 04: 3126AA1B 733B4AD9 312D6883 00304FF6 ..&1.J;s.h-1.O0.
+mix 05: 4227E327 422C21BF 7301493C 0031C17D '.'B.!,B<I.s}.1.
+mix 06: 311E5B87 0038F19C 7339B8A0 00333304 .[.1..8...9s.33.
+mix 07: 7335EDB7 31120E90 422BB630 0034A48B ..5s...10.+B..4.
+mix 08: 730FAEB2 4211F535 003A4305 00361612 ...s5..B.C:...6.
+mix 09: 421C31A9 3129DC1E 31139F1B 00378799 .1.B..)1...1..7.
+mix 10: 0002BA25 730D1497 421E8B8C 0038F920 %......s...B..8.
+mix 11: 3129F5BC 7335C415 312B4F99 003A6AA7 ..)1..5s.O+1.j:.
+mix 12: 422557A2 4227ED87 730CA21E 003BDC2E .W%B..'B...s..;.
+mix 13: 3116022C 003FF790 7333558E 003D4DB5 ,..1..?..U3s.M=.
+mix 14: 73321D22 31174A80 42241F0E 003EBF3C ".2s.J.1..$B<.>.
+mix 15: 7373654D 42656761 0041786F 004030C3 MessageBoxA..0@.
+                                   ^
+                                   |
+                                   +------- BREAKPOINT ADDRESS
+
+The last round both contains the string "MessageBoxA" and contains the location
+for where the HW BP must be set.
+
+See reverse_dws.cpp for details on how this was constructed.
+
+[----------------------------------------------------------------------------------]
+ CONCLUSION
+[----------------------------------------------------------------------------------]
+
+"kill yO-self now! ~ = D" says jE!
+
+Hello to JoKa, who figured out the other half of this crackme, and whose tutorial I
+hope is submitted so that I can read.
+
+To s33nyou, artif, built-to-last everlast, and other #c4n.
+
+Here is the key file. Remember it must be readonly, hidden, system, and archive for
+the crackme to accept it.
+
+unsigned char rawData[40] = 
+{
+	0x18, 0x15, 0x65, 0x72, 0x23, 0x56, 0x06, 0x00, 0x86, 0x54, 0x78, 0x72,
+	0xE3, 0xFF, 0x11, 0x00, 0x28, 0x00, 0x00, 0x00, 0xF2, 0x95, 0x1E, 0x31,
+	0x4C, 0x6E, 0x24, 0x00, 0x4E, 0xFE, 0x20, 0x73, 0x34, 0x00, 0x00, 0x00,
+	0x34, 0x0C, 0x28, 0x00
+};
+
+

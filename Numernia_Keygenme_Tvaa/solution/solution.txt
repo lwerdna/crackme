@@ -1,0 +1,136 @@
+Keygenning Numernia's "Keygenme Tvaa"
+
+outline
+-------
+- The keygenme can be divided into three main parts:
+  - decoding the serial @40162C
+  - encrypting the serial @004016A1
+  - verifying serial requirements @4016BF
+- see disasm1.txt for the disassembly at this level
+
+decoding the serial
+-------------------
+
+- serial consists of symbols from the base 60 alphabet:
+  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwx".
+- serial is decoded in 4-letter chunks
+- example: "1234" = 1*60^3 + 2*60^2 + 3*60^1 + 4*60^0
+- each quantity decoded from a 4-letter chunk is further decoded
+  into a byte with the following rules:
+
+  quantity = quantity ^ 0x49EFA9 (mod 0x9401D7)
+
+  bit0 is set if 2 divides the quantity (first prime)
+  bit1 is set if 3 divides the quantity (second prime)
+  bit2 is set if 5 divides the quantity (third prime)
+  ...
+  bit7 is set if 19 divides the quantity (eighth prime)
+
+- example: 0x5F0 decodes to 0x53 because:
+
+  0x5F0 ^ 0x49EFA9 = 0x34A0C4 (mod 0x9401D7)
+
+  bit0 = 1 since 2 | 0x34A0C4
+  bit1 = 1 since 3 | 0x34A0C4
+  bit2 = 0 
+  bit3 = 0
+  bit4 = 1 since 11 | 0x34A0C4
+  bit5 = 0
+  bit6 = 1 since 17 | 0x34A0C4
+  bit7 = 0
+
+         ^
+         |
+         +--> 01010011 = 0x53
+
+- 128 bit output is needed, so if each of the serial's 4 character
+  decodes to 8 bits, the serial must have 16 4-character chunks, totalling
+  64 characters
+- to encode bytes, simply perform the reverse:
+  1) calculate the quantity by summing bit_i * prime_i
+  2) brute what value is needed in the congruence equation
+  3) encode base 60 this value using the alphabet
+
+encrypting the serial
+---------------------
+
+- block cipher based @401050 and called @4016A1
+  - 128-bit input
+  - 128-bit key fixed {0x2743917f, 0xb056f387, 0x34eb03d6, 0x06661c8e}
+  - sub operations performed on GF(2^19)
+  - see disasm2.txt for analysis
+
+- to reverse this, I first made sure it could be emulated, see BlockCipher()
+- with fixed key, record exactly what operations with what values occur on
+  the plaintext block during encryption, see BlockCipher_Trace()
+- using this information, make an "unrolled" version, see BlockCipher_Unrolled()
+- finally, it is easy to invert by reversing all field operations, see
+  BlockCipher_Inverse()
+
+verifying serial requirements
+-----------------------------
+
+- with 128-bit result from the encryption, we have four 32-bit dwords, call
+  them dw[0], dw[1], dw[2], and dw[3]
+- require:
+
+  dw[0] ^ 0x2665 = crc32(name) (mod 0x7FFFF)
+
+  - you are guaranteed a solution dw[0] because the exponent 0x2665 is coprime with
+    the group's order 0x7FFFE 
+
+    - quick wannabe proof:
+      - Z_p is cyclic -> generator g exists
+      - group elements can thus be written: {1,g^1,g^2,...,g^(p-2)}
+      - exponentiating each by an exponent e corpime with p-1 yields {1,g^e,(g^2)^e,...,(g^(p-2))^e)}
+      - this set contains p-1 (group order) elements... if it contains no duplicates,
+        then it directly lists how each unique group element can be expressed as some
+        other element to the e power
+      - suppose that there was a duplicate in this set, then some a,b exists 0<=a<p-1,
+        0<=b<p-1, a!=b where:
+        (g^a)^e = (g^b)^e (mod p)
+         g^(ae) = g^(be)               (combining exponents)
+             ae = be (mod p-1)         (Lagrange's theorem)
+        since we chose e coprime with p-1, it has an inverse, thus we can cancel e, leaving:
+              a = b (mod p-1)
+        which is a contradiction since we picked a != b and a and b must be less than p-1
+
+  - bruting suffices to find the value
+
+- require:
+
+  (dw[1] * 99 (mod 0x7FFBB)) (mod 0x9) == 0
+
+  - choose dw[1] randomly, and brute until this requirement is met
+
+- require:
+
+  dw[2] ^ dw[3] = *(DWORD *)name;
+
+  - just choose dw[2] randomly, and solve dw[3] = dw[2] ^ *(DWORD *)name;
+
+keygenning
+----------
+- steps:
+  1) generate the 4 dwords satisfying the serial requirements
+  2) run them through BlockCipher_Inverse()
+  3) encode them into a serial
+- everything discussed above is in the keygen source!
+- example codes:
+
+  name: crackmes.de
+serial: 00w501mC002R000101PR6Uan000c000105Hc002R0002000100CW00UW00010001
+
+  name: numernia
+serial: 1JGG04470008000101Gv0078000200010brG1h5P00080001001H001U000c0001
+
+conclusion
+----------
+
+Thanks to Numernia for a nice challenging work!
+
+Hello to E.L., fellow crackmes.de mods and users and #c4n!
+
+andrewl
+crackmes.de
+Sept 25, 2009

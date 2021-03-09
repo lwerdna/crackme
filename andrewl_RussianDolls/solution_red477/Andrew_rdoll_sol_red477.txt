@@ -1,0 +1,232 @@
+solution to "Russian Dolls" CrackME Andrew
+red477
+
+tools: ida
+
+1). the crackme is interesting.
+
+loading it into ida and i learn the crackme is not packed, i easily find where the crackme gets my input:
+
+.text:00402CE7                                         ; DATA XREF: .text:off_402EBCo
+.text:00402CE7                 mov     eax, [esp+17Ch+wParam]
+.text:00402CEE                 shr     eax, 10h
+.text:00402CF1                 cmp     eax, 300h
+.text:00402CF6                 jnz     loc_402DE2
+.text:00402CF6
+.text:00402CFC                 mov     edx, hWnd
+.text:00402D02                 lea     ecx, [esp+17Ch+lParam]
+.text:00402D06                 push    ecx             ; lParam
+.text:00402D07                 push    100h            ; wParam
+.text:00402D0C                 push    WM_GETTEXT      ; Msg < - get my password
+.text:00402D0E                 push    edx             ; hWnd
+.text:00402D0F                 call    ds:SendMessageA
+.text:00402D15                 cmp     eax, 8
+.text:00402D18                 jnz     loc_402DE2
+.text:00402D18
+
+and then a large section of code is copied from data section to a newly located memory:
+
+.text:00402D1E                 mov     eax, dword_42F900
+.text:00402D23                 push    18687h          ; dwBytes
+.text:00402D28                 push    0               ; dwFlags
+.text:00402D2A                 push    eax             ; hHeap
+.text:00402D2B                 call    ds:HeapAlloc <- allocate memory for code
+.text:00402D31                 push    18687h
+.text:00402D36                 mov     esi, eax
+.text:00402D38                 push    offset loc_405000 < - copy code from 405000
+.text:00402D3D                 push    esi
+.text:00402D3E                 call    sub_402980
+
+next, a bunch of flags are pushed into stack as well as my input, followed by the call
+to the copied code.
+
+.text:00402D43                 lea     ecx, [esp+188h+var_16A]
+.text:00402D47                 push    ecx
+.text:00402D48                 lea     edx, [esp+20h]
+.text:00402D4C                 push    edx
+.text:00402D4D                 lea     eax, [esp+190h+var_16A+3]
+.text:00402D51                 push    eax
+.text:00402D52                 lea     ecx, [esp+2Eh]
+.text:00402D56                 push    ecx
+.text:00402D57                 lea     edx, [esp+33h]
+.text:00402D5B                 push    edx
+.text:00402D5C                 lea     eax, [esp+19Ch+var_16A+1]
+.text:00402D60                 push    eax
+.text:00402D61                 lea     ecx, [esp+1A0h+var_16A+2] <- all above 8 params are flags
+.text:00402D65                 push    ecx
+.text:00402D66                 lea     edx, [esp+39h]
+.text:00402D6A                 push    edx
+.text:00402D6B                 lea     eax, [esp+1A8h+lParam] <- my input
+.text:00402D72                 push    eax
+.text:00402D73                 call    esi
+
+at last here comes the serial verification:
+
+.text:00402D78                 cmp     [esp+17Ch+var_16B], 0
+.text:00402D7D                 jz      short badboy
+.text:00402D7D
+.text:00402D7F                 cmp     byte ptr [esp+17Ch+var_16A+2], 0
+.text:00402D84                 jz      short badboy
+.text:00402D84
+.text:00402D86                 cmp     byte ptr [esp+17Ch+var_16A+1], 0
+.text:00402D8B                 jz      short badboy
+.text:00402D8B
+.text:00402D8D                 cmp     [esp+17Ch+var_165], 0
+.text:00402D92                 jz      short badboy
+.text:00402D92
+.text:00402D94                 cmp     [esp+17Ch+var_166], 0
+.text:00402D99                 jz      short badboy
+.text:00402D99
+.text:00402D9B                 cmp     byte ptr [esp+17Ch+var_16A+3], 0
+.text:00402DA0                 jz      short badboy
+.text:00402DA0
+.text:00402DA2                 cmp     [esp+17Ch+var_16C], 0
+.text:00402DA7                 jz      short badboy
+.text:00402DA7
+.text:00402DA9                 cmp     byte ptr [esp+17Ch+var_16A], 0
+.text:00402DAE                 jz      short badboy
+.text:00402DAE
+.text:00402DB0                 push    0
+.text:00402DB2                 push    offset s_Status ; "Status"
+.text:00402DB7                 push    offset s_Congratulatio ; "Congratulations!"
+.text:00402DBC                 jmp     short loc_402DCA
+
+the flow cannot be more clear, andrew didnot make it hard till here;)
+
+2). decrypt the verification routine
+
+so now the only thing is to analyze the code at 405000.
+firstly the address of the code is saved by "call $+5 \ pop esi" pair, and then obviously
+a decryption routine for decryting the following code.
+
+
+.data:00405000 loc_405000:                             ; DATA XREF: sub_4029D0+368o
+.data:00405000                 push    ebp
+.data:00405001                 mov     ebp, esp
+.data:00405003                 call    $+5             ; CODE XREF: .data:00405082j
+.data:00405008                 pop     esi
+.data:00405009                 add     esi, 15h        ; < - code address to dectypt
+.data:0040500F                 mov     ecx, 1866Ah     ; < - codelen to decrypt
+.data:0040500F
+.data:00405014
+.data:00405014 loc_405014:                             ; CODE XREF: .data:0040501Bj
+.data:00405014                 xor     byte ptr [esi], 93h < - decrypt
+.data:00405017                 inc     esi
+.data:00405018                 sub     ecx, 1
+.data:0040501B                 jnz     short loc_405014
+.data:0040501B
+.data:0040501D                 sbb     dh, dl          ; < - encrypted code
+.data:0040501F                 wait
+.data:00405020                 pushf
+.data:00405021                 and     eax, 0C61891DBh ; CODE XREF: .data:0040506Cj
+.data:00405026                 xchg    edx, [eax]
+
+if you decrypt it you will find a little comparison and then another similiar piece of
+decrypting routine like the above, and you decrypt it again you will find another comparison
+and decrypting routine and yet another. so i think this is just the russian doll andrew was
+trying to explain:)
+
+.data:0040501D                 mov     eax, [ebp+8]       ; < - my password
+.data:00405020                 movzx   ecx, byte ptr [eax+2] ; CODE XREF: .data:0040506Cj
+.data:00405024                 mov     edx, [ebp+14h]
+.data:00405027                 cmp     ecx, 79h           ; < - is the 2nd bit of my pass 79h?
+.data:0040502A                 jnz     short loc_40502F
+.data:0040502A
+.data:0040502C                 mov     byte ptr [edx], 1
+.data:0040502C
+.data:0040502F
+.data:0040502F loc_40502F:                             ; CODE XREF: .data:0040502Aj
+.data:0040502F                 call    $+5
+.data:00405034                 pop     edi
+.data:00405035                 sub     edi, 17h
+.data:0040503B                 xor     al, al
+.data:0040503D                 mov     ecx, 12h
+.data:00405042                 rep stosb              ; < - clear important info
+.data:00405044                 call    $+5
+.data:00405049                 pop     esi            ; < - code address to decrypt
+.data:0040504A                 add     esi, 15h
+.data:00405050                 mov     ecx, 18629h    ; < - code len
+.data:00405050
+.data:00405055
+.data:00405055 loc_405055:                             ; CODE XREF: .data:0040505Cj
+.data:00405055                 xor     byte ptr [esi], 0E0h < - decrypt again
+.data:00405058                 inc     esi
+.data:00405059                 sub     ecx, 1
+.data:0040505C                 jnz     short loc_405055
+.data:0040505C
+
+so i just wrote a little idc to do it automatically. see "decrypt.idc". it is straightly 
+forward to understand i think. it just does a search and then a decrypt. but be careful 
+if you want to run it, it is rather slow.
+
+
+3). find the password
+
+so now the code is good and can be analyzed. it is rather long to read, but there must
+be some easy way to deal with it, since andrew has given us a big hint, the russian dolls
+are similiar. and the truth is that, the dolls in the crackme are exactly the same;)
+
+as already analyzed before, look here:
+
+.data:0040501D                 mov     eax, [ebp+8]       ; < - my password
+.data:00405020                 movzx   ecx, byte ptr [eax+2] ; CODE XREF: .data:0040506Cj
+.data:00405024                 mov     edx, [ebp+14h]
+.data:00405027                 cmp     ecx, 79h           ; < - is the 2nd bit of my pass 79h?
+.data:0040502A                 jnz     short loc_40502F
+.data:0040502A
+.data:0040502C                 mov     byte ptr [edx], 1  ; < - a flag is set to 1
+
+if the 2nd (based 0) bit of our password is 79h, a flag will set to 1, but later this flag may be
+reset to 0 again. like here:
+
+.data:004057FC                 mov     eax, [ebp+pszPassword] ; < - my password
+.data:004057FF                 movzx   ecx, byte ptr [eax+2]
+.data:00405803                 mov     edx, [ebp+arg_C]
+.data:00405806                 cmp     ecx, 79h          ; < - is the 2nd bit of my pass 79h?
+.data:00405809                 jnz     short loc_40580E
+.data:00405809
+.data:0040580B                 mov     byte ptr [edx], 0  ; < - a flag is reset to 0
+.data:0040580B
+.data:0040580E
+.data:0040580E loc_40580E:                             ; CODE XREF: sub_405000+809j
+
+so for the 2nd bit i have to a char that set the flag but never be reset again later. i wrote another
+"findpass.idc". it just searches and compares and output the found chars in ida. the result is :
+
+FOUND 0:1
+FOUND 0:C
+FOUND 1:R
+FOUND 1:4
+FOUND 2:a
+FOUND 2:2
+FOUND 2:2
+FOUND 2:a
+FOUND 3:8
+FOUND 3:8
+FOUND 3:C
+FOUND 3:C
+FOUND 4:5
+FOUND 4:k
+FOUND 5:7
+FOUND 5:M
+FOUND 6:E
+FOUND 6:1
+FOUND 6:1
+FOUND 6:E
+FOUND 7:s
+FOUND 7:4
+FOUND 7:4
+FOUND 7:s
+
+just select '1' or 'C' for the 0th bit, 'R' or '4' for the 1st bit, and so on.
+
+at last the password "CRaCkMEs" seems to make more sense out of other 
+combinations such as "1Ra857Es" and "14285714".
+but it does not matter.
+
+4). Thanks
+andrew, crackmes.de mods, and so many others.
+
+that is it.
+regards,
+red477 03/13/2008

@@ -1,0 +1,334 @@
+  
+  Solution to Cyclop's "Angler" - 03/10/2009 andrewl
+  
+  [----------------------------------------------------------------------------------]
+    IDENTIFY KEY FUNCTIONS
+  [----------------------------------------------------------------------------------]
+  
+  004015F0: the shift, xor sequence and presence of CRC poly constant EDB88320 tells
+            it's something related to CRC - all bytes [0,255] have their CRC
+            calculated and stored sequentially at 00407B40
+  
+            labels:
+            004015F0 "GenerateCRCTable"
+            00407B40 "CRCTable"
+  
+  004015C0: more shift and xor action, this time from the CRCTable lets us know that
+            this does the real work of CRC - notice the byte scan until 0 is found -
+            probably takes a string argument
+  
+            labels:
+            004015C0 "CalculateCRC"
+  
+  004015A0: calls GenerateCRCTAble and CalculateCRC
+  
+            labels:
+            004015A0 "GetCRC"
+  
+  00401630: this is an exponentiation modulo function - it uses the "exponentiation
+            by squaring" optimization
+  
+            labels:
+            00401630: "ExpMod_via_Squaring"
+  
+  004016C0: this takes a list of primes and attempts to raise the prime to the
+            arg-1 power (mod arg) - it has some optimizations for when the exponent
+            can be halved (will queue up a squaring operation later) - this looks
+            like Fermat's little theorem except the prime and base have switched
+            positions - with a prime in the base then it is guaranteed no shared
+            factors with the modulus, and with the argument prime, then arg-1 is
+            totient(arg) so it kind of fits Euler's theorem too
+  
+            I guessed this to be a primality test and tested it - then after surfing
+            wikipedia, I think it is the Lucas-Lehmer test
+  
+            labels:
+            004016C0: "LucasLehmer"
+  
+  004017F0: returns 0 if the argument is <2 or even, 1 if the arg is 2 or 3, and the
+            result of LucasLehmer otherwise - it was almost foolish to spend time
+            in LucasLehmer since these preliminary tests are strong clues to this
+            function's purpose - I suspected Cyclop's may have put these clues here
+            intentionally
+  
+            labels:
+            004017F0: "IsPrime"
+  
+  [----------------------------------------------------------------------------------]
+    KEY ACCEPTANCE ALGORITHM
+  [----------------------------------------------------------------------------------]
+  
+  the code is compiled without optimizations disabled, so some instructions from code
+  with difference purposes may be slightly interleaved
+  
+  after the name/serial are read, the serial is decomposed into 8 hex parts separated
+  by dashes - the parts are labelled partA, partB, ...
+  
+  .text:004013EE     lea edx, [esp+0C4h+partH]
+  .text:004013F2     lea eax, [esp+0C4h+partG]
+  .text:004013F6     push edx
+  .text:004013F7     lea ecx, [esp+0C8h+partF]
+  .text:004013FB     push eax
+  .text:004013FC     lea edx, [esp+0CCh+partE]
+  .text:00401400     push ecx
+  .text:00401401     lea eax, [esp+0D0h+partD]
+  .text:00401405     push edx
+  .text:00401406     lea ecx, [esp+0D4h+partC]
+  .text:0040140A     push eax
+  .text:0040140B     lea edx, [esp+0D8h+partB]
+  .text:0040140F     push ecx
+  .text:00401410     lea eax, [esp+0DCh+partA]
+  .text:00401414     push edx
+  .text:00401415     push eax
+  .text:00401416     lea ecx, [esp+0E4h+serial]
+  .text:0040141D     push offset Format              ; "%X-%X-%X-%X-%X-%X-%X-%X"
+  .text:00401422     push ecx                        ; Src
+  .text:00401423     call _sscanf                    ;
+  
+  the user name must be at least 5 character, ensuring that substrings starting at
+  indices 0,1,2,3 are non-empty, because CRC's of each will be taken, and the constant
+  0x13373 subtracted from each - the results are labelled CRCA, CRCB, CRCD, CRCE
+  
+  .text:00401428     lea edx, [esp+0ECh+name]
+  .text:0040142C     push edx
+  .text:0040142D     call GetCRC
+  .text:00401432     mov ebx, eax                    ; CRCA = CRC of full name
+  .text:00401432                                     ;
+  .text:00401434     lea eax, [esp+0F0h+var_87]
+  .text:00401438     push eax
+  .text:00401439     sub ebx, 13373h                 ; CRCA -= 0x13373
+  .text:0040143F     call GetCRC                     ; CRCB = CRC of name+1
+  .text:0040143F                                     ;
+  .text:00401444     lea ecx, [esp+0F4h+var_86]
+  .text:00401448     sub eax, 13373h                 ; CRCB -= 0x1337
+  .text:0040144D     push ecx
+  .text:0040144E     mov [esp+0F8h+CRCB], eax
+  .text:00401452     call GetCRC                     ; CRCC = CRC of name+2
+  .text:00401452                                     ;
+  .text:00401457     lea edx, [esp+0F8h+var_85]
+  .text:0040145B     sub eax, 13373h
+  .text:00401460     push edx
+  .text:00401461     mov [esp+0FCh+CRCC], eax
+  .text:00401465     call GetCRC                     ; CRCD = CRC of name+3
+  .text:00401465                                     ;
+  .text:0040146A     add esp, 38h
+  .text:0040146D     sub eax, 13373h
+  
+  the value of each CRC is then made to be even - CRCA is stored in EBX and does not
+  have a named stack variable
+  
+  .text:00401472     test bl, 1
+  .text:00401475     mov [esp+0C4h+CRCD], eax        ;
+  .text:00401475                                     ;
+  .text:00401479     jz  short loc_40147C
+  .text:0040147B     inc ebx
+  .text:0040147C
+  .text:0040147C loc_40147C:                         ; CODE XREF: ProcessUserSerial+F9j
+  .text:0040147C     test byte ptr [esp+0C4h+CRCB], 1
+  .text:00401481     jz  short loc_401487
+  .text:00401483     inc [esp+0C4h+CRCB]
+  .text:00401487
+  .text:00401487 loc_401487:                         ; CODE XREF: ProcessUserSerial+101j
+  .text:00401487     test byte ptr [esp+0C4h+CRCC], 1
+  .text:0040148C     jz  short loc_401492
+  .text:0040148E     inc [esp+0C4h+CRCC]
+  .text:00401492
+  .text:00401492 loc_401492:                         ; CODE XREF: ProcessUserSerial+10Cj
+  .text:00401492     test al, 1
+  .text:00401494     jz  short loc_40149B
+  .text:00401496     inc eax
+  .text:00401497     mov [esp+0C4h+CRCD], eax
+  .text:0040149B
+  .text:0040149B loc_40149B:                         ; CODE XREF: ProcessUserSerial+114j
+  
+  each of the eight serial parts is tested for primality - then it is tested if:
+  
+  partA + partE == crcA
+  partB + partF == crcB
+  partC + partG == crcC
+  partD + pargH == crcD
+  
+  if any of these tests fail, ebp is cleared (it was initially set way up at 004013A6)
+  
+  .text:0040149B     mov eax, [esp+0C4h+partA]
+  .text:0040149F     push eax
+  .text:004014A0     call IsPrime
+  .text:004014A5     add esp, 4
+  .text:004014A8     test eax, eax
+  .text:004014AA     jz  short loc_4014CB
+  .text:004014AC     mov ecx, [esp+0C4h+partE]
+  .text:004014B0     push ecx
+  .text:004014B1     call IsPrime
+  .text:004014B6     add esp, 4
+  .text:004014B9     test eax, eax
+  .text:004014BB     jz  short loc_4014CB
+  .text:004014BD     mov edx, [esp+0C4h+partA]
+  .text:004014C1     mov eax, [esp+0C4h+partE]
+  .text:004014C5     add eax, edx
+  .text:004014C7     cmp eax, ebx
+  .text:004014C9     jz  short ok_A                  ; require:
+  .text:004014C9                                     ; partA + partE == CRCA
+  .text:004014CB
+  .text:004014CB loc_4014CB:                         ; CODE XREF: ProcessUserSerial+12Aj
+  .text:004014CB                                     ; ProcessUserSerial+13Bj
+  .text:004014CB     xor ebp, ebp
+  .text:004014CD
+  .text:004014CD ok_A:                               ; CODE XREF: ProcessUserSerial+149j
+  .text:004014CD     mov ecx, [esp+0C4h+partB]
+  .text:004014D1     push ecx
+  .text:004014D2     call IsPrime
+  .text:004014D7     add esp, 4
+  .text:004014DA     test eax, eax
+  .text:004014DC     jz  short loc_401501
+  .text:004014DE     mov edx, [esp+0C4h+partF]
+  .text:004014E2     push edx
+  .text:004014E3     call IsPrime
+  .text:004014E8     add esp, 4
+  .text:004014EB     test eax, eax
+  .text:004014ED     jz  short loc_401501
+  .text:004014EF     mov eax, [esp+0C4h+partB]
+  .text:004014F3     mov ecx, [esp+0C4h+partF]
+  .text:004014F7     add ecx, eax
+  .text:004014F9     mov eax, [esp+0C4h+CRCB]
+  .text:004014FD     cmp ecx, eax
+  .text:004014FF     jz  short ok_B                  ; require:
+  .text:004014FF                                     ; partB + partF == CRCB
+  .text:004014FF                                     ;
+  .text:00401501
+  .text:00401501 loc_401501:                         ; CODE XREF: ProcessUserSerial+15Cj
+  .text:00401501                                     ; ProcessUserSerial+16Dj
+  .text:00401501     xor ebp, ebp
+  .text:00401503
+  .text:00401503 ok_B:                               ; CODE XREF: ProcessUserSerial+17Fj
+  .text:00401503     mov edx, [esp+0C4h+partC]
+  .text:00401507     push edx
+  .text:00401508     call IsPrime
+  .text:0040150D     add esp, 4
+  .text:00401510     test eax, eax
+  .text:00401512     jz  short loc_401537
+  .text:00401514     mov eax, [esp+0C4h+partG]
+  .text:00401518     push eax
+  .text:00401519     call IsPrime
+  .text:0040151E     add esp, 4
+  .text:00401521     test eax, eax
+  .text:00401523     jz  short loc_401537
+  .text:00401525     mov ecx, [esp+0C4h+partG]
+  .text:00401529     mov edx, [esp+0C4h+partC]
+  .text:0040152D     mov eax, [esp+0C4h+CRCC]
+  .text:00401531     add ecx, edx
+  .text:00401533     cmp ecx, eax
+  .text:00401535     jz  short ok_C                  ; require:
+  .text:00401535                                     ; partG + partC == CRCC
+  .text:00401537
+  .text:00401537 loc_401537:                         ; CODE XREF: ProcessUserSerial+192j
+  .text:00401537                                     ; ProcessUserSerial+1A3j
+  .text:00401537     xor ebp, ebp
+  .text:00401539
+  .text:00401539 ok_C:                               ; CODE XREF: ProcessUserSerial+1B5j
+  .text:00401539     mov eax, [esp+0C4h+partD]
+  .text:0040153D     push eax
+  .text:0040153E     call IsPrime
+  .text:00401543     add esp, 4
+  .text:00401546     test eax, eax
+  .text:00401548     jz  short done
+  .text:0040154A     mov ecx, [esp+0C4h+partH]
+  .text:0040154E     push ecx
+  .text:0040154F     call IsPrime
+  .text:00401554     add esp, 4
+  .text:00401557     test eax, eax
+  .text:00401559     jz  short done
+  .text:0040155B     mov edx, [esp+0C4h+partD]
+  .text:0040155F     mov eax, [esp+0C4h+partH]
+  .text:00401563     mov ecx, [esp+0C4h+CRCD]
+  .text:00401567     add eax, edx
+  .text:00401569     cmp eax, ecx
+  .text:0040156B     jnz short done                  ; require:
+  .text:0040156B                                     ; partD + partH == CRCD
+  .text:0040156B                                     ;
+  
+  finally ebp is tested - if set, goodboy, else badboy
+  
+  .text:0040156D     cmp ebp, 1
+  .text:00401570     jnz short done                  ; goodboy iff ebp==1
+  .text:00401572     mov ecx, [esp+0C4h+hWnd]
+  .text:00401579     push edi                        ; uType
+  .text:0040157A     push offset Text                ; "ANGLER by Cyclops"
+  .text:0040157F     push offset aCorrectSerialN     ; "Correct serial!\nNow make a keygen and t"...
+  .text:00401584     push ecx                        ; hWnd
+  .text:00401585     call ds:MessageBoxA
+  
+  [----------------------------------------------------------------------------------]
+    ANALYSIS
+  [----------------------------------------------------------------------------------]
+  
+  the fact that pairs of prime numbers must sum to an integer that is made even tips
+  us off to Goldbach's conjecture (see Wikipedia or something)
+  
+  informally explained, every even number greater than 2 can be decomposed into two
+  prime addends
+  
+  so in review:
+  
+  serial: primeA-primeB-primeC-primeD-primeE-primeF-primeG-primeH
+  
+  require:
+  
+  primeA + primeE == crcA
+  primeB + primeF == crcB
+  primeC + primeG == crcC
+  primeD + primeH == crcD
+  
+  (where the CRC's had 0x13373 subtracted and were made even)
+  
+  [----------------------------------------------------------------------------------]
+    KEYGEN STRATEGY
+  [----------------------------------------------------------------------------------]
+  
+  simply generate the four CRC's - these are the target sums for which we must find
+  two prime addends
+  
+  the number of ways to write an even number as the sum of two prime addends rises
+  as the quantity of that even number rises - for example around 1,000,000 are numbers
+  that can be partitioned between 4000 and 14000 ways - this is good news for us,
+  since if we assume that the CRC will hit all 32-bit values with equal probability,
+  on average it will be 2^31, or about 2,150,000,000 - thus the CRC's will have plenty
+  of ways to be partitioned
+  
+  they have so much so, in fact, that it is sufficient to simply start sequentially
+  testing integers for being prime, and then testing if the difference between that
+  number and the target number is also prime - the furthest a search has gone after
+  I tried many random users is about 500 - so a solution is found immediately on a
+  modern PC
+  
+  in review:
+  
+  1) generate the four CRC's
+  2) for each CRC, calculate the two primes by
+      - sequentially try primes starting at 3 (why not 2? think about it)
+      - if the difference between the trial prime and the CRC is also prime, done
+  3) arrange the two addends from each of the four CRC's (8 total) to make the serial
+  
+  as usual, see keygen.cpp for the code
+  
+  [----------------------------------------------------------------------------------]
+    CONCLUSION
+  [----------------------------------------------------------------------------------]
+  
+  It wasn't so bad after ID'ing the functions, right?
+  
+  This is one of those crackmes that you could spend days getting lost on Wikipedia
+  with, and come out a smarter person haha. Next time you're standing in line or
+  waiting in traffic, you may find yourself choosing random even numbers and guessing
+  their partition.
+  
+  Thanks to Cyclops for a creative and fun crackme, that MAKES YOU LEARN!
+  
+  Hello to E.L. and all crackmes.de! ++Numernia; ++Cyclops;
+
+  Example user/serial pairs:
+
+    user: Cyclops
+  serial: 25-13-59-2B-CE774941-97343A5B-CCF7338B-F50B0F2D
+
+    user: crackmes.de
+  serial: 5-13-29-13-5E67520D-1F5278A1-E86B51BF-205EA7F5

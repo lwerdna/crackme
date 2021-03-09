@@ -1,0 +1,209 @@
+SDDecoder's verify_parity() offers a cool little finite field exercise!
+
+signature and parity are arrays of chars, a 1 char representing a set bit, and a 0
+char representing a cleared bit
+
+the signature is an independent variable, and parity must be made, somehow, to "match"
+the signature - of course our job is to find out what "match" means...!
+
+Here is the function:
+
+    +-------------------------------------------------------------------------------
+    | // what am I checking here ?
+    | int verify_parity(ELEMENT *signature, int sigsize, ELEMENT *parity, int psize)
+    | 	{
+    | 	ELEMENT res[RESSIZE];
+    | 	int i,j,mx,delta;
+    | 	if(sigsize + psize >= RESSIZE) return -1;
+    | 	for(i=0;i<RESSIZE;i++)
+    | 		res[i] = 0;
+    | 	for(i=0;i<sigsize;i++)
+    | 		{
+    | 		if(signature[i] == 0) continue;
+    | 
+    | 		for(j=0;j<psize;j++)
+    | 			res[i+j] ^= parity[j];
+    | 		}
+    | 	for(mx=RESSIZE-1;mx >= psize;mx--)
+    | 		if(res[mx])
+    | 			{
+    | 			delta = mx - ipol[0];
+    | 			for(i=0;i<POLYSIZE;i++)
+    | 				res[ipol[i] + delta] ^= 1;
+    | 			}
+    | 	for(i=1;i<RESSIZE;i++)
+    | 		if(res[i] != 0) return 0;
+    | 	if(res[0] != 1) return 0;
+    | 	return 1;
+    | 	}
+    +-------------------------------------------------------------------------------
+
+what is gbe32241 checking here? :)
+
+clean it up, replacing defines, locally defining external stuff, and adding a
+main function so we can test:
+
+    +-------------------------------------------------------------------------------
+    | #include <stdio.h>
+    | int verify_parity(char *signature /*36 bits*/, char *parity /*84 bits*/)
+    | {
+    |     int ipol[3] = { 84,5,0 };
+    |     char res[256];
+    |     int i,j,mx,delta;
+    |     for(i=0;i<256;i++)                         // loc_1
+    |         res[i] = 0;
+    |     for(i=0;i<36;i++)                          // loc_2
+    |     {
+    |         if(signature[i] == 0)
+    |             continue;
+    |         for(j=0;j<84;j++)
+    |             res[i+j] ^= parity[j];
+    |     }
+    |     for(mx=256-1;mx >= 84;mx--)                // loc_3
+    |         if(res[mx])
+    |         {
+    |             delta = mx - ipol[0];
+    |             for(i=0;i<3;i++)
+    |                 res[ipol[i] + delta] ^= 1;
+    |         }
+    |     for(i=1;i<256;i++)                         // loc_4
+    |         if(res[i] != 0)
+    |             return 0;
+    |     if(res[0] != 1)                            // loc_5
+    |         return 0;
+    |     return 1;
+    | }
+    | int main(int ac, char **av)
+    | {
+    |     char input[120];
+    |     for(int i=0; i<120; ++i)
+    |         input[i] = (av[1][i] == '1') ? 1 : 0;
+    |     if(verify_parity(input, input+36))
+    |         printf("accepted!");
+    |     else
+    |         printf("rejected!");
+    |     return 0;
+    | }
+    +-------------------------------------------------------------------------------
+
+ANALYSIS:
+
+At loc_0, result is set to 0
+
+At loc_1, for every bit set in the signature, a shifted amount of the parity is xor'd into the result.
+
+example: signature: 100000000010100000000100000000100001
+            parity: 101010110110101011011010101101101010110110101011011010101101101010110110101011011010
+
+100000000010100000000100000000100001                                                                                    <-- signature
+------------------------------------
+^         ^ ^        ^        ^    ^
+------------------------------------
+101010110110101011011010101101101010110110101011011010101101101010110110101011011010                                    <-- shifted, added parity's
+          101010110110101011011010101101101010110110101011011010101101101010110110101011011010
+            101010110110101011011010101101101010110110101011011010101101101010110110101011011010
+                     101010110110101011011010101101101010110110101011011010101101101010110110101011011010
+                             101010110110101011011010101101101010110110101011011010101101101010110110101011011010
+                                   101010110110101011011010101101101010110110101011011010101101101010110110101011011010
+-----------------------------------------------------------------------------------------------------------------------
+(xor result)
+
+this is multiplication of polynomials over GF(2), where the left end is the least significant end (lowest degree terms) of the polynomial
+
+at loc_3, the xor result has a bit pattern slid from right to left across it, xor'ing into the xor result when the leading bit is set
+
+the bit pattern is bits set at {84,5,0}, so it is:
+
+1000010000000000000000000000000000000000000000000000000000000000000000000000000000001
+
+this is polynomial long division by x^84 + x^5 + 1
+
+since this is irreducible (if reducible -> a factor would exist -> it would have a root ... and testing x=1 and x=0, we see there is no root)
+
+at loc_4, loc_5, the result of the division is checked to be 1
+
+in total, the parity and the signature represent polynomials over GF(2) that must multiply to 1 -> they must be multiplicative
+inverses...
+
+the way to find these is the extended euclidean algorithm
+
+A USEFUL TEST:
+
+a quick check of our results (without difficult computation) is to produce a serial for signature 1 - it's inverse will of course be 1
+
+100000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000
+
+it is accepted!
+
+KEYGENNING:
+
+I will use Pari/GP as there is no convenient data type in C to hold over 64 bits
+
+the desired id will be converted to a degree-35 polynomial (36 coefficients)
+that polynomial will have its inverse found in GF(2)[x]/(x^84 + x^5 + 1)
+the result will be converted to a bit string
+the bit string representing the id polynomial and the inverse polynomials will be concatenated
+
+here is the code:
+
+MakeKey(sig) =
+{
+    local(  sig_pol,
+            sig_bits,
+            par_pol,
+            par_bits,
+            v,t
+        );
+
+    \\ convert signature quantity to polynomial
+    v=binary(sig);
+    forstep(i=#v,1,-1,
+        if(v[i],
+            sig_pol += x^(#v-i);
+        );
+    );
+
+    \\ find inverse 
+    par_pol = bezout(sig_pol*Mod(1,2), (x^84 + x^5 + 1)*Mod(1,2))[1];
+    par_pol = lift(par_pol);
+
+    \\ convert signature polynomial to 36-bit string
+    sig_bits="";
+    for(i=0,35,
+        sig_bits = concat(sig_bits,polcoeff(sig_pol,i));
+    );
+
+    \\ convert parity polynomial to 84-bit string
+    par_bits="";
+    for(i=0,83,
+        par_bits = concat(par_bits,polcoeff(par_pol,i));
+    );
+
+    \\ the key is the concatenation of them
+    concat(sig_bits,par_bits);
+}
+
+and here is it's output (valid keys) for id's [1,16]
+
+100000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000
+010000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000001
+110000000000000000000000000000000000000001111111111111111111111111111111111111111111111111111111111111111111111111111111
+001000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000010
+101000000000000000000000000000000000111111010101010101010101010101010101010101010101010101010101010101010101010101010101
+011000000000000000000000000000000000000011111111111111111111111111111111111111111111111111111111111111111111111111111110
+111000000000000000000000000000000000101101011011011011011011011011011011011011011011011011011011011011011011011011011011
+000100000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000100
+100100000000000000000000000000000000110110010010010010010010010010010010010010010010010010010010010010010010010010010010
+010100000000000000000000000000000000111100101010101010101010101010101010101010101010101010101010101010101010101010101011
+110100000000000000000000000000000000110100100111010011101001110100111010011101001110100111010011101001110100111010011101
+001100000000000000000000000000000000000111111111111111111111111111111111111111111111111111111111111111111111111111111100
+101100000000000000000000000000000000100101100101110010111001011100101110010111001011100101110010111001011100101110010111
+011100000000000000000000000000000000011000110110110110110110110110110110110110110110110110110110110110110110110110110111
+111100000000000000000000000000000000010100011001100110011001100110011001100110011001100110011001100110011001100110011001
+000010000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000001000
+
+--
+andrewl
+sep8_2009
+crackmes.de
+

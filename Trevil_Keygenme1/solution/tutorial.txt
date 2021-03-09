@@ -1,0 +1,97 @@
+Keygen solution by andrewl
+
+  Date: Feb 21 2009
+Target: Trevil's Keygenme #1
+
+[----------------------------------------------------------------------------------]
+  INITIAL STEPS
+[----------------------------------------------------------------------------------]
+
+Using GPcH Soft's VB Decompiler we see three functions from "RSAv1".
+
+Google for this and you can find RSAv1.bas.
+
+Identify and label:
+
+RSAV1_Enc @00403D60
+RSAV1_Mult @00403A50
+RSAV1_nMod @00403C90
+
+[----------------------------------------------------------------------------------]
+  UNDERSTANDING THE ENCRYPTION FUNCTION
+[----------------------------------------------------------------------------------]
+
+RSAV1_Enc from the VB source file is:
+
+Public Function enc(tIp As String, eE As Double, eN As Double) As String 
+On Error Resume Next 
+Dim encSt As String 
+encSt = "" 
+e2st = "" 
+    If tIp = "" Then Exit Function 
+    For i = 1 To Len(tIp) 
+        encSt = encSt & Mult(CLng(Asc(Mid(tIp, i, 1))), eE, eN) & "+" 
+    Next i 
+enc = encSt 
+End Function 
+
+To understand, google for these functions, finding:
+
+Mid(string, start[, length]) - Returns a specified number of characters from a string. 
+Asc(string) - Returns the ANSI character code corresponding to the first letter in a string. 
+CLng(expression) - Returns an expression that has been converted to a Variant of subtype Long. 
+'&' is string concatenation operator
+
+The characters of the input string are converted to long one-by-one and left-to-right.
+
+Each is individually exponentiated to eE (mod eN) and the respective results are
+converted to a string and concatenated together with '+'.
+
+The crackme does the same behavior, except the '+' between concatenated character ciphertexts.
+
+[----------------------------------------------------------------------------------]
+  HOW ENCRYPTION IS USED
+[----------------------------------------------------------------------------------]
+
+.text:004034DF                 mov     eax, dword_405034
+.text:004034E4                 lea     edx, [ebp-20h]
+.text:004034E7                 lea     ecx, [eax+10h]
+.text:004034EA                 push    ecx                                     ; eN == 29201279
+.text:004034EB                 push    eax                                     ; eE == 78789071
+.text:004034EC                 push    edx                                     ; edx == ->"myname"
+.text:004034ED                 call    RSAV1_Enc                               ;  Public Function enc(
+.text:004034ED                                                                 ;    tIp As String,
+.text:004034ED                                                                 ;    eE As Double,
+.text:004034ED                                                                 ;    eN As Double
+.text:004034ED                                                                 ;  ) As String
+.text:004034F2                 mov     edx, eax
+.text:004034F4                 lea     ecx, [ebp-28h]
+.text:004034F7                 call    ds:__vbaStrMove                         ;
+.text:004034F7                                                                 ;
+.text:004034FD                 push    eax                                     ; correct serial
+.text:004034FE                 mov     eax, [ebp-24h]
+.text:00403501                 push    eax                                     ; entered serial
+.text:00403502                 call    ds:__vbaStrCmp
+
+The encryption key (exponent) and the modulus are hardcoded and don't change for
+each name. And the result of compared right to the serial.
+
+So the serial is simply the encryption (this VB's RSA version) of the username,
+nothing more.
+
+[----------------------------------------------------------------------------------]
+  KEYGENNING
+[----------------------------------------------------------------------------------]
+
+Just emulate crackme: exponentiate, mod (RSA encrypt). See keygen.cpp
+
+example key pairs:
+
+user: Trevil
+serial: 43883533958445646017126121808264812645561421
+
+user: crackmes.de
+serial: 1662344395844519875827166234428068912243394756460171145602215805897246395536460171
+
+user: cracking4newbies
+serial: 166234439584451987582716623442806891226481264545024114858871573498154502464601711046746927213492648126464601711456022

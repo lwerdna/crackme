@@ -1,0 +1,358 @@
+TARGET: Conjan's "Jump Around" Crackme
+  DATE: May 24th, 2010
+ TOOLS: IDA, WinDBG, BeaEngine 4.0
+
+INTRO
+----------------------------------------------------------------
+Let's take a break from cryptography and do some simple de-
+obfuscation. At the same time we can experiment with the new 4.0
+release of BeaEngine! (http://beaengine.org/). Also we will once
+again be amazed by the relevance of material published nearly a
+decade ago VXers.
+
+In IDA, simple listing text search brings you to delphi code
+that handles button click so alt+t for "click"...
+
+.text:00403184 _TForm3_SpeedButton1Click proc near
+.text:00403184                 push    ebp
+.text:00403185                 mov     ebp, esp
+.................................................
+.text:00403198                 call    sub_4019C8
+
+At sub_4019C8 we see three types of obfuscation:
+1) re-ordered code linked by jmp's
+2) junk byte insertion, eg:
+   .text:00402899                 jmp     short loc_4028AD
+   .text:0040289B                 db 0FFh
+   .text:0040289C                 db 0A1h
+3) junk inc/dec:
+   .text:00402897                 inc     eax
+   .text:00402898                 dec     eax
+
+Scroll down, down, down to find the end. We see that between
+4019C8 and 402EEF there's about 5k of code needing de-
+obfuscation.
+
+APPROACH
+----------------------------------------------------------------
+We want to remove this junk and have complete restoration of 
+original code! The problem is that when we remove/add/move code,
+the brittle structure of relative jumps/calls is broken, and at
+first, keeping everything fixed seems like quite a messy task.
+
+In "Automated reverse engineering: Mistfall engine" by Z0mbie we
+learn of a simple way to do this. His goal was to insert code,
+but his solutions can be used for removing code:
+
+"So, task is to insert own instructions between PE file's ones.
+ But, because of instructions are linked between each other, 
+ changing instructions involves change of links. But change of 
+ links involves change of other instructions, and so on, until 
+ significant part of code will be changed. For example: when 
+ inserting some instruction into block of code, offsets of all 
+ the instructions coming after insertion are increased. This 
+ means that mostly all offsets - both relative and absolute, 
+ should be fixed. While fixing relative offsets, some jxx can 
+ grow, that means that all this shit should be repeated from 
+ start."
+
+So what does he propose?
+
+"Hence, we must disassemble file into some easy-modifiable 
+ substance, change this substance, and assemble file back."
+
+The easy-modifiable substance is a linked list. By converting
+to this structure, the brittle relative addresses are
+transferred to more flexible node links.
+
+Instruction insertion is now instead node insertion. Instruction
+deletion is now node deletion. Instruction reordering is now
+node reordering.
+
+When all modifications are done, the linked list is "assembled"
+back to an instruction stream. Simply write the instructions
+back, remembering the locations to which instructions were
+written. Then resolve relative jumps/calls by calculating the
+difference between the address to which the current instruction
+was written and the address to which the current instruction's
+link (the instruction address relatively) was written.
+
+See deobf.cpp for the NODE structure:
+
+typedef struct _NODE
+{
+    DWORD VA_orig;	// original virtual addresses
+    DWORD VA_new;	// re-assembled virtual address
+
+    _NODE *rel;		// link to instruction (relative)
+    _NODE *seq;		// link to instruction that follows
+                        // sequentially
+
+    BYTE instrBytes[16];// the bytes that comprise the instruction
+
+} NODE, *PNODE;
+
+STEP 1: MAKE A LINKED LIST
+----------------------------------------------------------------
+A straight disassembler->linked list starting at 4019C8 would
+look like this:
+
+                                  relative link
+                                  -------------
++----------------------------+
+|4019C8: jmp sub_4029AE      | -> ...to node "4029AE: push ebp"
++----------------------------+
+         |
+         V
++----------------------------+
+|4019CD: jmp  loc_402888     | -> ...to node "402888: jmp loc_402992"
++----------------------------+
+         |
+         V
++----------------------------+
+|4019D2: mov  [ebp-78h], ecx | -> NULL (no relative link)
++----------------------------+
+         |
+         V
++----------------------------+
+|4019D5: jmp  loc_401C73     | -> ...to node "401C73: jmp loc_40288D"
++----------------------------+
+         |
+         V
++----------------------------+
+|4019DA: call sub_489984     | -> NULL (no relative link, all calls
++----------------------------+          are outside of the obfuscated
+         |                              region and we'll handle them
+         V                              specially)
++----------------------------+
+|4019DF: jmp  loc_40252E     | -> ...to node "40252E: mov ecx, [ebp-48h]"
++----------------------------+
+         |
+         V
+        ...
+
+Instead of just doing this sequential disassembly, we'll instead
+treat the jmp relative node as if it were the the instruction in
+sequence. For other instructions, we'll "fall-thru" normally.
+
+      ID VA_orig  VA_new   ->rel instruction
+      -- -------  ------   ----- -----------
+  3331C8       0       0       0 nop 
+  333210  4019C8       0       0 jmp 004029AEh
+  333238  4029AE       0       0 push ebp
+  333260  4029AF       0       0 jmp 004029D9h
+  333288  4029D9       0       0 mov ebp , esp
+  3332B0  4029DB       0       0 jmp 00402616h
+  3332D8  402616       0       0 add esp , FFFFFF48h
+  ...
+
+Here the ID is just the heap address where the node is stored.
+We can see that in-between the jmp's are the instructions that
+we'd expect to see normally.
+
+STEP 2: POPULATE THE RELATIVE LINK
+----------------------------------------------------------------
+Here we just loop over the list, and using the DASM's
+Instruction.BranchType and Instruction.AddrValue members,
+make links to nodes where relative address links exist:
+
+      ID VA_orig  VA_new   ->rel instruction
+      -- -------  ------   ----- -----------
+  3331C8       0       0       0 nop 
+  333210  4019C8       0  333238 jmp 004029AEh
+  333238  4029AE       0       0 push ebp
+  333260  4029AF       0  333288 jmp 004029D9h
+  333288  4029D9       0       0 mov ebp , esp
+  3332B0  4029DB       0  3332D8 jmp 00402616h
+  3332D8  402616       0       0 add esp , FFFFFF48h
+  ...
+
+STEP 3: REMOVE SUPERFLUOUS JMP'S
+----------------------------------------------------------------
+Observe the list from Step2. Consider the logic:
+
+if(currentNode is a jump)
+{
+   if(currentNode.NextNode == currentNode.RelativeNode)
+   {
+       // effectively this jmp is a nop
+       RemoveThisNode();
+   }
+}
+
+Removing a node done like any normal linked list. The previous
+node has its next pointer updated to the next pointer from the
+removed node.
+
+This only updates sequential references to this node. We must
+also do a pass over the list to update anybody who had the
+removed node as a relative link. See UpdateRels().
+
+The output is starting to become nice now:
+
+      ID VA_orig  VA_new   ->rel instruction
+      -- -------  ------   ----- -----------
+  3331C8       0       0       0 nop 
+  333238  4029AE       0       0 push ebp
+  333288  4029D9       0       0 mov ebp , esp
+  3332D8  402616       0       0 add esp , FFFFFF48h
+  ...
+
+STEP 4: REMOVE INC/DEC
+----------------------------------------------------------------
+Simple, it's just like removing jmp's, except two nodes are
+removed at once. And two passes must be made over the list to
+update possible relative links.
+
+STEP 5: ASSIGN NEW VIRTUAL ADDRESSES
+----------------------------------------------------------------
+Easy, just assign the address at the start of the obfuscation
+region. The next available address is the current address plus
+the length of the current instruction.
+
+      ID VA_orig  VA_new   ->rel instruction
+      -- -------  ------   ----- -----------
+  3331C8       0       0       0 nop 
+  333238  4029AE       0       0 push ebp
+  333288  4029D9       0       0 mov ebp , esp
+  3332D8  402616       0       0 add esp , FFFFFF48h
+  ...
+
+STEP 6: ADJUST CALLS
+----------------------------------------------------------------
+we moved call instructions, but did not remove the destination
+of the calls (they were outside of the obfuscated region). But
+we know the new address of the call instruction and the address
+of its target. So we just pass over the list and adjust calls
+with the calculation:
+
+  int adjamt = (int)curr->VA_orig - curr->VA_new;
+  *(int *)(curr->instrBytes + 1) += adjamt;
+
+STEP 7: ADJUST JCC
+----------------------------------------------------------------
+Same as adjusting calls, but the difference between the two
+instructions is found by looking at the VA_new members of the
+jcc node and the jcc's target node:
+
+  int delta = (int)curr->rel->VA_new - (curr->VA_new + 6); 
+  *(int *)(curr->instrBytes + 2) = delta;
+
+The "+ 6" is because these jcc's are 6 bytes long, and remember
+that the displacement is calculated from the first address AFTER
+the jcc.
+
+We now have some nice original code and IDA is naming call's!!
+
+.text:004019C8         nop
+.text:004019C9         push    ebp
+.text:004019CA         mov     ebp, esp
+.text:004019CC         add     esp, 0FFFFFF48h
+.text:004019D2         push    ebx
+.text:004019D3         push    esi
+.text:004019D4         push    edi
+.text:004019D5         mov     [ebp+var_50], edx
+.text:004019D8         mov     [ebp+var_4C], eax
+.text:004019DB         mov     eax, offset stru_49E3F4
+.text:004019E0         call    @__InitExceptBlockLDTC
+.text:004019E5         xor     edx, edx
+.text:004019E7         mov     [ebp+init0], edx
+.text:004019EA         mov     [ebp+init1], 1
+...
+
+See disassembly.txt for the full output! Or run the deobfuscator
+with "Jump Around.exe" in the current directory. It will produce
+"Jump Around_debof.exe" which youc an disassemble.
+
+KEYGENNING EASY MODE
+----------------------------------------------------------------
+The same code is called for easy and hard mode, but some logic
+decisions are made different:
+
+.text:00401A59         cmp     [ebp+var_50], 1  ; 2==hardcore
+.text:00401A5D         jnz     hardcore_mode    
+.text:00401A63 easy_mode:
+.text:00401A63         mov     [ebp+wtf], 3Ch
+
+The pseudocode for what it ends up doing is this:
+
+n = length(serial);
+for(i=0; i<n/2; ++i)
+{
+  if(serial[i] != serial[n-i] + i)
+  {
+    bad();
+  }
+}
+good();
+
+So you can think that for some string, each of the first half's
+characters has a twin on the other side. But the ascii value of
+that twin must be different by the current character's index.
+
+Example keys:
+ab
+aacb
+aaadcb
+aaaaedcb
+
+Keygen is obvious here...
+
+* MAKE SURE YOU DO NOT HAVE A NEWLINE IN THE 
+  INPUT BOX, ELSE YOUR KEY WILL BE  REJECTED *
+
+KEYGENNING HARDCORE MODE
+----------------------------------------------------------------
+It takes seven integer's separated by dashes, eg:
+
+dw1-dw2-dw3-dw4-dw5-dw6-dw7
+
+It computes 5000 angles like this:
+
+angle = .01 * dw7 + .001 x where x=[0...4999]
+
+Then it verifies that:
+
+dw1 * sin((dw3 * 2pi * angle) + (dw5 * pi * 5/900)) ==
+dw2 * cos((dw4 * 2pi * angle) + (dw6 * pi * 5/900))
+
+With added constraints:
+dwX != 0
+dw3 <= 0x1E
+dw4 <= 0x50
+
+Admittedly I wasted several hours thinking of ways to solve this
+when the identity sin(x + pi/2) = cos(x) is all that is needed.
+The signals&systems people would say that sin and cos are
+ninety degrees out of phase.
+
+So we can make dw1 == dw5 and just worry about the arguments to
+sin and cos:
+
+(dw3 * 2pi * angle) + (dw5 * pi * 5/900) == 
+(dw4 * 2pi * angle) + (dw6 * pi * 5/900) + pi/2 
+
+We can also choose dw3 == dw4:
+
+(dw5 * pi * 5/900) == (dw6 * pi * 5/900) + pi/2
+     (dw5 * 5/900) == (dw6 * 5/900) + 1/2 
+         (dw5 * 5) == (dw6 * 5) + 450 
+     5*(dw5 - dw6) == 450
+         dw5 - dw6 == 90
+
+Example keys:
+2-2-22-22-99-9-13
+8-8-23-23-116-26-16
+27-27-27-27-118-28-4
+20-20-10-10-95-5-17
+13-13-23-23-102-12-30
+3-3-27-27-103-13-10
+
+CONCLUSION
+----------------------------------------------------------------
+Tedious, but fun. Thanks Conjan.
+
+Special greets to a Swedish Jerry Springer fan!
+
+--
+andrewl, EL, BL

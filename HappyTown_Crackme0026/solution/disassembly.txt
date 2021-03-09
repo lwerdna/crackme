@@ -1,0 +1,511 @@
+.text:00401130 ; int __cdecl GetAndVerifySerial(HWND hDlg)
+.text:00401130 GetAndVerifySerial proc near            ; CODE XREF: WinMain(x,x,x,x)+81p
+.text:00401130
+.text:00401130 point3_         = dword ptr -390h
+.text:00401130 point2          = dword ptr -38Ch
+.text:00401130 point1_x        = dword ptr -388h
+.text:00401130 point2_x        = dword ptr -384h
+.text:00401130 calc2           = dword ptr -380h
+.text:00401130 last_x          = dword ptr -37Ch
+.text:00401130 calc1           = dword ptr -378h
+.text:00401130 point1          = dword ptr -374h
+.text:00401130 numhash         = dword ptr -370h
+.text:00401130 p               = dword ptr -36Ch
+.text:00401130 var_368         = dword ptr -368h
+.text:00401130 b               = dword ptr -364h
+.text:00401130 a               = dword ptr -360h
+.text:00401130 serial          = byte ptr -35Ch
+.text:00401130 var_35B         = byte ptr -35Bh
+.text:00401130 part1           = byte ptr -2F8h
+.text:00401130 var_2F7         = byte ptr -2F7h
+.text:00401130 name            = byte ptr -294h
+.text:00401130 var_293         = byte ptr -293h
+.text:00401130 part2           = byte ptr -230h
+.text:00401130 var_22F         = byte ptr -22Fh
+.text:00401130 hash_bytes      = byte ptr -1CCh
+.text:00401130 var_1CB         = byte ptr -1CBh
+.text:00401130 var_168         = byte ptr -168h
+.text:00401130 hDlg            = dword ptr  4
+.text:00401130
+.text:00401130                 sub     esp, 390h
+.text:00401136                 push    ebx
+.text:00401137                 push    ebp
+.text:00401138                 push    esi
+.text:00401139                 push    edi
+.text:0040113A                 mov     ecx, 18h
+.text:0040113F                 xor     eax, eax
+.text:00401141                 lea     edi, [esp+3A0h+var_1CB]
+.text:00401148                 mov     [esp+3A0h+hash_bytes], 0
+.text:00401150                 rep stosd
+.text:00401152                 stosw
+.text:00401154                 push    10h
+.text:00401156                 push    320h
+.text:0040115B                 stosb
+.text:0040115C                 call    sub_401D40
+.text:00401161                 mov     ebp, eax
+.text:00401163                 mov     ecx, 18h
+.text:00401168                 xor     eax, eax
+.text:0040116A                 lea     edi, [esp+3A8h+var_293]
+.text:00401171                 mov     [esp+3A8h+name], 0
+.text:00401179                 mov     [esp+3A8h+serial], 0
+.text:0040117E                 rep stosd
+.text:00401180                 stosw
+.text:00401182                 stosb
+.text:00401183                 mov     ecx, 18h
+.text:00401188                 xor     eax, eax
+.text:0040118A                 lea     edi, [esp+3A8h+var_35B]
+.text:0040118E                 mov     [esp+3A8h+part1], 0
+.text:00401196                 rep stosd
+.text:00401198                 stosw
+.text:0040119A                 stosb
+.text:0040119B                 mov     ecx, 18h
+.text:004011A0                 xor     eax, eax
+.text:004011A2                 lea     edi, [esp+3A8h+var_2F7]
+.text:004011A9                 mov     [esp+3A8h+part2], 0
+.text:004011B1                 rep stosd
+.text:004011B3                 stosw
+.text:004011B5                 stosb
+.text:004011B6                 mov     ecx, 18h
+.text:004011BB                 xor     eax, eax
+.text:004011BD                 lea     edi, [esp+3A8h+var_22F]
+.text:004011C4                 mov     esi, [esp+3A8h+hDlg]
+.text:004011CB                 rep stosd
+.text:004011CD                 stosw
+.text:004011CF                 mov     ebx, ds:GetDlgItemTextA
+.text:004011D5                 add     esp, 8
+.text:004011D8                 stosb
+.text:004011D9                 lea     eax, [esp+3A0h+name]
+.text:004011E0                 push    65h             ; cchMax
+.text:004011E2                 push    eax             ; lpString
+.text:004011E3                 push    3E8h            ; nIDDlgItem
+.text:004011E8                 push    esi             ; hDlg
+.text:004011E9                 call    ebx ; GetDlgItemTextA
+.text:004011EB                 lea     edi, [esp+3A0h+name]
+.text:004011F2                 or      ecx, 0FFFFFFFFh
+.text:004011F5                 xor     eax, eax
+.text:004011F7                 repne scasb
+.text:004011F9                 not     ecx
+.text:004011FB                 dec     ecx
+.text:004011FC                 cmp     ecx, 3          ; strlen(name) >= 3
+.text:004011FF                 jb      fail            ;
+.text:004011FF                                         ;
+.text:00401205                 lea     edi, [esp+3A0h+name]
+.text:0040120C                 or      ecx, 0FFFFFFFFh
+.text:0040120F                 repne scasb
+.text:00401211                 not     ecx
+.text:00401213                 dec     ecx
+.text:00401214                 cmp     ecx, 18h
+.text:00401217                 ja      fail            ; strlen(name) <= 18h
+.text:00401217                                         ;
+.text:0040121D                 lea     ecx, [esp+3A0h+serial]
+.text:00401221                 push    65h             ; cchMax
+.text:00401223                 push    ecx             ; lpString
+.text:00401224                 push    3E9h            ; nIDDlgItem
+.text:00401229                 push    esi             ; hDlg
+.text:0040122A                 call    ebx ; GetDlgItemTextA
+.text:0040122C                 lea     edx, [esp+3A0h+serial]
+.text:00401230                 push    2Dh             ; Val
+.text:00401232                 push    edx             ; Str
+.text:00401233                 call    _strchr
+.text:00401238                 add     esp, 8
+.text:0040123B                 test    eax, eax
+.text:0040123D                 jz      fail            ; look for a dash
+.text:0040123D                                         ;
+.text:00401243                 mov     cl, [esp+3A0h+serial]
+.text:00401247                 cmp     cl, 2Dh
+.text:0040124A                 jz      short loc_40125F
+.text:0040124C                 xor     eax, eax
+.text:0040124E
+.text:0040124E loc_40124E:                             ; CODE XREF: GetAndVerifySerial+12Dj
+.text:0040124E                 mov     [esp+eax+3A0h+part1], cl ; get part1
+.text:00401255                 mov     cl, [esp+eax+3A0h+var_35B]
+.text:00401259                 inc     eax
+.text:0040125A                 cmp     cl, 2Dh
+.text:0040125D                 jnz     short loc_40124E ; get part1
+.text:0040125F
+.text:0040125F loc_40125F:                             ; CODE XREF: GetAndVerifySerial+11Aj
+.text:0040125F                 lea     eax, [esp+3A0h+serial]
+.text:00401263                 push    2Dh             ; Val
+.text:00401265                 push    eax             ; Str
+.text:00401266                 call    _strchr
+.text:0040126B                 lea     ecx, [esp+3A8h+serial]
+.text:0040126F                 add     esp, 8
+.text:00401272                 sub     eax, ecx        ; len of first part?
+.text:00401274                 mov     cl, [esp+eax+3A0h+serial]
+.text:00401278                 test    cl, cl
+.text:0040127A                 lea     eax, [esp+eax+3A0h+serial]
+.text:0040127E                 jz      short loc_401295
+.text:00401280                 lea     ecx, [esp+3A0h+part2]
+.text:00401287
+.text:00401287 loc_401287:                             ; CODE XREF: GetAndVerifySerial+163j
+.text:00401287                 mov     dl, [eax+1]
+.text:0040128A                 mov     [ecx], dl
+.text:0040128C                 mov     dl, [eax+1]
+.text:0040128F                 inc     ecx
+.text:00401290                 inc     eax
+.text:00401291                 test    dl, dl
+.text:00401293                 jnz     short loc_401287
+.text:00401295
+.text:00401295 loc_401295:                             ; CODE XREF: GetAndVerifySerial+14Ej
+.text:00401295                 lea     edi, [esp+3A0h+part1]
+.text:0040129C                 or      ecx, 0FFFFFFFFh
+.text:0040129F                 xor     eax, eax
+.text:004012A1                 repne scasb
+.text:004012A3                 not     ecx
+.text:004012A5                 dec     ecx             ; len of part1
+.text:004012A6                 jz      fail            ;
+.text:004012A6                                         ;
+.text:004012AC                 lea     edi, [esp+3A0h+part2]
+.text:004012B3                 or      ecx, 0FFFFFFFFh
+.text:004012B6                 repne scasb
+.text:004012B8                 not     ecx
+.text:004012BA                 dec     ecx
+.text:004012BB                 jz      fail            ; len part2
+.text:004012BB                                         ;
+.text:004012C1                 mov     al, [esp+3A0h+part1]
+.text:004012C8                 test    al, al
+.text:004012CA                 jz      short loc_401317
+.text:004012CC                 lea     esi, [esp+3A0h+part1]
+.text:004012D3
+.text:004012D3 loc_4012D3:                             ; CODE XREF: GetAndVerifySerial+1E3j
+.text:004012D3                 mov     eax, dword_410F80
+.text:004012D8                 mov     edi, 1
+.text:004012DD                 cmp     eax, edi
+.text:004012DF                 jle     short loc_4012F4
+.text:004012E1                 movsx   eax, byte ptr [esi]
+.text:004012E4                 push    80h             ; Type
+.text:004012E9                 push    eax             ; C
+.text:004012EA                 call    __isctype
+.text:004012EF                 add     esp, 8
+.text:004012F2                 jmp     short loc_401305
+.text:004012F4 ; ---------------------------------------------------------------------------
+.text:004012F4
+.text:004012F4 loc_4012F4:                             ; CODE XREF: GetAndVerifySerial+1AFj
+.text:004012F4                 movsx   ecx, byte ptr [esi]
+.text:004012F7                 mov     edx, lookup_thing
+.text:004012FD                 mov     al, [edx+ecx*2]
+.text:00401300                 and     eax, 80h
+.text:00401305
+.text:00401305 loc_401305:                             ; CODE XREF: GetAndVerifySerial+1C2j
+.text:00401305                 test    eax, eax
+.text:00401307                 jz      fail
+.text:0040130D                 mov     al, [esi+1]
+.text:00401310                 inc     esi
+.text:00401311                 test    al, al
+.text:00401313                 jnz     short loc_4012D3
+.text:00401315                 jmp     short loc_40131C
+.text:00401317 ; ---------------------------------------------------------------------------
+.text:00401317
+.text:00401317 loc_401317:                             ; CODE XREF: GetAndVerifySerial+19Aj
+.text:00401317                 mov     edi, 1
+.text:0040131C
+.text:0040131C loc_40131C:                             ; CODE XREF: GetAndVerifySerial+1E5j
+.text:0040131C                 mov     al, [esp+3A0h+part2]
+.text:00401323                 test    al, al
+.text:00401325                 jz      short loc_40136A
+.text:00401327                 lea     esi, [esp+3A0h+part2]
+.text:0040132E
+.text:0040132E loc_40132E:                             ; CODE XREF: GetAndVerifySerial+238j
+.text:0040132E                 cmp     dword_410F80, edi
+.text:00401334                 jle     short loc_401349
+.text:00401336                 movsx   eax, byte ptr [esi]
+.text:00401339                 push    80h             ; Type
+.text:0040133E                 push    eax             ; C
+.text:0040133F                 call    __isctype
+.text:00401344                 add     esp, 8
+.text:00401347                 jmp     short loc_40135A
+.text:00401349 ; ---------------------------------------------------------------------------
+.text:00401349
+.text:00401349 loc_401349:                             ; CODE XREF: GetAndVerifySerial+204j
+.text:00401349                 movsx   ecx, byte ptr [esi]
+.text:0040134C                 mov     edx, lookup_thing
+.text:00401352                 mov     al, [edx+ecx*2]
+.text:00401355                 and     eax, 80h
+.text:0040135A
+.text:0040135A loc_40135A:                             ; CODE XREF: GetAndVerifySerial+217j
+.text:0040135A                 test    eax, eax
+.text:0040135C                 jz      fail
+.text:00401362                 mov     al, [esi+1]
+.text:00401365                 inc     esi
+.text:00401366                 test    al, al
+.text:00401368                 jnz     short loc_40132E ; just verifies serial is in range 0123456789ABCDEFabcdef
+.text:0040136A
+.text:0040136A loc_40136A:                             ; CODE XREF: GetAndVerifySerial+1F5j
+.text:0040136A                 push    2982h
+.text:0040136F                 mov     dword ptr [ebp+234h], 10h
+.text:00401379                 call    _mirvar
+.text:0040137E                 push    3408h
+.text:00401383                 mov     [esp+3A8h+a], eax
+.text:00401387                 call    _mirvar
+.text:0040138C                 push    0
+.text:0040138E                 mov     [esp+3ACh+b], eax
+.text:00401392                 call    _mirvar
+.text:00401397                 push    0
+.text:00401399                 mov     [esp+3B0h+p], eax
+.text:0040139D                 call    _mirvar
+.text:004013A2                 push    0
+.text:004013A4                 mov     esi, eax
+.text:004013A6                 call    _mirvar
+.text:004013AB                 push    0
+.text:004013AD                 mov     ebp, eax
+.text:004013AF                 call    _mirvar
+.text:004013B4                 push    0
+.text:004013B6                 mov     edi, eax
+.text:004013B8                 call    _mirvar
+.text:004013BD                 push    0
+.text:004013BF                 mov     [esp+3C0h+numhash], eax
+.text:004013C3                 call    _mirvar
+.text:004013C8                 push    0
+.text:004013CA                 mov     ebx, eax
+.text:004013CC                 call    _mirvar
+.text:004013D1                 push    0
+.text:004013D3                 mov     [esp+3C8h+calc1], eax
+.text:004013D7                 call    _mirvar
+.text:004013DC                 push    0
+.text:004013DE                 mov     [esp+3CCh+calc2], eax
+.text:004013E2                 call    _mirvar
+.text:004013E7                 push    0
+.text:004013E9                 mov     [esp+3D0h+last_x], eax
+.text:004013ED                 call    _mirvar
+.text:004013F2                 push    0
+.text:004013F4                 mov     [esp+3D4h+point1_x], eax
+.text:004013F8                 call    _mirvar
+.text:004013FD                 mov     [esp+3D4h+point2_x], eax
+.text:00401401                 mov     eax, [esp+3D4h+p]
+.text:00401405                 push    offset aAebf94cee3e707 ; "AEBF94CEE3E707"
+.text:0040140A                 push    eax
+.text:0040140B                 call    _cinstr
+.text:00401410                 push    offset aAebf94d5c6aa71 ; "AEBF94D5C6AA71"
+.text:00401415                 push    esi
+.text:00401416                 call    _cinstr
+.text:0040141B                 mov     ecx, [esp+3E4h+point1_x]
+.text:0040141F                 add     esp, 44h
+.text:00401422                 push    offset a7a3e808599a525 ; "7A3E808599A525"
+.text:00401427                 push    ecx
+.text:00401428                 call    _cinstr
+.text:0040142D                 mov     edx, [esp+3A8h+point2_x]
+.text:00401431                 push    offset a9f70a02013bc9b ; "9F70A02013BC9B"
+.text:00401436                 push    edx
+.text:00401437                 call    _cinstr
+.text:0040143C                 mov     eax, [esp+3B0h+p]
+.text:00401440                 mov     ecx, [esp+3B0h+b]
+.text:00401444                 mov     edx, [esp+3B0h+a]
+.text:00401448                 push    0
+.text:0040144A                 push    eax
+.text:0040144B                 push    ecx
+.text:0040144C                 push    edx
+.text:0040144D                 call    ecurve_init     ;
+.text:0040144D                                         ;
+.text:00401452                 call    _epoint_init
+.text:00401457                 mov     [esp+3C0h+point1], eax
+.text:0040145B                 call    _epoint_init
+.text:00401460                 mov     [esp+3C0h+point3_], eax
+.text:00401464                 call    _epoint_init
+.text:00401469                 mov     [esp+3C0h+point2], eax ;
+.text:00401469                                         ;
+.text:0040146D                 mov     eax, [esp+3C0h+point1]
+.text:00401471                 push    eax
+.text:00401472                 mov     eax, [esp+3C4h+point1_x]
+.text:00401476                 push    0
+.text:00401478                 push    eax
+.text:00401479                 push    eax
+.text:0040147A                 call    epoint_set      ;
+.text:0040147A                                         ;
+.text:0040147F                 mov     ecx, [esp+3D0h+point2]
+.text:00401483                 mov     eax, [esp+3D0h+point2_x]
+.text:00401487                 push    ecx
+.text:00401488                 push    0
+.text:0040148A                 push    eax
+.text:0040148B                 push    eax
+.text:0040148C                 call    epoint_set      ;
+.text:0040148C                                         ;
+.text:00401491                 add     esp, 40h
+.text:00401494                 lea     edx, [esp+3A0h+part1]
+.text:0040149B                 push    edx
+.text:0040149C                 push    ebp
+.text:0040149D                 call    _cinstr
+.text:004014A2                 lea     eax, [esp+3A8h+part2]
+.text:004014A9                 push    eax
+.text:004014AA                 push    edi
+.text:004014AB                 call    _cinstr
+.text:004014B0                 push    esi
+.text:004014B1                 push    ebp
+.text:004014B2                 call    _compare        ; part1 and 2 cannot be equal
+.text:004014B7                 add     esp, 18h
+.text:004014BA                 cmp     eax, 0FFFFFFFFh
+.text:004014BD                 jnz     fail
+.text:004014C3                 push    esi
+.text:004014C4                 push    edi
+.text:004014C5                 call    _compare
+.text:004014CA                 add     esp, 8
+.text:004014CD                 cmp     eax, 0FFFFFFFFh
+.text:004014D0                 jnz     fail            ; neither part1 nor part2 can be equal
+.text:004014D0                                         ; to 00AEBF94D5C6AA71
+.text:004014D0                                         ;
+.text:004014D6                 lea     ecx, [esp+3A0h+var_168]
+.text:004014DD                 push    ecx
+.text:004014DE                 call    _shs_init
+.text:004014E3                 mov     al, [esp+3A4h+name]
+.text:004014EA                 add     esp, 4
+.text:004014ED                 test    al, al
+.text:004014EF                 jz      short loc_40151F
+.text:004014F1                 lea     edx, [esp+3A0h+name]
+.text:004014F8                 mov     [esp+3A0h+var_368], edx
+.text:004014FC
+.text:004014FC loc_4014FC:                             ; CODE XREF: GetAndVerifySerial+3EDj
+.text:004014FC                 movsx   eax, al
+.text:004014FF                 lea     ecx, [esp+3A0h+var_168]
+.text:00401506                 push    eax
+.text:00401507                 push    ecx
+.text:00401508                 call    shs_process     ; Unnamed sample library
+.text:0040150D                 mov     eax, [esp+3A8h+var_368]
+.text:00401511                 add     esp, 8
+.text:00401514                 inc     eax
+.text:00401515                 mov     [esp+3A0h+var_368], eax
+.text:00401519                 mov     al, [eax]
+.text:0040151B                 test    al, al
+.text:0040151D                 jnz     short loc_4014FC
+.text:0040151F
+.text:0040151F loc_40151F:                             ; CODE XREF: GetAndVerifySerial+3BFj
+.text:0040151F                 lea     edx, [esp+3A0h+hash_bytes]
+.text:00401526                 lea     eax, [esp+3A0h+var_168]
+.text:0040152D                 push    edx
+.text:0040152E                 push    eax
+.text:0040152F                 call    _shs_hash
+.text:00401534                 mov     ecx, [esp+3A8h+numhash]
+.text:00401538                 lea     edx, [esp+3A8h+hash_bytes]
+.text:0040153F                 push    ecx
+.text:00401540                 push    edx
+.text:00401541                 push    14h
+.text:00401543                 call    bytes2big       ;
+.text:00401543                                         ;
+.text:00401548                 push    edi             ; part2
+.text:00401549                 push    edi
+.text:0040154A                 push    edi
+.text:0040154B                 push    esi
+.text:0040154C                 push    edi
+.text:0040154D                 call    _xgcd           ;
+.text:0040154D                                         ;
+.text:00401552                 push    ebx             ; <- gets inverse
+.text:00401553                 push    edi
+.text:00401554                 call    mr_copy_maybe   ;
+.text:00401554                                         ;
+.text:00401559                 mov     eax, [esp+3D0h+calc1]
+.text:0040155D                 mov     ecx, [esp+3D0h+numhash]
+.text:00401561                 push    eax
+.text:00401562                 push    esi
+.text:00401563                 push    esi
+.text:00401564                 push    ebx
+.text:00401565                 push    ebx
+.text:00401566                 push    ecx
+.text:00401567                 call    _mad            ;
+.text:00401567                                         ;
+.text:0040156C                 mov     edx, [esp+3E8h+calc2]
+.text:00401570                 add     esp, 48h
+.text:00401573                 push    edx
+.text:00401574                 push    esi
+.text:00401575                 push    esi
+.text:00401576                 push    ebx
+.text:00401577                 push    ebx
+.text:00401578                 push    ebp
+.text:00401579                 call    _mad            ;
+.text:00401579                                         ;
+.text:0040157E                 mov     eax, [esp+3B8h+point3_]
+.text:00401582                 mov     ecx, [esp+3B8h+point2]
+.text:00401586                 mov     edx, [esp+3B8h+calc2]
+.text:0040158A                 push    eax             ; point3
+.text:0040158B                 mov     eax, [esp+3BCh+point1]
+.text:0040158F                 push    ecx             ; point2
+.text:00401590                 mov     ecx, [esp+3C0h+calc1]
+.text:00401594                 push    edx             ; calc2
+.text:00401595                 push    eax             ; point1
+.text:00401596                 push    ecx             ; calc1
+.text:00401597                 call    ecurve_mult2    ;
+.text:00401597                                         ;
+.text:0040159C                 mov     edx, [esp+3CCh+point3_]
+.text:004015A0                 push    edx
+.text:004015A1                 call    is_point_at_infinity
+.text:004015A6                 add     esp, 30h
+.text:004015A9                 cmp     eax, 1
+.text:004015AC                 jz      fail            ;
+.text:004015AC                                         ;
+.text:004015B2                 mov     eax, [esp+3A0h+last_x]
+.text:004015B6                 push    eax
+.text:004015B7                 push    eax
+.text:004015B8                 mov     eax, [esp+3A8h+point3_]
+.text:004015BC                 push    eax
+.text:004015BD                 call    epoint_get      ;
+.text:004015BD                                         ;
+.text:004015C2                 mov     ecx, [esp+3ACh+last_x]
+.text:004015C6                 push    ecx
+.text:004015C7                 push    ebp
+.text:004015C8                 call    _compare
+.text:004015CD                 add     esp, 14h
+.text:004015D0                 test    eax, eax
+.text:004015D2                 jnz     fail            ;
+.text:004015D2                                         ;
+.text:004015D8                 mov     edx, [esp+3A0h+a]
+.text:004015DC                 push    edx             ; lpMem
+.text:004015DD                 call    _mirkill
+.text:004015E2                 mov     eax, [esp+3A4h+b]
+.text:004015E6                 push    eax             ; lpMem
+.text:004015E7                 call    _mirkill
+.text:004015EC                 mov     ecx, [esp+3A8h+p]
+.text:004015F0                 push    ecx             ; lpMem
+.text:004015F1                 call    _mirkill
+.text:004015F6                 push    esi             ; lpMem
+.text:004015F7                 call    _mirkill
+.text:004015FC                 push    ebx             ; lpMem
+.text:004015FD                 call    _mirkill
+.text:00401602                 mov     edx, [esp+3B4h+calc1]
+.text:00401606                 push    edx             ; lpMem
+.text:00401607                 call    _mirkill
+.text:0040160C                 mov     eax, [esp+3B8h+calc2]
+.text:00401610                 push    eax             ; lpMem
+.text:00401611                 call    _mirkill
+.text:00401616                 push    ebp             ; lpMem
+.text:00401617                 call    _mirkill
+.text:0040161C                 push    edi             ; lpMem
+.text:0040161D                 call    _mirkill
+.text:00401622                 mov     ecx, [esp+3C4h+numhash]
+.text:00401626                 push    ecx             ; lpMem
+.text:00401627                 call    _mirkill
+.text:0040162C                 mov     edx, [esp+3C8h+point1_x]
+.text:00401630                 push    edx             ; lpMem
+.text:00401631                 call    _mirkill
+.text:00401636                 mov     eax, [esp+3CCh+point2_x]
+.text:0040163A                 push    eax             ; lpMem
+.text:0040163B                 call    _mirkill
+.text:00401640                 mov     ecx, [esp+3D0h+last_x]
+.text:00401644                 push    ecx             ; lpMem
+.text:00401645                 call    _mirkill
+.text:0040164A                 mov     edx, [esp+3D4h+point1]
+.text:0040164E                 push    edx             ; lpMem
+.text:0040164F                 call    sub_403280
+.text:00401654                 mov     eax, [esp+3D8h+point2]
+.text:00401658                 push    eax             ; lpMem
+.text:00401659                 call    sub_403280
+.text:0040165E                 mov     ecx, [esp+3DCh+point3_]
+.text:00401662                 push    ecx             ; lpMem
+.text:00401663                 call    sub_403280
+.text:00401668                 add     esp, 40h
+.text:0040166B                 call    sub_402510
+.text:00401670                 pop     edi
+.text:00401671                 pop     esi
+.text:00401672                 pop     ebp
+.text:00401673                 mov     eax, 1
+.text:00401678                 pop     ebx
+.text:00401679                 add     esp, 390h
+.text:0040167F                 retn
+.text:00401680 ; ---------------------------------------------------------------------------
+.text:00401680
+.text:00401680 fail:                                   ; CODE XREF: GetAndVerifySerial+CFj
+.text:00401680                                         ; GetAndVerifySerial+E7j ...
+.text:00401680                 pop     edi
+.text:00401681                 pop     esi
+.text:00401682                 pop     ebp
+.text:00401683                 xor     eax, eax
+.text:00401685                 pop     ebx
+.text:00401686                 add     esp, 390h
+.text:0040168C                 retn
+.text:0040168C GetAndVerifySerial endp

@@ -1,0 +1,267 @@
+(f4.254): Illegal instruction - code c000001d (first chance)
+STATUS_ILLEGAL_INSTRUCTION
+
+Initial illegal instruction, SEH creates CRCThread, returns to main thread after
+the UD2 instruction. The CRCThread is given, as an argument, the location of the 
+context structure that the SEH will use to set the main thread's context when it
+returns.
+
+(f4.254): Access violation - code c0000005 (first chance)
+STATUS_ACCESS_VIOLATION
+
+Caused by main thread.
+The SEH signals CRCThread by setting MSB in Context control flags. 
+
+(f4.7bc): Single step exception - code 80000004 (first chance)
+STATUS_SINGLE_STEP
+
+CRCThread did this when finished summing the bytes.
+SEH skips over int 3, zeroes CRCThread's ECX, and unsets its trap flag:
+CRCThread now waits for signal from SEH stuck in servicing the main thread's access violation.
+
+(f4.7bc): Single step exception - code 80000004 (first chance)
+STATUS_SINGLE_STEP
+
+CRCThread caused this because it finished modifying the context record of the main thread in
+the SEH's scope: decrementing the ECX and setting EAX to the sum of the bytes.
+It then looped around again, summing bytes, and waiting for the next signal from SEH so that
+it can modify the context again.
+SEH, meanwhile, got signalled that CRCThread was done, and used the byte sum to mix the DRX
+registers in the main thread's context, then returned.
+Servicing of access violation 0 is done.
+
+(f4.254): Access violation - code c0000005 (first chance)
+STATUS_ACCESS_VIOLATION
+
+Servicing of access violation 1 starts.
+SEH signals to CRCThread to sum the bytes.
+
+(f4.7bc): Single step exception - code 80000004 (first chance)
+STATUS_SINGLE_STEP
+
+CRCThread is done and looped back around.
+SEH, having got the signal that CRCThread is complete, mixed DrX again and returned control
+to the main thread.
+Servicing of access violation 1 is done.
+
+(774.7e4): Access violation - code c0000005 (first chance)
+CRACKME HANDLES STATUS_ACCESS_VIOLATION
+(774.510): Single step exception - code 80000004 (first chance)
+CRACKME HANDLES STATUS_SINGLE_STEP
+
+Servicing of access violation 2 done.
+
+(774.7e4): Access violation - code c0000005 (first chance)
+CRACKME HANDLES STATUS_ACCESS_VIOLATION
+(774.510): Single step exception - code 80000004 (first chance)
+CRACKME HANDLES STATUS_SINGLE_STEP
+
+Servicing of access violation 3 done.
+
+(774.7e4): Access violation - code c0000005 (first chance)
+CRACKME HANDLES STATUS_ACCESS_VIOLATION
+(774.510): Single step exception - code 80000004 (first chance)
+CRACKME HANDLES STATUS_SINGLE_STEP
+
+Servicing of access violation 4 done.
+
+(774.7e4): Access violation - code c0000005 (first chance)
+CRACKME HANDLES STATUS_ACCESS_VIOLATION
+(774.510): Single step exception - code 80000004 (first chance)
+CRACKME HANDLES STATUS_SINGLE_STEP
+
+Servicing of access violation 5 done.
+
+(774.7e4): Access violation - code c0000005 (first chance)
+CRACKME HANDLES STATUS_ACCESS_VIOLATION
+(774.510): Single step exception - code 80000004 (first chance)
+CRACKME HANDLES STATUS_SINGLE_STEP
+
+Servicing of access violation 6 done.
+
+(774.7e4): Access violation - code c0000005 (first chance)
+CRACKME HANDLES STATUS_ACCESS_VIOLATION
+(774.510): Single step exception - code 80000004 (first chance)
+CRACKME HANDLES STATUS_SINGLE_STEP
+
+Servicing of access violation 7 done.
+
+(774.7e4): Access violation - code c0000005 (first chance)
+CRACKME HANDLES STATUS_ACCESS_VIOLATION
+(774.510): Single step exception - code 80000004 (first chance)
+CRACKME HANDLES STATUS_SINGLE_STEP
+
+Servicing of access violation 8 done.
+
+(774.7e4): Access violation - code c0000005 (first chance)
+CRACKME HANDLES STATUS_ACCESS_VIOLATION
+(774.510): Single step exception - code 80000004 (first chance)
+CRACKME HANDLES STATUS_SINGLE_STEP
+
+Servicing of access violation 9 done.
+
+(774.7e4): Access violation - code c0000005 (first chance)
+CRACKME HANDLES STATUS_ACCESS_VIOLATION
+(774.510): Single step exception - code 80000004 (first chance)
+CRACKME HANDLES STATUS_SINGLE_STEP
+
+Servicing of access violation 10 done.
+
+(774.7e4): Access violation - code c0000005 (first chance)
+CRACKME HANDLES STATUS_ACCESS_VIOLATION
+(774.510): Single step exception - code 80000004 (first chance)
+CRACKME HANDLES STATUS_SINGLE_STEP
+
+Servicing of access violation 11 done.
+
+(774.7e4): Access violation - code c0000005 (first chance)
+CRACKME HANDLES STATUS_ACCESS_VIOLATION
+(774.510): Single step exception - code 80000004 (first chance)
+CRACKME HANDLES STATUS_SINGLE_STEP
+
+Servicing of access violation 12 done.
+
+(774.7e4): Access violation - code c0000005 (first chance)
+CRACKME HANDLES STATUS_ACCESS_VIOLATION
+(774.510): Single step exception - code 80000004 (first chance)
+CRACKME HANDLES STATUS_SINGLE_STEP
+
+Servicing of access violation 13 done.
+
+(774.7e4): Access violation - code c0000005 (first chance)
+CRACKME HANDLES STATUS_ACCESS_VIOLATION
+(774.510): Single step exception - code 80000004 (first chance)
+CRACKME HANDLES STATUS_SINGLE_STEP
+
+Servicing of access violation 14 done.
+
+(774.7e4): Access violation - code c0000005 (first chance)
+CRACKME HANDLES STATUS_ACCESS_VIOLATION
+(774.7e4): Access violation - code c0000005 (first chance)
+CRACKME HANDLES STATUS_ACCESS_VIOLATION
+
+SEH detects that 16 passes have happened.
+SEH repositions main thread for 16 more access violations, and marks
+the second round by decrementing EDI.
+SEH copies [dr0..dr2] to &dwords[5]+dwords[4]
+SEH sets [dr0..dr3] = to [dword5..dword7] from file
+
+(774.7e4): Access violation - code c0000005 (first chance)
+CRACKME HANDLES STATUS_ACCESS_VIOLATION
+(774.510): Single step exception - code 80000004 (first chance)
+CRACKME HANDLES STATUS_SINGLE_STEP
+
+Servicing of access violation 0 done.
+
+(774.7e4): Access violation - code c0000005 (first chance)
+CRACKME HANDLES STATUS_ACCESS_VIOLATION
+(774.510): Single step exception - code 80000004 (first chance)
+CRACKME HANDLES STATUS_SINGLE_STEP
+
+Servicing of access violation 1 done.
+
+(774.7e4): Access violation - code c0000005 (first chance)
+CRACKME HANDLES STATUS_ACCESS_VIOLATION
+(774.510): Single step exception - code 80000004 (first chance)
+CRACKME HANDLES STATUS_SINGLE_STEP
+
+Servicing of access violation 2 done.
+
+(774.7e4): Access violation - code c0000005 (first chance)
+CRACKME HANDLES STATUS_ACCESS_VIOLATION
+(774.510): Single step exception - code 80000004 (first chance)
+CRACKME HANDLES STATUS_SINGLE_STEP
+
+Servicing of access violation 3 done.
+
+(774.7e4): Access violation - code c0000005 (first chance)
+CRACKME HANDLES STATUS_ACCESS_VIOLATION
+(774.510): Single step exception - code 80000004 (first chance)
+CRACKME HANDLES STATUS_SINGLE_STEP
+
+Servicing of access violation 4 done.
+
+(774.7e4): Access violation - code c0000005 (first chance)
+CRACKME HANDLES STATUS_ACCESS_VIOLATION
+(774.510): Single step exception - code 80000004 (first chance)
+CRACKME HANDLES STATUS_SINGLE_STEP
+
+Servicing of access violation 5 done.
+
+(774.7e4): Access violation - code c0000005 (first chance)
+CRACKME HANDLES STATUS_ACCESS_VIOLATION
+(774.510): Single step exception - code 80000004 (first chance)
+CRACKME HANDLES STATUS_SINGLE_STEP
+
+Servicing of access violation 6 done.
+
+(774.7e4): Access violation - code c0000005 (first chance)
+CRACKME HANDLES STATUS_ACCESS_VIOLATION
+(774.510): Single step exception - code 80000004 (first chance)
+CRACKME HANDLES STATUS_SINGLE_STEP
+
+Servicing of access violation 7 done.
+
+(774.7e4): Access violation - code c0000005 (first chance)
+CRACKME HANDLES STATUS_ACCESS_VIOLATION
+(774.510): Single step exception - code 80000004 (first chance)
+CRACKME HANDLES STATUS_SINGLE_STEP
+
+Servicing of access violation 8 done.
+
+(774.7e4): Access violation - code c0000005 (first chance)
+CRACKME HANDLES STATUS_ACCESS_VIOLATION
+(774.510): Single step exception - code 80000004 (first chance)
+CRACKME HANDLES STATUS_SINGLE_STEP
+
+Servicing of access violation 9 done.
+
+(774.7e4): Access violation - code c0000005 (first chance)
+CRACKME HANDLES STATUS_ACCESS_VIOLATION
+(774.510): Single step exception - code 80000004 (first chance)
+CRACKME HANDLES STATUS_SINGLE_STEP
+
+Servicing of access violation 10 done.
+
+(774.7e4): Access violation - code c0000005 (first chance)
+CRACKME HANDLES STATUS_ACCESS_VIOLATION
+(774.510): Single step exception - code 80000004 (first chance)
+CRACKME HANDLES STATUS_SINGLE_STEP
+
+Servicing of access violation 11 done.
+
+(774.7e4): Access violation - code c0000005 (first chance)
+CRACKME HANDLES STATUS_ACCESS_VIOLATION
+(774.510): Single step exception - code 80000004 (first chance)
+CRACKME HANDLES STATUS_SINGLE_STEP
+
+Servicing of access violation 12 done.
+
+(774.7e4): Access violation - code c0000005 (first chance)
+CRACKME HANDLES STATUS_ACCESS_VIOLATION
+(774.510): Single step exception - code 80000004 (first chance)
+CRACKME HANDLES STATUS_SINGLE_STEP
+
+Servicing of access violation 13 done.
+
+(774.7e4): Access violation - code c0000005 (first chance)
+CRACKME HANDLES STATUS_ACCESS_VIOLATION
+(774.510): Single step exception - code 80000004 (first chance)
+CRACKME HANDLES STATUS_SINGLE_STEP
+
+Servicing of access violation 14 done.
+
+(774.7e4): Access violation - code c0000005 (first chance)
+CRACKME HANDLES STATUS_ACCESS_VIOLATION
+(774.510): Single step exception - code 80000004 (first chance)
+CRACKME HANDLES STATUS_SINGLE_STEP
+
+Servicing of access violation 15 done.
+SEH detects that this is the last one.
+SEH increments EIP of main thread by 2.
+SEH copies [dr0..dr2] to &dwords[9]+dwords[8]
+SEH sets main thread EAX to dwords[9]
+
+(774.7e4): Access violation - code c0000005 (first chance)
+CRACKME HANDLES STATUS_ACCESS_VIOLATION
+CRACKME HANDLES STATUS_SINGLE_STEP

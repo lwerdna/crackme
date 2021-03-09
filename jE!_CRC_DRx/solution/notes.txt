@@ -1,0 +1,45 @@
+
+ExitProcess locations:
+bp 004030CF
+bp 00403362
+bp 0040313b     
+bp 0040319b     
+
+bp 004030C5
+
+sxr
+sxn sse
+sxn -h sse
+sxn ii
+sxn -h ii
+sxn av
+sxn -h av
+eb kernel32!ExitProcess EB FE
+bp 00403198 ".echo CRACKME HANDLES STATUS_ACCESS_VIOLATION; g"
+bp 004031E0 ".echo (MIXING DEBUG REGISTERS); g"
+bp 0040324E ".echo LAST EXCEPTION!; g"
+bp 004032EB ".echo CRACKME HANDLES STATUS_SINGLE_STEP; g"
+bp 00403304 ".echo CRACKME HANDLES STATUS_BREAKPOINT; g"
+bp 00403138 ".echo CRACKME HANDLES STATUS_ILLEGAL_INSTRUCTION; g"
+
+
+sxr
+eb kernel32!ExitProcess EB FE
+sxn av
+sxn -h av
+sxn sse
+sxn -h sse
+bp 00403304 ".echo CRACKME HANDLES STATUS_BREAKPOINT"
+bp 00403198 ".echo CRACKME HANDLES STATUS_ACCESS_VIOLATION"
+bp 004032EB ".echo CRACKME HANDLES STATUS_SINGLE_STEP"
+bp 00403138 ".echo CRACKME HANDLES STATUS_ILLEGAL_INSTRUCTION"
+
+
+
+
+
+
+eb kernel32!ExitProcess EB FE
+sxi av
+sxi sse
+bp 0040311e "dd ecx L1; g"

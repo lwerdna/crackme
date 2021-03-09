@@ -1,0 +1,417 @@
+Keygenning MR.HAANDI's "Intersection #1.0" 
+
+----------------------------------------------------------------------
+INTRO
+----------------------------------------------------------------------
+
+The crackme is very large; we are faced with probably a theme of
+future targets: those built on large programmer-friendly (but not
+reverser friendly) libs. Here it is NTL (look at strings).
+
+We are given a few clues at the start from the crackme comments:
+
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  MR.HAANDI:
+  "firstly, the validation routine is long, but you soon will notice 
+   recurrent structures and label them appropriately"
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  MR.HAANDI:
+  "\"Furthermore[,] the arithmetics Library\"" I use is a open source
+  one, and if you know which compiler I use (it is obvious) you can
+  generate files which identify all the instructions and label them
+  for you; the rest is some math and I think one should have seen
+  elliptic curve crypto in action in order to understand what is going
+  on ;)"
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  divinomas:
+  "I think it would be easier to figure out the weakness after knowing
+  which coordinate system for elliptic curve used in this crackme."
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+I thought it was generally accepted that IDA signatures are
+unreliable on large OOP libs like NTL and Crypto++. Please contact
+me if you have good methods to automatically identify code from such
+libs. Anyways, we know already that it is something to do with
+elliptic curves, and not your familiar ones. Scared? :)
+
+Here's the approach:
+
+1) identify what you can, try to get a sense of what is occurring
+   (look at strings, download NTL, compare code, look at arguments,
+    look at memory, do whatever you can)
+2) to facilitate this, make convenient methods to trace the behavior
+   (here I made WinDBG plugin to read polynomial, large integer, and
+    ecc point from memory, see .\ntlext\ for code and binary)
+3) try to emulate what the target does at a higher level
+   (I used pari/gp because you can very quickly enter numbers, poly's,
+    nearly anything number-theoretic ... you can make quick tests,
+    programs, scripts)
+4) keygen it!!
+
+This is level 8, so I'll cover only the high level parts. Details
+of minor sub operations like how the serial is encoded, how ECC points
+are converted to numbers, and how ECC points are hashed are contained
+in the keygen.
+
+You need familiarity with NTL's way of naming things:
+http://www.shoup.net/ntl/doc/tour-struct.html
+
+And some PARI/GP commands will be here, so maybe read:
+http://www.math.u-bordeaux.fr/~belabas/pari/doc/
+
+Also reference the files:
+keygen.cpp - keygen source
+keygen.gp - PARI/GP that fully emulates crackme
+trace.txt - full walkthrough of verification of provided serial
+
+I'm sorry ahead of time for any mistakes here; please expect them and
+contact me if you find any.
+
+----------------------------------------------------------------------
+FIRST CLUES TO THE STRUCTURE
+----------------------------------------------------------------------
+
+You will see that the MD5(name) is converted to a number, and this
+number is divided by 2, and also tested whether it is even or odd.
+If it is odd, extra steps are taken in addition to when it is even.
+This is a major clue towards the "exponentiation by squaring"
+algorithm. Of course in the additive group of ECC points, its
+better said "multiplication by doubling".
+
+If you zoom out in IDA's tree view, you can clearly see 5 of these.
+
+We can expect then that the odd case does some type of addition, and
+the even (fall thru) case updates the running value of the square, so
+probably point doubling.
+
+It's very difficult to trace, because of many constructors/destructors
+being called to make/destroy temporary values. Concentrate!
+
+If you use WinDBG, the included extension is very powerful combined
+with basic scripting. Here's how I watch entire first point multiply
+in real time:
+  
+  bp 00408BB9 ".echo result initialized to:; g"
+  bp 00408BCA "!poly poi eax; g"
+  bp 00408BDB "!poly poi eax; g"
+  bp 00408BEC "!poly poi eax; g"
+  bp 00408BFD "!poly poi eax; g"
+
+  bp 00408C30 ".echo result initialized to [0,1,1,1]; g"
+
+  bp 00408D3B ".echo updating runner to:; g"
+  bp 00408DA5 "!poly poi eax; g"
+  bp 00408F21 "!poly poi eax; g"
+  bp 004090FB "!poly poi eax; g"
+  bp 004092D5 "!poly poi eax; g"
+
+  bp 004093F3 ".echo doing add! result is:; g"
+  bp 00409566 "!poly poi eax; g"
+  bp 0040968F "!poly poi eax; g"
+  bp 004097D0 "!poly poi eax; g"
+  bp 00409901 "!poly poi eax; g"
+
+----------------------------------------------------------------------
+OK, REAL WORK NOW
+----------------------------------------------------------------------
+
+- elements are from extension field F_{p^6}
+  p = 4294967291
+  m = x^6 + 2072661367*x^5 + 135070006*x^4 + 373083325*x^3 + 
+            1522639780*x^2 + 319151251*x^1 + 401877261
+
+- ECC points are 4-tuples of these elements
+
+- two points travel thru the algorithm, but are random
+  - see GenerateAB() for details
+  - name them PointA, PointB
+
+- patch GetTickCount() at 40E711 with "xor eax, eax; dec eax"
+  - for the provided name, serial:
+    PointA:
+    2842271803*x^5 + 131690647*x^4 + 4156969949*x^3 + 3746455294*x^2 + 628579242*x + 2361017629
+    4016367385*x^5 + 2329238747*x^4 + 2260841201*x^3 + 3385008325*x^2 + 3614064443*x + 117428241
+    3437718441*x^5 + 1450895703*x^4 + 3918476104*x^3 + 2086868649*x^2 + 1638612588*x + 1441414064
+    2995270019*x^5 + 3695742188*x^4 + 4144697843*x^3 + 2445042676*x^2 + 1982063046*x + 998991137
+    PointB:
+    3989364853*x^5 + 115724639*x^4 + 284217963*x^3 + 3664906030*x^2 + 4104504421*x + 1908119556
+    419593291*x^5 + 142358558*x^4 + 1719332116*x^3 + 853685456*x^2 + 2600068677*x + 43331810
+    1919090511*x^5 + 3817636701*x^4 + 3326742980*x^3 + 1380461678*x^2 + 2832482354*x + 2782252193
+    1777791494*x^5 + 2792368212*x^4 + 1862492839*x^3 + 2006547967*x^2 + 4096141700*x + 2286909155
+
+- tracing these 4-tuples through operations, make a pari sketch of the
+  "add" and "double" sections from the guessed exponentiation-by-
+  squaring:
+
+      2*A*B*C*D % m;
+      ( + (B*C)^2 + (B*D)^2 - (C*D)^2 ) % m;
+      ( + (B*C)^2 - (B*D)^2 + (C*D)^2 ) % m;
+      ( - (B*C)^2 + (B*D)^2 + (C*D)^2 ) % m;
+
+      (b*c*A*D + b*D*a*C) % m;
+      (-a*c*A*C + B*d*b*D) % m;
+      (-2951558829*a*b*A*B + c*d*D*C) % m;
+      ((c * A)^2 + (d * B)^2) % m;
+
+- found formula match here:
+  http://www.hyperelliptic.org/EFD/g1p/auto-jintersect-standard.html
+  http://en.wikipedia.org/wiki/Jacobian_curve
+
+      S3 = 2*C1*Z1*D1*S1
+      C3 = (C1*Z1)^2 - (D1*Z1)^2 + (C1*D1)^2
+      D3 = (D1*Z1)^2 - (C1*Z1)^2 + (C1*D1)^2
+      Z3 = (D1*Z1)^2 + (C1*Z1)^2 - (C1*D1)^2
+
+      S3 = Z1*C2*S1*D2 + D1*S2*C1*Z2
+      C3 = Z1*C2*C1*Z2 - D1*S2*S1*D2
+      D3 = Z1*D1*Z2*D2 - a*S1*C1*S2*C2
+      Z3 = (Z1*C2)^2 + (D1*S2)^2
+
+  "The Jacobi curve can be of two types: the Jacobi intersection, that
+   is given by an intersection of two surfaces, and the Jacobi quartic."
+
+  "intersection" !!!
+
+- abridged algorithm:
+   
+                                                    +--------+
+         B ---------------------------------------> |PointMul|
+                                                    |        |
+                 +--------+       +---+    +---+    |        |
+ MD5(name) ----> |PointMul| -+--> |MD5| -> |MD5| -> |        |
+                 |        |  |    +---+    +---+    +--------+ 
+         A -+--> |        |  |                          |
+            |    |        |  |                          V
+            |    +--------+  |                      +--------+
+            |                |    +-------+         |PointAdd|
+            |                +--> |Compare| <------ |        |
+            |    +--------+       +-------+         |        |
+            +--> |PointMul|                         |        |
+                 | (x3)*  |                         +--------+
+   serial^3 ---> |        |                             ^
+                 |        |-----------------------------+
+                 +--------+
+
+  - the comparison between points is slightly more complicated in code
+    - points are normalized, hashes taken, compared
+
+  - * PointMul(PointA, serial^3) is calculated with:
+    PointMul(PointMul(PointMul(PointA,serial),serial),serial)
+
+- in formula form, it checks that:
+
+  serial^3 * PointA + zzMd5PointA * PointB == MD5(name)*PointA
+
+  where:
+  zzMd5PointA = ZZ(MD5(MD5(ZZ(MD5(name)) * PointA)))
+
+----------------------------------------------------------------------
+SOLVING THE DLP
+----------------------------------------------------------------------
+
+- Hasse's theorem shows that order of curve group is near the order of
+  the underlying field
+
+- DLP solvers would take O(sqrt(p^6)) = O(p^3) time, infeasible!
+
+- if we assume PointB = k * PointA for some k, point check formula is:
+  serial^3 * PointA + zzMd5PointA * k * PointA == MD5(name)*PointA
+
+- using group structure, this means:
+  serial^3 + zzMd5PointA * k = MD5(name) (mod #E)
+
+- we can intercept all but k during execution of provided name/serial
+- can we solve? no, we don't have yet #E....
+
+----------------------------------------------------------------------
+GETTING #E
+----------------------------------------------------------------------
+
+- here we find nice formula to convert to Weierstrass form:
+  http://www.hyperelliptic.org/EFD/oldefd/intersection.html
+
+  "A Jacobi intersection s^2 + c^2 = 1, a s^2 + d^2 = 1 is birationally
+   equivalent to the Weierstrass-form elliptic curve y^2 = x^3 + 
+   (2-a)x^2 + (1-a)x."
+
+  a = 2951558829
+  E = ellinit([0,2-a,0,1-a,0]);
+
+- find the order if the curve were over the ground field F_p:
+
+  p = 4294967291;
+
+  since #E(F_p) = p + 1 - a_p;
+  #E(F_p) = p+1-ellap(E,p) = 4294967293;
+
+- using Theorem 3.11 from the "Guide To Elliptic Curve Cryptography" we
+  can extend this finding to count the points on the same curve over
+  the extension F_{p^6}:
+
+  "Theorem3.11 Let E be an ellipticcurve de?ned over F_q, and let
+   #E(F_q) = q +1-t. Then #E(F_{q^n}) = qn + 1 - V_n for all n >= 2,
+   where {V_n} is the sequence defined recursively by V0 = 2, V1 = t,
+   and V_n = V_1*V_n-1 - q*V_n-2 for n >= 2."
+
+   v = vector(7); \\ pari vectors are 1-based
+   v[1] = 2;
+   v[2] = ellap(E,p); 
+   for(i=3,7,v[i]=v[2]*v[i-1]-p*v[i-2]);
+   order = p^6 + 1 - v[7];
+         = 6277101691541631771514589274537095444965829925704648637200
+
+----------------------------------------------------------------------
+SOLVING THE DLP (CONTINUED)
+----------------------------------------------------------------------
+
+- intercept values values during execution of given name/serial
+
+       serial = 18225923690521628478004036645069549649647;
+    zzMd5Name = 2418411290696412;
+  zzMd5PointA = 5619858642284813;
+
+  serial^3 + zzMd5PointA * dlp = zzMd5Name (mod order)
+  dlp = (zzMd5Name - serial^3)*zzMd5PointA^-1 (mod order)
+  dlp = 5352592015460708129232383406001784565224127295383978899153
+
+- verify this with PrintPoint(PointMul(PointA,dlp)) vs. PointB
+
+----------------------------------------------------------------------
+HELP FROM SUBGROUPS
+----------------------------------------------------------------------
+  
+- PointA is part of a subgroup (maybe the trivial entire group), let o
+  be its order
+  - then o*PointA = 0 (identity)
+
+- by Lagrange theorem, we know that the subgroup size divides #E, so
+  we can simply multiply PointA by factors of #E to test candidate o's
+
+  fordiv(order,o,if(IsIdentity(PointMul(PointA,o)),print(o)))
+  1073750771
+
+- surely you're curious now about PointB's order right?
+
+  fordiv(order,o,if(IsIdentity(PointMul(PointB,o)),print(o)))
+  1073750771
+
+- the same! I think only one subgroup can be of a given size in this
+  group, so these two are neighbors in this subgroup
+
+- since o*PointA = PointA notice that if k*PointA = PointB
+  -> (o+o+...+o+k)*PointA = k*((o+o+...+o)*PointA) = k*PointA = PointB
+
+- thus our DLP is reducible (mod o)
+
+  DLP % 1073750771
+  314159265
+
+  - like this number? I think this was meant to be found! 2 days late!
+
+- also, this reduced DLP is totally brutable by trial multiplication,
+  a nice favor from the author (so we could have trial multiplied by
+  PointA to find the DLP)
+
+- verify PrintPoint(PointMul(PointA,DLP % 1073750771)) vs. PointB
+
+----------------------------------------------------------------------
+BUT WHAT ABOUT POINTA AND POINTB BEING RANDOM?
+----------------------------------------------------------------------
+
+- see GenerateAB() in intersection.gp for the reversed algorithm
+- due to projective coordinates, multiplication by a field elements
+  affects the projective representation, but not the normalized form
+
+  - consider multiplying (X/Z, Y/Z, T/Z, Z) by some scalar s
+  - at normalizing, the new X,Y,Z locations will have the effect of s
+    undone when they are multiplied by (sZ)^-1
+
+- the MD5 of a point in this crackme operates only on the normalized
+  form, so we didn't lose any progress by patching GetTickCount()
+
+----------------------------------------------------------------------
+KEYGENNING
+----------------------------------------------------------------------
+
+- we must now solve for serial in the cubic equation:
+  serial^3 + zzMd5PointA * DLP = zzMd5Name (mod order)
+
+- since order is composite, it will not always have solutions!
+
+- NTL's CanZass(), FindRoot(), and FindRoots() either crash or hang for
+  this equation, even when solution is possible... 
+  - idea to use CanZass() came from MR.HAANDI's solution to Luxor #3
+
+- will try these functions for each of #E's factors, and combine using
+  Chinese remainder theorem! -.-;;
+
+  factor(order)
+  [2 4] <-- brute for this composite
+  [5 3] <-- brute for this composite
+  [43 1] <-- solve with NTL from here downward
+  [349 1] <-- ...
+  [619 1]
+  [1453 1]
+  [13877 1]
+  [161911 1]
+  [224671873 1]
+  [1073750771 1]
+  [428997622167797533 1]
+
+- FindRoot() and FindRoots() hang when there is no solution, but CanZass()
+  returns the unfactored input
+
+- when there is no solution, we can change the coefficient on the X^0
+  term because:
+
+  DLP * PointA = PointB
+  (order_subgroup + DLP) * PointA = PointB
+  (2*order_subgroup + DLP) * PointA = PointB
+  ...
+  (k*order_subgroup + DLP) * PointA = PointB
+
+- so just try to solve, if some solution is not possible for one of
+  #E's factors, add another order_subgroup to the X^0 term's coefficient
+  and try again!
+
+- when solutions are found, CRT it together!
+- encode serial!
+- example keys:
+
+  name: MR.HAANDI
+serial: 3h0eThP8WRUwLJ03kqh9cjrwZPQuVE8eV
+
+  name: crackmes.de
+serial: 4ovTV21gJWoop8JJSkN0sEYrapGfFmwZx
+
+  name: andrewl
+serial: 2KCuuikBx5HK21iEXM0bhshHeafKfRqDJ
+
+----------------------------------------------------------------------
+CONCLUSION
+----------------------------------------------------------------------
+
+I was commenting to Numernia today that crackmes.de is held together
+and remains good due to some select talented people that make good,
+well-thought challenges. This is one of those. Big gratitude to
+Mr.HAANDI.
+
+Hello from the past to EL,BL!
+
+--
+andrewl
+mar16_2010
+http://crackmes.de
+
+
+
+
+
+
+
+
+
+  
+  
+
+- 

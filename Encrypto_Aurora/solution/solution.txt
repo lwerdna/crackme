@@ -1,0 +1,123 @@
++--------------------------------------------------------------+
+  WHAT: Solution to Encrypto's "Aurora" KeygenMe
+  WHEN: September 12, 2009
+  PROT: CRC32, custom block cipher, Nyberg Rueppel
+ TOOLS: IDA, FGInt sigs (unknown origin), Olly, WinDBG
+   WHO: numernia, cyclops, andrewl
++--------------------------------------------------------------+
+
+start
+-----
+- sub_00452698 is highest level serial processing routine
+
+serial check
+------------
+- format: "AAAA+BBBB"
+- A and B are encoded bytes (base 32 (5 bits/char) with alphabet
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567")
+  - see encode() in keygen src
+- A must decode to 4 dwords (32 bytes) a1,a2,a3,a4
+- B must decode to 4 dwords (32 bytes) b1,b2,b3,b4
+- sub_41D244() generates 128-bit encryption key from constant
+  string: "Creativity is the sudden cessation of stupidity." - 
+  Edwin Land
+  - constant key: {0x820E6467,0x79AE25F0,0x5BCB06E9,0xDB98265C}
+- a1,a2,a3,a4 = encrypt(a1,a2,a3,a4,key)
+- b1,b2,b3,b4 = encrypt(b1,b2,b3,b4,key)
+- encrypt function(0041D2F8) is custom Encrypto creation (presence of
+  golden ratio constant may mislead some scanners)
+  - argument is 8 dword array
+    - first four dwords is 128-bit plaintext
+    - second four dwords is 128-bit key
+  - see encrypt_blocks() and decrypt_blocks() in keygen src
+    for detailed information about the reversed cipher.
+- crc32 is taken of the name
+- the ax and bx variables then have some conditions checked:
+  a1 = crc32(name)
+  a2 = dividend % 0xD72A978F;
+  a3 = dividend % 0xD73C1CB5;
+  a4 = 0xD4804EB6 (constant, see @00452A49)
+  b1 = dividend (lo)
+  b2 = dividend (hi)
+  b3 = anything coprime with b4
+  b4 = anything coprime with b3
+
+serial keygen strategy
+----------------------
+set a4 = 0xD4804EB6
+set a1 = crc32(name)
+set b1,b2 = random dividend value
+set a2 = dividend % 0xD72A978F;
+set a3 = dividend % 0xD73C1CB5;
+set b3 = random
+set b4 = b3+1
+calculate a1,a2,a3,a4 = encrypt(a1,a2,a3,a4,key)
+calculate b1,b2,b3,b4 = encrypt(b1,b2,b3,b4,key)
+generate e1 = encode(a1,a2,a3,a4)
+generate e2 = encode(b1,b2,b3,b4)
+serial = "<e1>+<e2>"
+
+activation check
+----------------
+- format: "AAAA+BBBB"
+- A and B are encoded bytes (like serial)
+- decoded, the bytes are the ascii values of two base 10 text
+  strings which are converted to FGInt's, call them A and B
+- some large integers are initialized:
+
+    P	= 35644997503173803861 1EEAC785FB45C3F55
+    Q	= 01782249875158690193 18BBD2D195D16991 ( 20*q+1 = p )
+    G 	= 12173054097709124119 A8EF6034CD90CA17
+    Y	= 07207870055338908238 64077FA05BA69A4E"
+    A   = 00575425537858062691 07FC527A5AB7C963
+
+    The crackme performs the following:
+
+    g^B mod p = r1
+    y^-A mod p = r2
+    r1 = r1 * r2 * A
+    if(r1 == CRC(name))
+    good_boy();
+
+    In other words
+    if(g^B mod p * y^-A mod p * A == CRC(name))
+    good_boy();
+
+
+- sub_452238 is called with these numbers and A,B
+
+activation keygen strategy
+--------------------------
+
+    This is the Nyberg-Rueppel Cryptosystem
+    To generate valid serial for any M(crc name that is)
+    
+    1. Generate random k, 1 < k < q-1
+    2. Perform g^-k mod p = r
+    3. e = m*r mod p
+    4. s = a*e + k mod q
+    5. Encode e and s as A+B
+
+
+    Where a is the private key(g^a mod p = y)
+    a = 07FC527A5AB7C963
+
+example codes
+-------------
+  Name: Encrypto
+Serial: WVZ2T4GNWDIGVPNUBTUVELH6NE+U7RZDVWKSWHHVK6KAEDEBP2ISI
+ Activ: GIZDSNRXGQYDINZYGA4TQNBSGE3DCNI+GY3TKMZSG4YDMNBZGQ2TCMRYHAZDG
+
+  Name: crackmes.de
+Serial: SHGHFQHSFKPFBFYFPQOFELH6NE+DLQC5N26HZOH7CTVXNDIQAUPXY
+ Activ: GE2DKMBSGY2TONJVGEZTCOJQGMYDOMRV+HAZTAOJQGEZDANZZGY2TQMZUGQ4TE
+
+
+
+
+
+
+
+
+
+ 

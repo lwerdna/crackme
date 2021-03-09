@@ -1,0 +1,245 @@
+
+  +------------------------------------------------------------------------------------+
+  |                                                                                    |
+  | Crackme solution by andrewl - April 19th, 2009                                     |
+  |                                                                                    '
+  | Target: GiveMeMoney by ksc91u                                                      '
+  |  Tools: bigcalto,                                                                  '      
+  |         IDA scripts by igorsk                                                      .
+  |         IDA
+  |         WinDBG
+  |                                                                                    
+  |[----------------------------------------------------------------------------------]
+  |  INTRO                                                                             
+  |[----------------------------------------------------------------------------------]
+  |                                                                                         
+  |The crackme boasts private ECC cryptography, but even a noob comprehension of
+  |elliptic curves like my own is ok to make a keygen. The DLP does not even need to be
+  |attacked.
+  |
+  |The crackme is compiled with crypto++ (search some strings). It is a very high-level
+  |library and produces some nasty code that is difficult to follow sometimes at the
+  |assembly level. This accounts for a large portion of the crackme's difficulty.
+  |
+  |[----------------------------------------------------------------------------------]
+  |  Using IgorSK's Scripts
+  |[----------------------------------------------------------------------------------]
+  |
+  |I saw that the crackme was compiled with run-time type information (RTTI) so I did
+  |some googling and found igorsk's excellent series on openrce "Reversing Microsoft
+  |Visual C++" (http://www.openrce.org/articles/full_view/21).
+  |
+  |He also released some scripts that can parse some RTTI structures. When you run the
+  |scripts, you don't immediately see any results (honestly I probably don't even know
+  |the majority of what the scripts do!) but look at this code from the crackme:
+  |
+  |.text:0040488D         mov     byte ptr [ebp-4], 0Bh
+  |.text:00404891         mov     edi, esp
+  |.text:00404893         mov     [ebp-190h], esp
+  |.text:00404899         lea     ecx, [ebp-1F4h]
+  |.text:0040489F         push    ecx
+  |.text:004048A0         call    sub_42A590
+  |
+  |After the call, in eax is a pointer to a returned object on the stack, like
+  |0012eb7c... dumping from there:
+  |
+  |0012eb7c  00468128 KeyVal2+0x68128 <-- vtable for object
+  |0012eb80  00342d00
+  |0012eb84  00000004
+  |0012eb88  003445c0
+  |
+  |Now in IDA, look at 468128:
+  |
+  |.rdata:00468128 ??_7Integer@CryptoPP@@6BInteger@CryptoPP@@@
+  | ; const CryptoPP::Integer::`RTTI Complete Object Locator'{for `CryptoPP::Integer'}
+  | ; const CryptoPP::Integer::`vftable'{for `CryptoPP::Integer'}
+  |.rdata:00468128         dd offset sub_42A540
+  |.rdata:0046812C         dd offset sub_42B240
+  |.rdata:00468130         dd offset sub_42B180
+  |.rdata:00468134         dd offset sub_40DD50
+  |
+  |Wow! The script is very powerful! We may now guess sub_42A590 as some type of
+  |Integer constructor.
+  |
+  |Use this example to aid in identification of some other calls.
+  |
+  |[----------------------------------------------------------------------------------]
+  |  Recognising CryptoPP
+  |[----------------------------------------------------------------------------------]
+  |
+  |Straight to the source:
+  |
+  |http://www.cryptopp.com/docs/ref/
+  |
+  |Also I have reversed some necessary objects/structures:
+  |
+  |CryptoPP::Integer
+  |-----------------------------
+  |+00 vtable
+  |+04 ???
+  |+08 num dwords
+  |+0C the bytes of the quantity // little-end byte first
+  |+10 sign
+  |
+  |This is the most important one, as you will want to follow the value of Integer
+  |objects as calculations are made.
+  |
+  |CryptoPP::ECPPoint
+  |-----------------------------
+  |+00  ???
+  |+04  // cryptopp::integer (X coord)
+  |+08
+  |+0C
+  |+10
+  |+14  ???
+  |+18  // cryptopp::integer (Y coord)
+  |+1C
+  |+20
+  |+24
+  |
+  |CryptoPP::ECP
+  |-----------------------------
+  |+00 vtable
+  |+04 -> CryptoPP::ModularArithmetic
+  |+08  // cryptopp::Integer (A)
+  |+0C
+  |+10
+  |+14
+  |+18 ???
+  |+1C  // cryptopp::Integer (B)
+  |+20
+  |+24
+  |+28
+  |
+  |CryptoPP::ModularArithmetic
+  |-----------------------------
+  |+00 vtable
+  |+04 ???
+  |+08 ???
+  |+0C  // cryptopp::Integer (P)
+  |+10
+  |+14
+  |+18
+  |
+  |There's no surprise technique for identifying the CryptoPP functions: test functions
+  |with various inputs, compare to source code, and trace, trace, trace! I spent 95% of
+  |the time doing this. I couldn't make any effective IDA signatures.
+  |
+  |[----------------------------------------------------------------------------------]
+  |  The Algorithm
+  |[----------------------------------------------------------------------------------]
+  |
+  |The curve is the usual Y^3 = X^2 + A*X + B over a prime field Fp:
+  |
+  |                                   base 16               base 24
+  |                                   -------               -------
+  |A                                  7CE2B32DC975CB2CD7A3
+  |B                                  5C4FA534800984A831DF
+  |P                                  3BF5E3B76B1FCBB088A8B
+  |
+  |Your serial consists of 36 characters, encoding two numbers in base 24 with this
+  |alphabet "BCDFGHJKMPQRTVWXY2346789".
+  |
+  |The first number is the X coordinate of a point on the curve (the crackme verifies
+  |this by calculating the Y point). Let these be called (inX, inY). We will use one
+  |valid serial from the hints.txt file as an example:
+  |
+  |serial: 74Q9VWJ3YX73QD7VRWXVB483B3QQJH6QDH8H
+  |
+  |                                   base 16               base 24
+  |                                   -------               -------
+  |serial_a (inX)                     37bcf9f580d9b3c03c25d 74Q9VWJ3YX73QD7VRW
+  |serial_b                           16ce3094f2f25fbbe6347 XVB483B3QQJH6QDH8H
+  |
+  |Y coord for X=serial_a (inY)       22f9d9f8a2825aba5a37b
+  |
+  |The crackme then does point multiplication on the curve by a hardcoded scalar value
+  |which I have labeled G (not to be confused with a generator point).
+  |
+  |                                   base 16               base 24
+  |                                   -------               -------
+  |G                                  9a2786d35245da83eb6
+  |
+  |G*(inX, inY)                       2B00F3EF64C18DE45D10E,
+  |                                   21E095B83FD66EB84FC21
+  |
+  |The crackme then does a strange thing: it computes the inverse of the serial_b value
+  |modulo the result of the point multiplication G*(inX, inY).
+  |
+  |serial_b^-1(mod(G*(inX, inY)).X)   6efb6202cd9477d2738d
+  |
+  |The result then goes into some type of processing where a whirlpool hash and a
+  |blowfish key are derived and SampleDLL.dll is decrypted and the myFunc() function
+  |is resolved and called to print the good boy message.
+  |
+  |But if you trace other keys, you will noticed that the inverse is always this same
+  |6efb6202cd9477d2738d value!
+  |
+  |[----------------------------------------------------------------------------------]
+  |  The Algorithm, Abstracted
+  |[----------------------------------------------------------------------------------]
+  |
+  |Forgetting the elliptic curve and the inverse modulo stuff momentarily, we zoom out
+  |and view the scheme like this:
+  |
+  | many                                     one
+  | inputs!                                  input!
+  | ~~~~~~~                                  ~~~~~~
+  |          +-----------------------------+        +---------------------------------+
+  |serial -> | some math junk (reversible) | -----> | derive decryption key (one way) |
+  |          +-----------------------------+        +---------------------------------+
+  |
+  |Even if you could reverse the math junk all day, you'll never know what's required
+  |of the decryption key derivation to properly decrypt the file. So is this scheme
+  |unbreakable?
+  |
+  |Yes, until you have one valid key, at which point you know what the output of the
+  |math junk is, and the input to the key derivation phase is. You know now what all
+  |the serials get converted to in order to make the key derivation work properly.
+  |
+  |That one input is the 6efb6202cd9477d2738d value.
+  |
+  |[----------------------------------------------------------------------------------]
+  |  KeyGenning
+  |[----------------------------------------------------------------------------------]
+  |
+  |We can simply generate some point on the curve. A dirty way is to take some preset
+  |curve value (I used (DEADBEEFDEADBEEF, 2dc52dfe6888eb8599e22) and multiply it by a
+  |random scalar in the field (since 2^32 < P, I just use GetTickCount()). The X
+  |coordinate of this random point is the serial_a component.
+  |
+  |Point-multiply this by the hardcoded 9a2786d35245da83eb6 value.
+  |
+  |Now using the X coordinate of this result as the modulus, find what value has an
+  |inverse 6efb6202cd9477d2738d, this is the serial_b component.
+  |
+  |Again:
+  |
+  |(X, Y) = random curve point
+  |(X, Y) = 9a2786d35245da83eb6 * (X, Y)
+  |I = 6efb6202cd9477d2738d ^ -1 (mod X)
+  |serial: (X, I)
+  |
+  |See keygen.cpp for the implementation.
+  |
+  |[----------------------------------------------------------------------------------]
+  |  Conclusion
+  |[----------------------------------------------------------------------------------]
+  |
+  |I didn't clutter up this tutorial with disassembly; see disassembly.txt for the
+  |actual serial verification routine with comments/renames. Also the map file is
+  |included if you want to apply it to your own IDA listing.
+  |
+  |Thank you ksc91u, I learned alot!
+  |Thank you igorsk for sharing your brilliant scripts.
+  |
+  |Hello to E.L., Cyclops, Numernia, artif, +all active people keeping crackmes.de
+  |busy!
+  |
+  |Example serials:
+  |                                                                                    '
+  |79GRT4PTXT4W46J4HGPB99YXQKQDCDV342MJ                                                .
+  |H3Y3BYYVV4JXC79BGVV2D7XYDB2CDP46F2VF                                                .
+  |PB6BRY6Q8RC2VXD2PMC6RMVB4YBD8T6PD9VD                                                |
+  |YD36W3VB67BVF9GXRJ8K8BG8R26RBKRQ3WKD                                                |
+  +------------------------------------------------------------------------------------+

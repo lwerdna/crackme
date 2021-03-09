@@ -1,0 +1,289 @@
+
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  what: solution to "CrackMe v10.0" by ZeroCoder//XG
+  when: July 13th, 2009
+ tools: debug.exe, IDA, HxD
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+INTRO
+=====
+
+- challenge consists of two parts:
+  1) VM-like structure where the fetch/decode is done by single-step handler
+  2) hashing function calculates/verifies goodboy using crackme code and password as input
+
+PART1: VM REVERSING
+===================
+
+- VM data/pointer to instruction handlers @1C6
+- VM instruction fetch/execute is via trap handler
+
+start:
+    0C7E:0100 33C0          XOR     AX,AX
+    0C7E:0102 8EC0          MOV     ES,AX
+VM_setup:
+    0C7E:0104 BEC601        MOV     SI,01C6   <-- set VM EIP
+    0C7E:0107 26            ES:
+    0C7E:0108 8C0E0600      MOV     [0006],CS
+VM_fetch:
+    0C7E:010C AD            LODSW
+    0C7E:010D 26            ES:
+    0C7E:010E A30400        MOV     [0004],AX <-- trap handler = CS:011B
+    0C7E:0111 9C            PUSHF
+    0C7E:0112 58            POP     AX
+    0C7E:0113 0D0001        OR      AX,0100
+    0C7E:0116 50            PUSH    AX
+    0C7E:0117 9D            POPF              <-- set trap flag
+    0C7E:0118 90            NOP               <-- invoke handler
+
+- note that NOP is trapped instruction, but ret address to handler is 119
+- all instructions return to 121 (still in handler)
+- this modifies return address so on iret, IP = 119 - 0D = 10C (VM_fetch), see:
+
+VM_return:
+    0C7E:0121 8BEC          MOV     BP,SP
+    0C7E:0123 836E000D      SUB     WORD PTR [BP+00],+0D
+    0C7E:0127 C3            RET
+
+- debug.exe relies on int 1 and insertion of int 3
+- try to patch crackme so that it operates without int 1
+- pushf to emulate interrupt so that VM_return won't require modification
+
+    before                        after
+    ---------------------------   ---------------------------
+    0C7E:0107 ES:                 0C7E:0107 NOP
+    0C7E:0108 MOV     [0006],CS   0C7E:0108 NOP
+    0C7E:010C LODSW               0C7E:0109 NOP
+    0C7E:010D ES:                 0C7E:010A NOP
+    0C7E:010E MOV     [0004],AX   0C7E:010B NOP
+    0C7E:0111 PUSHF               0C7E:010C NOP
+    0C7E:0112 POP     AX          0C7E:010D NOP
+    0C7E:0113 OR      AX,0100     0C7E:010E NOP
+    0C7E:0116 PUSH    AX          0C7E:010F NOP
+    0C7E:0117 POPF                0C7E:0110 NOP
+    0C7E:0118 NOP                 0C7E:0111 NOP
+                                  0C7E:0112 NOP
+                                  0C7E:0113 NOP
+                                  0C7E:0114 NOP
+                                  0C7E:0115 LODSW
+                                  0C7E:0116 PUSHF
+                                  0C7E:0117 CALL    AX
+
+- see zrackme.com for patched executable
+- analyze VM, there are only a few instructions {checksum, nop, exit, print}
+- see disasm.cpp for disassembler, here is its abridged output:
+
+addr  operation                                                            comment
+----  ---------                                                            -------
+01C6: write string (0150) to stdout                                        print "CrackMe v10.0..."
+01CC: buffered input to (029C)                                             read password
+01D2: chksum dl=000B +byte[029C,02A6] ^word[0121,012B] -> [0294] 
+01E2: chksum dl=000C +byte[029C,02A7] ^word[0113,011E] -> [029A] 
+01F0: chksum dl=000D +byte[029A,02A6] ^word[0100,010C] -> [0298] 
+0200: chksum dl=0007 +byte[029F,02A5] ^word[0150,0156] -> [0296]           hash(serial) -> 294 area
+020E: write string (01AE) to stdout                                        print "\n\nStatus: "
+0218: chksum dl=0006 +byte[0296,029B] ^word[0294,0299] -> [01BF] 
+0226: chksum dl=0006 +byte[029C,02A1] ^word[0298,029D] -> [01C1] 
+0236: chksum dl=0006 +byte[0294,0299] ^word[0296,029B] -> [01C3] 
+0244: chksum dl=0006 +byte[01BF,01C4] ^word[0294,0299] -> [028E] (jz 025A) hash(294 area) -> goodboy msg
+0252: write string (01B9) to stdout                                        print "Fail."
+0258: exit                                                                 quit
+025A: chksum dl=0006 +byte[0294,0299] ^word[0296,029B] -> [0290] (jz 0270)
+0268: write string (01B9) to stdout                                        print "Fail."
+026E: exit                                                                 quit
+0270: chksum dl=0006 +byte[01BF,01C4] ^word[0296,029B] -> [0292] (jz 0286)
+027E: write string (01B9) to stdout                                        print "Fail."
+0284: exit                                                                 quit
+0286: write string (01BF) to stdout                                        goodboy, print computed message!
+028C: exit
+
+- logic/criteria to avoid "Fail." message is evident:
+  1) hashes(password, crackme) -> values at 294
+  2) hashes(values at 294) -> goodboy
+  3) hashes(values at 294, crackme) -> result in 0
+- details of hash mechanism are most important now
+- either diassemble, or view here equivalent C code:
+  WORD hash(PBYTE adders, PBYTE xors, UINT len) {
+      WORD answer=len;
+      for(UINT i=0;i<len;++i) {
+          *((PBYTE)&answer)+=adders[i];
+          answer^=*(PWORD)(xors+i);
+      }
+      return answer;
+  }
+- interleaving of add (nonlinear) and xor (linear) is classic confusion technique
+- output value is added to whatever bytes exist at the output address
+
+PART2: HASH BRUTING
+===================
+
+- categorizing the hash calculations:
+                                                                         label
+  Round0: hash(password buffer + password) = checksums                   -----
+    chksum dl=000B +byte[029C,02A6] ^word[0121,012B] -> [0294]           Round0_Equ0
+    chksum dl=000C +byte[029C,02A7] ^word[0113,011E] -> [029A]           Round0_Equ1 
+    chksum dl=000D +byte[029A,02A6] ^word[0100,010C] -> [0298]           Round0_Equ2
+    chksum dl=0007 +byte[029F,02A5] ^word[0150,0156] -> [0296]           Round0_Equ3
+  Round1: hash(checksums) = goodboy
+    chksum dl=0006 +byte[0296,029B] ^word[0294,0299] -> [01BF]           Round0_Equ0
+    chksum dl=0006 +byte[029C,02A1] ^word[0298,029D] -> [01C1]           Round0_Equ1
+    chksum dl=0006 +byte[0294,0299] ^word[0296,029B] -> [01C3]           Round0_Equ2
+  Round2: hash(checksums) = must result in 0
+    chksum dl=0006 +byte[01BF,01C4] ^word[0294,0299] -> [028E] (jz 025A) Round0_Equ0
+    chksum dl=0006 +byte[0294,0299] ^word[0296,029B] -> [0290] (jz 0270) Round0_Equ1
+    chksum dl=0006 +byte[01BF,01C4] ^word[0296,029B] -> [0292] (jz 0286) Round0_Equ2
+
+- inputs/outputs of the hash functions are scattered, overlap, and rely on one another! NASTY!
+- Ralph Brown's interrupt list for int 21h/AH=0A describes the in/out pw buff structure
+- attempt to cleanly map/name the in/out areas:
+  
+  output address   label                      initial values (words)
+  --------------   -----                      ----------------------
+  [100,1BE]        crackme                    <constant>
+  [1BF,1C4]        goodmsg                    A4A9 BA17 2C15
+  [1C5,28D]        crackme                    <constant>
+  [28E,293]        zsums                      3255 0BE7 0BCC
+  [294,29B]        checksums                  0000 0000 0000 0000
+  [29C]            crackme                    0B
+  [29D,2A8]        pw                         000B 0000 0000 0000 00000
+
+- graphically:
+                      INPUT                      OUTPUT
+           --------------------------   --------------------------
+           goodmsg zsums checksums pw   goodmsg zsums checksums pw
+           ------- ----- --------- --   ------- ----- --------- --
+Round0Equ0                          X                         X
+Round0Equ1                          X                         X
+Round0Equ2                       X  X                         X
+Round0Equ3                          X                         X
+Round1Equ0                       X            X
+Round1Equ1                       X  X         X
+Round1Equ2                       X            X
+Round2Equ0       X               X                  X
+Round2Equ1                       X                  X
+Round2Equ2       X               X                  X
+
+- password length not known, but max is 10 chars
+- resulting buffer is not CR-terminated (0x0D byte)
+- hash is not directly brutable, we must make some clever inferences first
+- the most important observation about the hash function:
+  1) the add is confined in the lo byte of the output word
+  2) thus, the hi byte of the output word is reliant then only upon xor'd values of the xor input pointer parameter
+  3) the fact that the final word is added to whatever word previously exists at the output kills the above
+     advantage, but for the checksums area, the initial values are 0's, so the addition is equivalently not
+     performed at all
+- using the hash observation, we can get Round0's equations to derive 4 of the 8 bytes of the checkums area:
+  [295] = 0x2B = [122]^[123]^[124]^[125]^[126]^[127]^[128]^[129]^[12A]^[12B]^[12C]
+  [297] = 0x70 = [151]^[152]^[153]^[154]^[155]^[156]^[157]
+  [299] = 0xDE = [101]^[102]^[103]^[104]^[105]^[106]^[107]^[108]^[109]^[10A]^[10B]^[10C]^[10D]
+  [29B] = 0xD6 = [114]^[115]^[116]^[117]^[118]^[119]^[11A]^[11B]^[11C]^[11D]^[11E]^[11F]
+- thus 294: XX 2B XX 70 XX DE XX D6
+- Round2 equations must store 0, and the initial values of the zsums area are known, so we can derive
+- <3255, 0BE7, 0BCC> + <CDAB, F419, F434> = <0, 0, 0>, thus
+  Round2Equ0 = CDAB
+  Round2Equ1 = F419
+  Round2Equ2 = F434
+- Notice Round1_EQu2 = Round2_Equ1 = F419
+- since [01C3] = 2C15, last two characters of goodboy are: F419 + 2C15 = 202E = ". "
+- to get the other checksum bytes, we brute
+- Round1 equations produce goodboy msg based on checksum, so we search for when ascii is produced... implemented in search0.cpp
+  results: "tr__. " or "lr__." or "Tr__. " or "Lr__." or "Dr__"
+- zerocoder has used "true" to indicate success in previous crackmes
+- cannot think of any positive 4-letter word starting with "lr" or "dr"
+- we'll pursue the capitalized "True" to mirror the "Fail" message
+- hold goodmsg area as "True. " and brute the remaining bytes @294: XX 2B XX 70 XX DE XX D6
+- Round1Equ0 must sum with [1BF]=A4A9 to yield 'rT'
+- Round1Equ1 must sum with [1C1]=BA17 to yield 'eu'
+- Round1Equ1 relies on byte of password length, so this gives us opportunity to guess this also
+- Round1Equ2 must sum with [1C3]=2C15 to yield ' .'
+- see search1.cpp for the implementation
+- started with guess of pw len 10 (maximum), after some hours we see:
+  ...
+  trying first char 'g'
+  trying first char 'h'
+  trying first char 'i'
+  Could be: 67 2B CF 70 4C DE CB D6
+- left to find what input password gets hashed to these checksums (Round0 equations)
+- search password space with the assumptions built so far:
+  1) bytes @294: 67 2B CF 70 4C DE CB D6
+  2) first character of pw is 'i'
+  3) pw len is 10
+- 10 characters is too large to brute (~95^10 passwords)
+- non-adequate diffusion in the hash calculations make an adaptive brute search feasible
+- pick some arbitrary password starting with 'i', say "iiiiiiiiii" and score it
+- score is simple: sum of displacements to target values
+- randomly change current password until score gets better
+- save better password as the current and repeat until score==0
+- implemented in search2.cpp
+- even had watchdog thread to restart the search to avoid "local minima"
+- doesn't converge on a solution!! (I tried overnight!)
+- new approach: out with random, in with more brute
+- produce the entire set of 1, 2, and 3-character variations of the current password, scoring each one
+- implemented in search3.cpp
+- my heart was beating faster than normal as it ran (someone put this nerd out of his misery!):
+
+  a new g-g-generation! (seed: iiiiiiiiii with score -1)
+  pass "i   iiiiii" has output {2B47 D67A DEC3 705D 1A26} (diff: 37522)
+  pass "i  !iiiiii" has output {2B3E D695 DEE3 7066 F52E} (diff: 19247)
+  pass "i  #iiiiii" has output {2B4C D6C3 DE53 7064 A3C2} (diff: 2097)
+  pass "i  $iiiiii" has output {2B43 D6C6 DE7B 7009 A666} (diff: 1558)
+  pass "i  Biiiiii" has output {2BE5 D6C8 DEF3 7003 A81A} (diff: 1336)
+  pass "i ! iiiiii" has output {2B3E D6C7 DE57 7098 A7C6} (diff: 1031)
+  pass "i $Oiiiiii" has output {2BBC D6CB DEBB 7074 AB62} (diff: 291)
+  pass "i (Siiiiii" has output {2B84 D6CB DE13 705C AB32} (diff: 245)
+  pass "i *Qiiiiii" has output {2B84 D6CB DE13 7070 AB46} (diff: 205)
+  pass "i .Uiiiiii" has output {2B8C D6CB DE4B 7058 AB56} (diff: 165)
+  pass "i =hiiiiii" has output {2B1A D6CB DE87 70C4 AB4E} (diff: 163)
+  pass "i H3iiiiii" has output {2B84 D6CB DE13 70DC AB32} (diff: 143)
+  pass "i L7iiiiii" has output {2B8C D6CB DE4B 70A4 AB52} (diff: 93)
+  pass "i N5iiiiii" has output {2B8C D6CB DE4B 70D8 AB56} (diff: 55)
+  pass "i!N6iiiiii" has output {2B7E D6CB DE4B 70DE AB56} (diff: 47)
+  pass "i+_1iiiiii" has output {2B6C D6CB DE5B 70DA AB5A} (diff: 35)
+  pass "iN=iiiipii" has output {2B66 D6CB DE45 70C8 AB5B} (diff: 18)
+  pass "iXiiifiOii" has output {2B6E D6CB DE4B 70CE AB57} (diff: 16)
+  pass "iiifiiQiHi" has output {2B68 D6CB DE4B 70CF AB6B} (diff: 15)
+  pass "iiiiPaJiii" has output {2B68 D6CB DE47 70CE AB5A} (diff: 11)
+  a new g-g-generation! (seed: iiiiPaJiii with score 11)
+  pass "iiiiPlFiJi" has output {2B68 D6CB DE47 70CF AB5A} (diff: 10)
+  a new g-g-generation! (seed: iiiiPlFiJi with score 10)
+  pass "isixOlFiJi" has output {2B66 D6CB DE4F 70CF AB63} (diff: 9)
+  pass "iiZ~LlFiJi" has output {2B66 D6CB DE4B 70CF AB62} (diff: 6)
+  a new g-g-generation! (seed: iiZ~LlFiJi with score 6)
+  pass "iiZ~LlFiGl" has output {2B65 D6CB DE4E 70CF AB5F} (diff: 5)
+  a new g-g-generation! (seed: iiZ~LlFiGl with score 5)
+  pass "iiX~LlF\Pl" has output {2B65 D6CB DE4C 70CE AB5F} (diff: 4)
+  a new g-g-generation! (seed: iiX~LlF\Pl with score 4)
+  pass "ijX~LlF]Pv" has output {2B65 D6CB DE4C 70CE AB5E} (diff: 3)
+  pass "ijX~LlF\Qt" has output {2B67 D6CB DE4C 70CF AB5E} (diff: 0)
+
+- wtf! it worked? enter "ijX~LlF\Qt" into crackme... it's accepted!! :)
+
+REVIEW
+======
+- recognised VM-type action by simulating what happens on that single-step
+- modified crackme to allow debugging, but preserving most of original crackme behavior
+- saw how the hash calculations were used to decide goodboy/badboy
+- saw small weakness in hash function -> can know what some checksum bytes are
+- bruted remaining checksum bytes to see which ascii goodboys are produced -> picked "TrXX. "
+- bruted remaining checksum bytes + pw length + first pw char to see which produced goodboy "True. "
+- bruted (adaptively) a string that hashes to those checksum bytes
+
+OUTRO
+=====
+
+Congratulations zerocoder, you've produced quite an (big word! big word!) ENIGMATIC
+crackme. Not shown here are MANY other searcher type programs made, all failing due
+mostly my errors in the bookkeeping required (exactly what bytes a particular hash
+calculation takes as input/produces as output). I gave on this crackme completely
+several times, coming back after about a week break each time :( :(
+
+List of names: E.L.,numernia,cyclops,obnoxious,dihux,artif,upb,indomit,jbadger,
+               simonzack,pusher,ultrasnord,trevil
+
+Thanks for reading!
+
+andrewl
+crackmes.de
+July 13, 2009
+
+
